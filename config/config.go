@@ -4,10 +4,11 @@ package config
 
 import (
 	"fmt"
-	"github.com/fluent/fluent-bit-go/output" // Import the necessary Fluent Bit package
-	"github.com/y-scope/fluent-bit-clp/internal/utils"
 	"log"
 	"unsafe"
+
+	"github.com/fluent/fluent-bit-go/output"
+	"github.com/y-scope/fluent-bit-clp/internal/utils"
 )
 
 // Defines settings for s3 clp plugin
@@ -21,9 +22,10 @@ type S3Config struct {
 // Generates configuration struct
 //
 // Parameters:
-// 	- plugin: fluent-bit plugin reference
+//   - plugin: fluent-bit plugin reference
+//
 // Returns:
-// 	- S3Config: configuration based on fluent-bit.conf
+//   - S3Config: configuration based on fluent-bit.conf
 func S3New(plugin unsafe.Pointer) *S3Config {
 	id, err := getValueFLBConfig(plugin, "Id")
 	utils.CheckFatal(err)
@@ -45,11 +47,12 @@ func S3New(plugin unsafe.Pointer) *S3Config {
 // Retrieves individuals values from fluent-bit.conf
 //
 // Parameters:
-// 	- plugin: fluent-bit plugin reference
-// 	- configKey: key from fluent-bit.conf
+//   - plugin: fluent-bit plugin reference
+//   - configKey: key from fluent-bit.conf
+//
 // Returns:
-// 	- configValue:
-//  - err: blank value
+//   - configValue
+//   - err: blank value
 func getValueFLBConfig(plugin unsafe.Pointer, configKey string) (string, error) {
 	configValue := output.FLBPluginConfigKey(plugin, configKey)
 

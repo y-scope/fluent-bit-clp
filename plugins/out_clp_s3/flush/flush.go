@@ -4,7 +4,6 @@ package flush
 import (
 	"C"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,18 +11,20 @@ import (
 
 	"github.com/fluent/fluent-bit-go/output"
 	"github.com/y-scope/fluent-bit-clp/config"
-	"github.com/y-scope/fluent-bit-clp/error"
+	"github.com/y-scope/fluent-bit-clp/internal/utils"
 )
+
 // flushes data to file
 //
 // Parameters:
-// 	- data: msgpack data
-// 	- length: byte length
-// 	- tag: fluent-bit tag
-//  - S3Config: configuration based on fluent-bit.conf
+//   - data: msgpack data
+//   - length: byte length
+//   - tag: fluent-bit tag
+//   - S3Config: configuration based on fluent-bit.conf
+//
 // Returns:
-//  - err: error flushing data
-func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) (error) {
+//   - err: error flushing data
+func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) error {
 
 	fullFilePath := filepath.Join(config.Path, config.File)
 
@@ -60,14 +61,15 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 		// temporary change so writes to file
 		// code will be deleted
 		_, err = f.WriteString(fmt.Sprintf("[%d] %s: [%s, {", count, tag, timestamp.String()))
-		checkPrint(err)
+		utils.CheckPrint(err)
 
 		for k, v := range record {
 			_, err = f.WriteString(fmt.Sprintf("\"%s\": %v, ", k, v))
-			checkPrint(err)
+			utils.CheckPrint(err)
+		}
 
 		_, err = f.WriteString("}\n")
-		checkPrint(err)
+		utils.CheckPrint(err)
 
 		count++
 	}

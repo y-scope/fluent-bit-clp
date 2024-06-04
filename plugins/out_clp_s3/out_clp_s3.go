@@ -19,12 +19,13 @@ import (
 )
 
 // fluent-bit registration callback
-// function is invoked at start time before any configuration is done inside the engine.
 //
 // Parameters:
-// 	- def: plugin definition
+//   - def: plugin definition
+//
 // Returns:
-// 	- nil
+//   - nil
+//
 //export FLBPluginRegister
 func FLBPluginRegister(def unsafe.Pointer) int {
 	log.Printf("[%s] Register called", constant.S3PluginName)
@@ -32,14 +33,13 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 }
 
 // fluent-bit initialization callback
-// Before the engine starts, fluent-bit initializes all plugins that were configured
-// As part of the initialization the plugin can obtain configuration parameters
-// and do any other internal checks.
 //
 // Parameters:
-// 	- def: plugin reference
+//   - def: plugin reference
+//
 // Returns:
-// 	- code: fluent-bit success code (OK,RETRY,ERROR)
+//   - code: fluent-bit success code (OK,RETRY,ERROR)
+//
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
 	//returns pointer to a config instance based on fluent-bit configuration
@@ -54,15 +54,16 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 }
 
 // fluent-bit flush callback
-// flushes buffers
 //
 // Parameters:
-// 	- ctx: plugin context
-// 	- data: msgpack data
-// 	- length: byte length
-// 	- tag: fluent-bit tag
+//   - ctx: plugin context
+//   - data: msgpack data
+//   - length: byte length
+//   - tag: fluent-bit tag
+//
 // Returns:
-// 	- code: fluent-bit success code (OK,RETRY,ERROR)
+//   - code: fluent-bit success code (OK,RETRY,ERROR)
+//
 //export FLBPluginFlushCtx
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
@@ -87,12 +88,13 @@ func FLBPluginExit() int {
 }
 
 // fluent-bit exit callback
-// triggered when plugin exits
 //
 // Parameters:
-// 	- ctx: plugin context
+//   - ctx: plugin context
+//
 // Returns:
-// 	- code: fluent-bit success code (OK,RETRY,ERROR)
+//   - code: fluent-bit success code (OK,RETRY,ERROR)
+//
 //export FLBPluginExitCtx
 func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)

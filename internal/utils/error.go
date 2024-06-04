@@ -9,7 +9,7 @@ import (
 // If there is an error, logs the error then calls os.Exit(1)
 //
 // Parameters:
-// 	- err
+//   - err
 func CheckFatal(err error) {
 	if err != nil {
 		log.Fatal(err)
@@ -19,9 +19,9 @@ func CheckFatal(err error) {
 // If there is an error, log it
 //
 // Parameters:
-// 	- err
+//   - err
 func CheckPrint(err error) {
 	if err != nil {
-		log.Printf(err)
+		log.Print(err)
 	}
 }
