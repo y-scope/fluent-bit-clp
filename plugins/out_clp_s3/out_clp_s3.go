@@ -4,7 +4,7 @@
 // [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
 
 // note package name "main" is required by fluent-bit which suppresses go docs
-// do not remove export, required to use function in C
+// do not remove export, required for fluent-bit C calls
 package main
 
 import (
@@ -32,7 +32,7 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 }
 
 // fluent-bit initialization callback
-// Before the engine starts, it initializes all plugins that were configured
+// Before the engine starts, fluent-bit initializes all plugins that were configured
 // As part of the initialization the plugin can obtain configuration parameters
 // and do any other internal checks.
 //
@@ -57,7 +57,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 // flushes buffers
 //
 // Parameters:
-// 	- ctx: plugin configuration context
+// 	- ctx: plugin context
 // 	- data: msgpack data
 // 	- length: byte length
 // 	- tag: fluent-bit tag
@@ -90,7 +90,7 @@ func FLBPluginExit() int {
 // triggered when plugin exits
 //
 // Parameters:
-// 	- ctx: plugin configuration context
+// 	- ctx: plugin context
 // Returns:
 // 	- code: fluent-bit success code (OK,RETRY,ERROR)
 //export FLBPluginExitCtx

@@ -39,7 +39,7 @@ Change [plugin-config.conf](plugin-config.conf) to reference the plugin binary
 Change [fluent-bit.conf](fluent-bit.conf) to specify
 - Id (output name),
 - Path (output directory)
-- File (output file )
+- File (output file name)
 
   ```shell
   [OUTPUT]

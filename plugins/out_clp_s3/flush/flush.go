@@ -12,6 +12,7 @@ import (
 
 	"github.com/fluent/fluent-bit-go/output"
 	"github.com/y-scope/fluent-bit-clp/config"
+	"github.com/y-scope/fluent-bit-clp/error"
 )
 // flushes data to file
 //
@@ -33,7 +34,7 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 		return err
 	}
 
-	// ***** This code is mostly boilerplate [fluent-bit reference] ******
+	/* ====================== This code is mostly boilerplate [fluent-bit reference]====================== */
 	// temporary changes were made so that writes to file instead of stdout
 	// code will be deleted when switch to IR / send to S3
 	// [fluent-bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
@@ -59,23 +60,17 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 		// temporary change so writes to file
 		// code will be deleted
 		_, err = f.WriteString(fmt.Sprintf("[%d] %s: [%s, {", count, tag, timestamp.String()))
-		if err != nil {
-			log.Printf("error writting to file %s", err)
-		}
+		checkPrint(err)
 
 		for k, v := range record {
 			_, err = f.WriteString(fmt.Sprintf("\"%s\": %v, ", k, v))
-			if err != nil {
-				log.Printf("error writting to file %s", err)
-			}
-		}
+			checkPrint(err)
+
 		_, err = f.WriteString("}\n")
-		if err != nil {
-			log.Printf("error writting to file %s", err)
-		}
+		checkPrint(err)
 
 		count++
 	}
-	// ***** End of boilerplate ******
+	/* ====================== End of boilerplate ====================== */
 	return nil
 }

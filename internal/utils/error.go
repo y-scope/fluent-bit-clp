@@ -15,3 +15,13 @@ func CheckFatal(err error) {
 		log.Fatal(err)
 	}
 }
+
+// If there is an error, log it
+//
+// Parameters:
+// 	- err
+func CheckPrint(err error) {
+	if err != nil {
+		log.Printf(err)
+	}
+}
