@@ -11,8 +11,8 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/utils"
 )
 
-// Defines settings for s3 clp plugin
-// in fluent-bit configuration file
+// Holds settings for s3 clp plugin
+// from user defined fluent-bit configuration file
 type S3Config struct {
 	Id   string
 	Path string

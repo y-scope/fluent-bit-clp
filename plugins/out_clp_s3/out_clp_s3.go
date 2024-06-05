@@ -1,10 +1,11 @@
 // Package defines high-level callback functions required by fluent-bit go
-// plugin documentation. See article for more information [fluent-bit go]
+// plugin documentation. See article/repo fo more information [fluent-bit go], [fluent-bit stdout example].
 //
 // [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
+// [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 
 // note package name "main" is required by fluent-bit which suppresses go docs
-// do not remove export, required for fluent-bit C calls
+// do not remove export, required for use by fluent-bit C calls
 package main
 
 import (
@@ -21,7 +22,7 @@ import (
 // fluent-bit registration callback
 //
 // Parameters:
-//   - def: plugin definition
+//   - def: fluent-bit plugin definition
 //
 // Returns:
 //   - nil
@@ -35,14 +36,14 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 // fluent-bit initialization callback
 //
 // Parameters:
-//   - def: plugin reference
+//   - def: fluent-bit plugin reference
 //
 // Returns:
 //   - code: fluent-bit success code (OK,RETRY,ERROR)
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
-	//returns pointer to a config instance based on fluent-bit configuration
+	// returns pointer to a config instance based on fluent-bit configuration
 	config := config.S3New(plugin)
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
@@ -56,7 +57,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 // fluent-bit flush callback
 //
 // Parameters:
-//   - ctx: plugin context
+//   - ctx: fluent-bit plugin context
 //   - data: msgpack data
 //   - length: byte length
 //   - tag: fluent-bit tag
@@ -90,7 +91,7 @@ func FLBPluginExit() int {
 // fluent-bit exit callback
 //
 // Parameters:
-//   - ctx: plugin context
+//   - ctx: fluent-bit plugin context
 //
 // Returns:
 //   - code: fluent-bit success code (OK,RETRY,ERROR)

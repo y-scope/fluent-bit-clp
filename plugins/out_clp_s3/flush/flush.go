@@ -25,12 +25,11 @@ import (
 // Returns:
 //   - err: error flushing data
 func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) error {
-
 	fullFilePath := filepath.Join(config.Path, config.File)
 
 	// If the file doesn't exist, create it, or append to the file
 	// will still cause error if there is no directory
-	f, err := os.OpenFile(fullFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(fullFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
 	}

@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-// If there is an error, logs the error then calls os.Exit(1)
+// If error, log the error then call os.Exit(1)
 //
 // Parameters:
 //   - err
@@ -16,7 +16,7 @@ func CheckFatal(err error) {
 	}
 }
 
-// If there is an error, log it
+// If error, log it
 //
 // Parameters:
 //   - err
