@@ -1,3 +1,3 @@
-# S3 clp output plugin
+# S3 CLP output plugin
 
-s3 clp output plugin for fluent-bit that stores records in clp IR format
+Output plugin for fluent-bit that sends records in CLP IR format to AWS S3.
