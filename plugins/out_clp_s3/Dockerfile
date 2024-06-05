@@ -1,8 +1,8 @@
 # Builds plugin binary in go container and then runs in fluent-bit container
 
-# using bullseye tag to match debian version from fluent-bit image
+# using bullseye tag to match debian version from fluent-bit image [fluent-bit Debian version]
 # same debian version prevents glibc compatibility issues
-# fluent-bit debian version - https://github.com/fluent/fluent-bit/blob/master/dockerfiles/Dockerfile
+# [fluent-bit Debian version]: https://github.com/fluent/fluent-bit/blob/master/dockerfiles/Dockerfile
 FROM golang:1.22.3-bullseye as builder
 
 WORKDIR /root

@@ -1,8 +1,9 @@
 // Package defines high-level callback functions required by fluent-bit go
 // plugin documentation. See article/repo fo more information [fluent-bit go], [fluent-bit stdout example].
 //
-// nolint:revive // [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// nolint:revive // [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
+// [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// nolint:revive
 
 // note package name "main" is required by fluent-bit which suppresses go docs
 // do not remove export, required for use by fluent-bit C calls
