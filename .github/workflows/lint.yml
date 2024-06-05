@@ -1,0 +1,24 @@
+name: "lint"
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+jobs:
+  go-lint:
+    strategy:
+      matrix:
+        go: ["1.22"]
+        os: ["ubuntu-latest", "macos-latest"]
+    runs-on: "${{ matrix.os }}"
+    steps:
+      - uses: "actions/checkout@v4"
+
+      - uses: "actions/setup-go@v5"
+        with:
+          go-version: "${{ matrix.go }}"
+
+      - uses: "golangci/golangci-lint-action@v6"
+        with:
+          version: "v1.59"
