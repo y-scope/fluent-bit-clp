@@ -1,8 +1,8 @@
 // Package defines high-level callback functions required by fluent-bit go
 // plugin documentation. See article/repo fo more information [fluent-bit go], [fluent-bit stdout example].
 //
-// [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// nolint:revive // [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
+// nolint:revive // [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 
 // note package name "main" is required by fluent-bit which suppresses go docs
 // do not remove export, required for use by fluent-bit C calls
@@ -48,8 +48,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
 	// set the context for this instance so that params can be retrieved during flush
-	// found an example in c file plugin where set to pointer [file set context]
-	// [file set context]: https://github.com/fluent/fluent-bit/blob/4db79b40aa930a29298771e8e4ca4e97d9e9fbba/plugins/out_file/file.c#L157
+	// context should only be set once to avoid race condition
 	output.FLBPluginSetContext(plugin, config)
 	return output.FLB_OK
 }

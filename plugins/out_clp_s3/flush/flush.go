@@ -34,7 +34,8 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 		return err
 	}
 
-	/* ====================== This code is mostly boilerplate [fluent-bit reference]====================== */
+	// nolint:revive
+	// ================== This code is mostly boilerplate [fluent-bit reference] ================== //
 	// temporary changes were made so that writes to file instead of stdout
 	// code will be deleted when switch to IR / send to S3
 	// [fluent-bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
@@ -72,6 +73,6 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 
 		count++
 	}
-	/* ====================== End of boilerplate ====================== */
+	/* ================== End of boilerplate ================== */
 	return nil
 }
