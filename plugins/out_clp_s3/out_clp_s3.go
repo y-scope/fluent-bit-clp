@@ -16,7 +16,7 @@ import (
 
 	"github.com/fluent/fluent-bit-go/output"
 	"github.com/y-scope/fluent-bit-clp/config"
-	"github.com/y-scope/fluent-bit-clp/internal/constant"
+	 
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
 
@@ -45,7 +45,11 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
 	// returns pointer to a config instance based on fluent-bit configuration
-	config := config.S3New(plugin)
+	config, err := config.S3New(plugin)
+	if err != nil {
+		log.Fatalf("Failed to load configuration %s",err)
+	}
+
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
 	// set the context for this instance so that params can be retrieved during flush

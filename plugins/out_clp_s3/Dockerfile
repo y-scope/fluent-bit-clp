@@ -5,6 +5,9 @@
 # [fluent-bit Debian version]: https://github.com/fluent/fluent-bit/blob/master/dockerfiles/Dockerfile
 FROM golang:1.22.3-bullseye as builder
 
+# install task
+RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /bin
+
 WORKDIR /root
 
 ENV GOOS=linux\
@@ -16,7 +19,7 @@ RUN go mod download
 
 WORKDIR /root/plugins/out_clp_s3
 
-RUN make all
+RUN task build
 
 FROM fluent/fluent-bit:3.0.6
 

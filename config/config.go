@@ -3,12 +3,12 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"unsafe"
 
 	"github.com/fluent/fluent-bit-go/output"
-	"github.com/y-scope/fluent-bit-clp/internal/utils"
 )
 
 // Holds settings for s3 clp plugin
@@ -26,22 +26,34 @@ type S3Config struct {
 //
 // Returns:
 //   - S3Config: configuration based on fluent-bit.conf
-func S3New(plugin unsafe.Pointer) *S3Config {
-	id, err := getValueFLBConfig(plugin, "Id")
-	utils.CheckFatal(err)
+//   - err: error wrapping all errors in config
+func S3New(plugin unsafe.Pointer) (*S3Config, error) {
 
-	path, err := getValueFLBConfig(plugin, "Path")
-	utils.CheckFatal(err)
+	// slice to hold config errors
+	// allows config function to return all errors at once
+	// instead of one at a time
+	// so user can fix all at once
+	configErrors := []error{}
 
-	file, err := getValueFLBConfig(plugin, "File")
-	utils.CheckFatal(err)
+	id, errID := getValueFLBConfig(plugin, "Id")
+	configErrors = append(configErrors, errID)
+
+	path, errPath := getValueFLBConfig(plugin, "Path")
+	configErrors = append(configErrors, errPath)
+
+	file, errFile := getValueFLBConfig(plugin, "File")
+	configErrors = append(configErrors, errFile)
 
 	config := &S3Config{
 		Id:   id,
 		Path: path,
 		File: file,
 	}
-	return config
+
+	// wrap all errors into one error before returning
+	// automically excludes nil errors
+	err := errors.Join(configErrors...)
+	return config, err
 }
 
 // Retrieves individuals values from fluent-bit.conf
