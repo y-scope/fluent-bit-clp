@@ -26,9 +26,9 @@ Start a container
 
 Install [go][1] and [fluent-bit][2]
 
-Run make to build a binary in the plugin directory
+Run task to build a binary in the plugin directory
   ```shell
-  make
+  task build
   ```
 Change [plugin-config.conf](plugin-config.conf) to reference the plugin binary
   ```shell
