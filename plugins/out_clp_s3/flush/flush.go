@@ -46,7 +46,7 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 	// temporary change added buffered writer for performance
 	// simplifies error handling since we can only need to check for error when flushing
 	// simplifies retry since nothing was written until flush is called (i.e. nothing to erase or skip over on retry)
-	// setting to size to that provided by fluent-bit to prevent overflow errors 
+	// setting size to that provided by fluent-bit to prevent overflow errors
 	w := bufio. NewWriterSize(f,length)
 
 	count := 0

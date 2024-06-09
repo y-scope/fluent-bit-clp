@@ -14,10 +14,10 @@ import (
 	"log"
 	"unsafe"
 
-	"github.com/fluent/fluent-bit-go/output"
 	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/y-scope/fluent-bit-clp/internal/constant"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
+	"github.com/fluent/fluent-bit-go/output"
 )
 
 // fluent-bit registration callback
