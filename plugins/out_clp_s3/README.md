@@ -50,11 +50,5 @@ Change [fluent-bit.conf](fluent-bit.conf) to specify
       match *
   ```
 
-  [1]: https://go.dev/doc/install
-  [2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
-
-
-
-
-
-
+[1]: https://go.dev/doc/install
+[2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
