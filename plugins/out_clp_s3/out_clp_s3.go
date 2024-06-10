@@ -14,10 +14,11 @@ import (
 	"log"
 	"unsafe"
 
+	"github.com/fluent/fluent-bit-go/output"
+
 	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/y-scope/fluent-bit-clp/internal/constant"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
-	"github.com/fluent/fluent-bit-go/output"
 )
 
 // fluent-bit registration callback
@@ -47,7 +48,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	// returns pointer to a config instance based on fluent-bit configuration
 	config, err := config.S3New(plugin)
 	if err != nil {
-		log.Fatalf("Failed to load configuration %s",err)
+		log.Fatalf("Failed to load configuration %s", err)
 	}
 
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)

@@ -10,8 +10,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/fluent/fluent-bit-go/output"
+
+	"github.com/y-scope/fluent-bit-clp/config"
 )
 
 // flushes data to file
@@ -45,9 +46,9 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 
 	// temporary change added buffered writer for performance
 	// simplifies error handling since we can only need to check for error when flushing
-	// simplifies retry since nothing was written until flush is called (i.e. nothing to erase or skip over on retry)
+	// simplifies retry since nothing before error is written to file (written to buffer instead)
 	// setting size to that provided by fluent-bit to prevent overflow errors
-	w := bufio. NewWriterSize(f,length)
+	w := bufio.NewWriterSize(f, length)
 
 	count := 0
 	for {
