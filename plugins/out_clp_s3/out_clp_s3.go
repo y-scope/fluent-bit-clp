@@ -45,7 +45,7 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
-	// Returns pointer to a config instance based on fluent-bit configuration
+	// Returns pointer to a config instance based on fluent-bit configuration.
 	config, err := config.S3New(plugin)
 	if err != nil {
 		log.Fatalf("Failed to load configuration %s", err)
@@ -54,7 +54,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
 	// Set the context for this instance so that params can be retrieved during flush. Context
-	// should only be set once to avoid race condition
+	// should only be set once to avoid race condition.
 	output.FLBPluginSetContext(plugin, config)
 	return output.FLB_OK
 }
@@ -73,7 +73,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 //export FLBPluginFlushCtx
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
-	// Type assert context back into the original type for the Go variable
+	// Type assert context back into the original type for the Go variable.
 	config := (p).(*config.S3Config)
 	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
 
