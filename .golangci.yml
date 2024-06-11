@@ -25,7 +25,7 @@ linters-settings:
       - "dupSubExpr"
   goimports:
     # Put imports beginning with prefix after 3rd-party packages.
-    local-prefixes: "github.com/y-scope/clp-ffi-go"
+    local-prefixes: "github.com/y-scope/fluent-bit-clp"
   nakedret:
     # Completely disallow naked returns
     max-func-lines: 0
