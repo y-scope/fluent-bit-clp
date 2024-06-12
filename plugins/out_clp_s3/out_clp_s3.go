@@ -20,6 +20,7 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/constant"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
+import "fmt"
 
 // Required fluent-bit registration callback.
 //
@@ -46,6 +47,7 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
 	// Returns pointer to a config instance based on fluent-bit configuration.
+	fmt.Println("init")
 	config, err := config.S3New(plugin)
 	if err != nil {
 		log.Fatalf("Failed to load configuration %s", err)
@@ -74,7 +76,9 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	config := (p).(*config.S3Config)
+	config, ok := (p).(*config.S3Config)
+	if !ok {log.Fatal("Could not read config during flush")}
+	
 	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
 
 	err := flush.File(data, int(length), C.GoString(tag), config)
@@ -105,7 +109,10 @@ func FLBPluginExit() int {
 func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	config := (p).(*config.S3Config)
+	
+	config, ok := (p).(*config.S3Config)
+	if !ok {log.Fatal("Could not read config during exit")}
+
 	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, config.Id)
 	return output.FLB_OK
 }
