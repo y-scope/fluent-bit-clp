@@ -1,13 +1,15 @@
 // Package implements loading of fluent-bit configuration file. Allows plugin to access values
 // defined in configuration file.
 
-package config
+package context
 
 import (
 	"errors"
 	"fmt"
 	"log"
+    "strconv"
 	"unsafe"
+
 
 	"github.com/fluent/fluent-bit-go/output"
 )
@@ -17,6 +19,10 @@ type S3Config struct {
 	Id   string
 	Path string
 	File string
+	LogKey string
+	IREncoding string
+	TimeZone string
+	AllowJSON bool
 }
 
 // Generates configuration struct containing user-defined settings.
@@ -27,30 +33,42 @@ type S3Config struct {
 // Returns:
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All errors in config wrapped
-func S3New(plugin unsafe.Pointer) (*S3Config, error) {
+func (s *S3Config) New(plugin unsafe.Pointer) (error) {
 
 	// Slice holds config errors allowing function to return all errors at once instead of
 	// one at a time. User can fix all errors at once.
 	configErrors := []error{}
 
-	id, errID := getValueFLBConfig(plugin, "Id")
-	configErrors = append(configErrors, errID)
+	var err error
+	s.Id, err = getValueFLBConfig(plugin, "Id","")
+	configErrors = append(configErrors, err)
 
-	path, errPath := getValueFLBConfig(plugin, "Path")
-	configErrors = append(configErrors, errPath)
+	s.Path, err = getValueFLBConfig(plugin, "Path","")
+	configErrors = append(configErrors, err)
 
-	file, errFile := getValueFLBConfig(plugin, "File")
-	configErrors = append(configErrors, errFile)
+	s.File, err = getValueFLBConfig(plugin, "File","")
+	configErrors = append(configErrors, err)
 
-	config := &S3Config{
-		Id:   id,
-		Path: path,
-		File: file,
-	}
+	s.IREncoding,_ = getValueFLBConfig(plugin, "IR_encoding","FourByte")
+	configErrors = append(configErrors, err)
 
+	s.TimeZone,_ = getValueFLBConfig(plugin, "time_zone","America/Toronto")
+	configErrors = append(configErrors, err)
+
+	//Allow nil logkey, so no need to check error
+	s.LogKey,_ = getValueFLBConfig(plugin, "log_key","")
+
+	var AllowJSON string
+	AllowJSON, err = getValueFLBConfig(plugin, "allow_JSON","false")
+	configErrors = append(configErrors, err)
+
+	//type conversion to bool
+	s.AllowJSON, err = strconv.ParseBool(AllowJSON)
+	configErrors = append(configErrors, err)
+	
 	// Wrap all errors into one error before returning. Automically excludes nil errors.
-	err := errors.Join(configErrors...)
-	return config, err
+	err = errors.Join(configErrors...)
+	return err
 }
 
 // Retrieves individuals values from fluent-bit.conf.
@@ -62,13 +80,19 @@ func S3New(plugin unsafe.Pointer) (*S3Config, error) {
 // Returns:
 //   - configValue
 //   - err: Error if config value is blank
-func getValueFLBConfig(plugin unsafe.Pointer, configKey string) (string, error) {
+func getValueFLBConfig(plugin unsafe.Pointer, configKey string, defaultValue string) (string, error) {
 	configValue := output.FLBPluginConfigKey(plugin, configKey)
+
+	if configValue == "" {
+		configValue = defaultValue
+	}
 
 	if configValue == "" {
 		err := fmt.Errorf("%s is not defined in fluent-bit configuration", configKey)
 		return configValue, err
 	}
+
 	log.Printf("fluent-bit config key %s set to value %s", configKey, configValue)
 	return configValue, nil
 }
+

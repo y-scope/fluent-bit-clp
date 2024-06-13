@@ -16,11 +16,10 @@ import (
 
 	"github.com/fluent/fluent-bit-go/output"
 
-	"github.com/y-scope/fluent-bit-clp/config"
+	"github.com/y-scope/fluent-bit-clp/context"
 	"github.com/y-scope/fluent-bit-clp/internal/constant"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
-import "fmt"
 
 // Required fluent-bit registration callback.
 //
@@ -46,18 +45,17 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
-	// Returns pointer to a config instance based on fluent-bit configuration.
-	fmt.Println("init")
-	config, err := config.S3New(plugin)
+	S3Ctx, err := context.NewS3Context(plugin)
 	if err != nil {
 		log.Fatalf("Failed to load configuration %s", err)
 	}
+	config := (*S3Ctx).Config
 
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
 	// Set the context for this instance so that params can be retrieved during flush. Context
 	// should only be set once to avoid race condition.
-	output.FLBPluginSetContext(plugin, config)
+	output.FLBPluginSetContext(plugin, S3Ctx)
 	return output.FLB_OK
 }
 
@@ -76,12 +74,15 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	config, ok := (p).(*config.S3Config)
-	if !ok {log.Fatal("Could not read config during flush")}
-	
+	S3Ctx, ok := (p).(*context.S3Context)
+	if !ok {
+		log.Fatal("Could not read config during flush")
+	}
+	config := (*S3Ctx).Config
+
 	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
 
-	err := flush.File(data, int(length), C.GoString(tag), config)
+	err := flush.File(data, int(length), C.GoString(tag), S3Ctx)
 	if err != nil {
 		log.Printf("error flushing data %s", err)
 		// retry later
@@ -109,9 +110,12 @@ func FLBPluginExit() int {
 func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	
-	config, ok := (p).(*config.S3Config)
-	if !ok {log.Fatal("Could not read config during exit")}
+
+	S3Ctx, ok := (p).(*context.S3Context)
+	if !ok {
+		log.Fatal("Could not read config during flush")
+	}
+	config := (*S3Ctx).Config
 
 	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, config.Id)
 	return output.FLB_OK
