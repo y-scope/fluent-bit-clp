@@ -19,10 +19,11 @@ type S3Config struct {
 	Id   string
 	Path string
 	File string
-	LogKey string
+	UseSingleKey bool
+	Allow_Missing_Key bool
+	SingleKey string
 	IREncoding string
 	TimeZone string
-	AllowJSON bool
 }
 
 // Generates configuration struct containing user-defined settings.
@@ -40,30 +41,38 @@ func (s *S3Config) New(plugin unsafe.Pointer) (error) {
 	configErrors := []error{}
 
 	var err error
-	s.Id, err = getValueFLBConfig(plugin, "Id","")
+	s.Id, err = getValueFLBConfig(plugin, "Id")
 	configErrors = append(configErrors, err)
 
-	s.Path, err = getValueFLBConfig(plugin, "Path","")
+	s.Path, err = getValueFLBConfig(plugin, "Path")
 	configErrors = append(configErrors, err)
 
-	s.File, err = getValueFLBConfig(plugin, "File","")
+	s.File, err = getValueFLBConfig(plugin, "File")
 	configErrors = append(configErrors, err)
 
-	s.IREncoding,_ = getValueFLBConfig(plugin, "IR_encoding","FourByte")
+	s.IREncoding,_ = getValueFLBConfig(plugin, "IR_encoding")
 	configErrors = append(configErrors, err)
 
-	s.TimeZone,_ = getValueFLBConfig(plugin, "time_zone","America/Toronto")
+	s.TimeZone,_ = getValueFLBConfig(plugin, "time_zone")
 	configErrors = append(configErrors, err)
 
-	//Allow nil logkey, so no need to check error
-	s.LogKey,_ = getValueFLBConfig(plugin, "log_key","")
+	//Allow nil , so no need to check error
+	s.SingleKey,_ = getValueFLBConfig(plugin, "log_key")
 
-	var AllowJSON string
-	AllowJSON, err = getValueFLBConfig(plugin, "allow_JSON","false")
+	var Allow_Missing_Key string
+	Allow_Missing_Key, err = getValueFLBConfig(plugin, "allow_missing_key")
 	configErrors = append(configErrors, err)
 
 	//type conversion to bool
-	s.AllowJSON, err = strconv.ParseBool(AllowJSON)
+	s.Allow_Missing_Key, err = strconv.ParseBool(Allow_Missing_Key)
+	configErrors = append(configErrors, err)
+
+	var UseSingleKey string
+	UseSingleKey, err = getValueFLBConfig(plugin, "use_single_key")
+	configErrors = append(configErrors, err)
+
+	//type conversion to bool
+	s.UseSingleKey, err = strconv.ParseBool(UseSingleKey)
 	configErrors = append(configErrors, err)
 	
 	// Wrap all errors into one error before returning. Automically excludes nil errors.
@@ -80,12 +89,8 @@ func (s *S3Config) New(plugin unsafe.Pointer) (error) {
 // Returns:
 //   - configValue
 //   - err: Error if config value is blank
-func getValueFLBConfig(plugin unsafe.Pointer, configKey string, defaultValue string) (string, error) {
+func getValueFLBConfig(plugin unsafe.Pointer, configKey string) (string, error) {
 	configValue := output.FLBPluginConfigKey(plugin, configKey)
-
-	if configValue == "" {
-		configValue = defaultValue
-	}
 
 	if configValue == "" {
 		err := fmt.Errorf("%s is not defined in fluent-bit configuration", configKey)

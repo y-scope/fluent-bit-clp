@@ -2,6 +2,4 @@
 package context
 
 type S3State struct {
-	Index int
-	RawBytesInBuffer int
 }
