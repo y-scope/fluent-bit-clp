@@ -2,7 +2,8 @@
 // article/repo fo more information [fluent-bit go], [fluent-bit stdout example].
 //
 // [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// [fluent-bit stdout example]:
+// https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 // nolint:revive
 
 // Note package name "main" is required by fluent-bit which suppresses go docs. Do not remove
@@ -49,7 +50,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	if err != nil {
 		log.Fatalf("Failed to load configuration %s", err)
 	}
-	config := (*S3Ctx).Config
+	config := S3Ctx.Config
 
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
@@ -68,7 +69,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 //   - tag: fluent-bit tag
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - successCode: fluent-bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginFlushCtx
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
@@ -78,15 +79,15 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 	if !ok {
 		log.Fatal("Could not read config during flush")
 	}
-	config := (*S3Ctx).Config
+	config := S3Ctx.Config
 
 	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
 
-	success_code, err := flush.File(data, int(length), C.GoString(tag), S3Ctx)
+	successCode, err := flush.File(data, int(length), C.GoString(tag), S3Ctx)
 	if err != nil {
 		log.Printf("error flushing data %s", err)
-		// retry later
-		return success_code
+		// RETRY or ERROR
+		return successCode
 	}
 
 	return output.FLB_OK
@@ -115,7 +116,7 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	if !ok {
 		log.Fatal("Could not read config during flush")
 	}
-	config := (*S3Ctx).Config
+	config := S3Ctx.Config
 
 	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, config.Id)
 	return output.FLB_OK

@@ -4,23 +4,22 @@ import (
 	"errors"
 	"fmt"
 	"log"
-    "strconv"
+	"strconv"
 	"unsafe"
-
 
 	"github.com/fluent/fluent-bit-go/output"
 )
 
 // Holds settings for s3 clp plugin from user defined fluent-bit configuration file.
 type S3Config struct {
-	Id   string
-	Path string
-	File string
-	UseSingleKey bool
-	Allow_Missing_Key bool
-	SingleKey string
-	IREncoding string
-	TimeZone string
+	Id              string
+	Path            string
+	File            string
+	UseSingleKey    bool
+	AllowMissingKey bool
+	SingleKey       string
+	IREncoding      string
+	TimeZone        string
 }
 
 // Generates configuration struct containing user-defined settings.
@@ -31,7 +30,7 @@ type S3Config struct {
 // Returns:
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All errors in config wrapped
-func (s *S3Config) New(plugin unsafe.Pointer) (error) {
+func (s *S3Config) New(plugin unsafe.Pointer) error {
 	// TODO: redo validation using [validator]
 	// [validator]: https://pkg.go.dev/github.com/go-playground/validator/v10
 
@@ -53,25 +52,25 @@ func (s *S3Config) New(plugin unsafe.Pointer) (error) {
 	UseSingleKey, err = getValueFLBConfig(plugin, "use_single_key")
 	configErrors = append(configErrors, err)
 
-	//type conversion to bool
+	// Type conversion to bool.
 	s.UseSingleKey, err = strconv.ParseBool(UseSingleKey)
 	configErrors = append(configErrors, err)
 
-	var Allow_Missing_Key string
-	Allow_Missing_Key, err = getValueFLBConfig(plugin, "allow_missing_key")
+	var AllowMissingKey string
+	AllowMissingKey, err = getValueFLBConfig(plugin, "allow_missing_key")
 	configErrors = append(configErrors, err)
 
-	//type conversion to bool
-	s.Allow_Missing_Key, err = strconv.ParseBool(Allow_Missing_Key)
+	// Type conversion to bool.
+	s.AllowMissingKey, err = strconv.ParseBool(AllowMissingKey)
 	configErrors = append(configErrors, err)
 
-	//Allow nil, so no need to check error
-	s.SingleKey,_ = getValueFLBConfig(plugin, "single_key")
+	// Allow nil, so no need to check error.
+	s.SingleKey, _ = getValueFLBConfig(plugin, "single_key")
 
-	s.IREncoding,_ = getValueFLBConfig(plugin, "IR_encoding")
+	s.IREncoding, _ = getValueFLBConfig(plugin, "IR_encoding")
 	configErrors = append(configErrors, err)
 
-	s.TimeZone,_ = getValueFLBConfig(plugin, "time_zone")
+	s.TimeZone, _ = getValueFLBConfig(plugin, "time_zone")
 	configErrors = append(configErrors, err)
 
 	// Wrap all errors into one error before returning. Automically excludes nil errors.
@@ -98,4 +97,3 @@ func getValueFLBConfig(plugin unsafe.Pointer, configKey string) (string, error) 
 	log.Printf("fluent-bit config key %s set to value %s", configKey, configValue)
 	return configValue, nil
 }
-
