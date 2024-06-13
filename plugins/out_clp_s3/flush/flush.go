@@ -7,17 +7,18 @@ import (
 	"C"
     "encoding/json"
 	"fmt"
-	"time"
 	"unsafe"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
-	"github.com/fluent/fluent-bit-go/output"
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
-	"github.com/y-scope/fluent-bit-clp/decoder"
+	"github.com/fluent/fluent-bit-go/output"
+
 	"github.com/y-scope/fluent-bit-clp/context"
+	"github.com/y-scope/fluent-bit-clp/decoder"
 )
 
 
@@ -29,30 +30,28 @@ import (
 //   - data: msgpack data
 //   - length: Byte length
 //   - tag: fluent-bit tag
-//   - S3Config: Configuration based on fluent-bit.conf
+//   - S3Context: plugin context
 //
 // Returns:
 //   - err: Error if flush fails
 // nolint:revive
-func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (error,int) {
-	config := (*ctx).Config
-
+func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (int, error) {
+	// Buffer to store events from fluent-bit chunk.
 	var logEvents []ffi.LogEvent
+
 	dec := decoder.NewStringDecoder(data, length)
-	converteddec := (*output.FLBDecoder)(unsafe.Pointer(dec))
 
 	for {
-		
-		ret, ts, record := output.GetRecord(converteddec)
+		ret, ts, record := output.GetRecord(dec)
 		if ret != 0 {
 			break
 		}
 		
 		timestamp := decodeTs(ts)
-		msg, err := getMessage(record, config)
+		msg, err := getMessage(record, ctx.Config)
 		if err != nil {
 			err = fmt.Errorf("Failed to get message from record", err)
-			return err, output.FLB_ERROR
+			return  output.FLB_ERROR, err
 		}
 
 		event := ffi.LogEvent{
@@ -62,10 +61,10 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 		logEvents = append(logEvents,event)
 	}
 
-	f, name, err :=  createFile(config.Path, config.File)
+	f, name, err :=  createFile(ctx.Config.Path, ctx.Config.File)
 	if err != nil {
 		err = fmt.Errorf("Could not create file %s", name)
-		return err, output.FLB_RETRY
+		return output.FLB_RETRY, err
 	}
 	defer f.Close()
 
@@ -76,16 +75,16 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 	err = encodeIR(irWriter,logEvents)
 	if err != nil {
 		err = fmt.Errorf("Error while encoding IR")
-		return err, output.FLB_ERROR
+		return output.FLB_ERROR, err
 	}
 
 	_, err = irWriter.WriteTo(f)
 	if err != nil {
 		err = fmt.Errorf("Error writing IR to file")
-		return err, output.FLB_RETRY
+		return output.FLB_RETRY, err
 	}
 
-	return nil, output.FLB_OK
+	return output.FLB_OK, nil
 }
 
 // Decodes timestamp provided by fluent-bit engine into time.Time type. If timestamp cannot be decoded, returns system time.
@@ -121,7 +120,7 @@ func getMessage(record map[interface{}]interface{}, config context.S3Config) (st
 		msg, ok = record[config.SingleKey]
 
 		// if key not found in record, see if logs with missing key are allowed
-		//if allow missing key then marshall entire record to json. If not allowed then return error
+		// if allow missing key then marshall entire record to json. If not allowed then return error
 		if !ok && config.Allow_Missing_Key {
 			msg, err = json.Marshal(record)
 		} else {

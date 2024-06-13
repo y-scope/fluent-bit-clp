@@ -1,6 +1,3 @@
-// Package implements loading of fluent-bit configuration file. Allows plugin to access values
-// defined in configuration file.
-
 package context
 
 import (
@@ -35,6 +32,8 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All errors in config wrapped
 func (s *S3Config) New(plugin unsafe.Pointer) (error) {
+	// TODO: redo validation using [validator]
+	// [validator]: https://pkg.go.dev/github.com/go-playground/validator/v10
 
 	// Slice holds config errors allowing function to return all errors at once instead of
 	// one at a time. User can fix all errors at once.
@@ -50,14 +49,13 @@ func (s *S3Config) New(plugin unsafe.Pointer) (error) {
 	s.File, err = getValueFLBConfig(plugin, "File")
 	configErrors = append(configErrors, err)
 
-	s.IREncoding,_ = getValueFLBConfig(plugin, "IR_encoding")
+	var UseSingleKey string
+	UseSingleKey, err = getValueFLBConfig(plugin, "use_single_key")
 	configErrors = append(configErrors, err)
 
-	s.TimeZone,_ = getValueFLBConfig(plugin, "time_zone")
+	//type conversion to bool
+	s.UseSingleKey, err = strconv.ParseBool(UseSingleKey)
 	configErrors = append(configErrors, err)
-
-	//Allow nil , so no need to check error
-	s.SingleKey,_ = getValueFLBConfig(plugin, "log_key")
 
 	var Allow_Missing_Key string
 	Allow_Missing_Key, err = getValueFLBConfig(plugin, "allow_missing_key")
@@ -67,14 +65,15 @@ func (s *S3Config) New(plugin unsafe.Pointer) (error) {
 	s.Allow_Missing_Key, err = strconv.ParseBool(Allow_Missing_Key)
 	configErrors = append(configErrors, err)
 
-	var UseSingleKey string
-	UseSingleKey, err = getValueFLBConfig(plugin, "use_single_key")
+	//Allow nil, so no need to check error
+	s.SingleKey,_ = getValueFLBConfig(plugin, "single_key")
+
+	s.IREncoding,_ = getValueFLBConfig(plugin, "IR_encoding")
 	configErrors = append(configErrors, err)
 
-	//type conversion to bool
-	s.UseSingleKey, err = strconv.ParseBool(UseSingleKey)
+	s.TimeZone,_ = getValueFLBConfig(plugin, "time_zone")
 	configErrors = append(configErrors, err)
-	
+
 	// Wrap all errors into one error before returning. Automically excludes nil errors.
 	err = errors.Join(configErrors...)
 	return err
@@ -96,7 +95,6 @@ func getValueFLBConfig(plugin unsafe.Pointer, configKey string) (string, error) 
 		err := fmt.Errorf("%s is not defined in fluent-bit configuration", configKey)
 		return configValue, err
 	}
-
 	log.Printf("fluent-bit config key %s set to value %s", configKey, configValue)
 	return configValue, nil
 }

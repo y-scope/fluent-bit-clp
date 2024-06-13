@@ -82,7 +82,7 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 
 	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
 
-	err, success_code := flush.File(data, int(length), C.GoString(tag), S3Ctx)
+	success_code, err := flush.File(data, int(length), C.GoString(tag), S3Ctx)
 	if err != nil {
 		log.Printf("error flushing data %s", err)
 		// retry later

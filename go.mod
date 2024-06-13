@@ -7,7 +7,4 @@ require (
 	github.com/y-scope/clp-ffi-go v0.0.3-0.20240604153926-969c1151cfcb
 )
 
-require (
-	github.com/klauspost/compress v1.16.5
-	github.com/ugorji/go/codec v1.1.7
-)
+require github.com/ugorji/go/codec v1.1.7

@@ -38,7 +38,7 @@ type FLBDecoder struct {
 //
 // Returns:
 //   - FLBDecoder: msgpack decoder
-func NewStringDecoder(data unsafe.Pointer, length int) *FLBDecoder {
+func NewStringDecoder(data unsafe.Pointer, length int) *output.FLBDecoder {
 	var b []byte
 	dec := new(FLBDecoder)
 	dec.handle = new(codec.MsgpackHandle)
@@ -48,5 +48,9 @@ func NewStringDecoder(data unsafe.Pointer, length int) *FLBDecoder {
 
 	b = C.GoBytes(data, C.int(length))
 	dec.mpdec = codec.NewDecoderBytes(b, dec.handle)
-	return dec
+
+	// For decoder to interace with [output.GetRecord], it must be type converted. 
+	// See [FLBDecoder] for reason why not using fluent-bit-go type.
+	dec_typed := (*output.FLBDecoder)(unsafe.Pointer(dec))
+	return dec_typed
 }
