@@ -1,19 +1,19 @@
-// Package implements msgpack decoder. [output] already has a msgpack decoder; however it will
+// Package implements msgpack decoder. [output] already has a msgpack decoder; however, it will
 // decode strings as []int8. This has two undiseriable consequences.
 //
 //  1. Printing values with %v may output non-human readable arrays.
 //
-// 2. Strings in []int8 format marshalled to JSON will output non-human readable base64 encoded
-// strings.
+// 	2. Strings in []int8 format marshalled to JSON will output non-human readable base64 encoded
+// 	strings.
 //
 // To solve these issues, all other plugins such as the [aws firehose plugin], have recursive
 // functions which comb through decoded msgpack structures and convert bytes to strings (effectively
 // another decoder). Modifying the decoder to output strings instead of bytes is cleaner, removes
 // complex recursive functions, and likely more performant. [NewStringDecoder] interfaces with
-// [output.GetRecord]; however, a type conversion is neccesary
+// [output.GetRecord]; however, a type conversion is neccesary.
 //
-// [aws firehose plugin]:
-// https://github.com/aws/amazon-kinesis-firehose-for-fluent-bit/blob/dcbe1a0191abd6242182af55547ccf99ee650ce9/plugins/plugins.go#L153
+// [aws firehose plugin]: https://github.com/aws/amazon-kinesis-firehose-for-fluent-bit/blob/dcbe1a0191abd6242182af55547ccf99ee650ce9/plugins/plugins.go#L153
+//
 // nolint:revive
 package decoder
 

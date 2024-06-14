@@ -34,5 +34,5 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 		State:  state,
 	}
 
-	return &ctx, err
+	return &ctx, nil
 }

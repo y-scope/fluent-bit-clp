@@ -9,6 +9,7 @@ require (
 
 require (
 	github.com/json-iterator/go v1.1.12
+	github.com/klauspost/compress v1.16.5
 	github.com/ugorji/go/codec v1.1.7
 )
 

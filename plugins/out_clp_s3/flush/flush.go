@@ -6,32 +6,32 @@ package flush
 import (
 	"C"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
 	"unsafe"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/fluent/fluent-bit-go/output"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/klauspost/compress/zstd"
 	"github.com/y-scope/clp-ffi-go/ffi"
-	"github.com/y-scope/clp-ffi-go/ir"
 
 	"github.com/y-scope/fluent-bit-clp/context"
 	"github.com/y-scope/fluent-bit-clp/decoder"
 )
 
-// Flushes data to a file in IR format. Decode of msgpack based on [fluent-bit reference]
-// [fluent-bit reference]:
-// https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
+// Flushes data to a file in IR format. Decode of msgpack based on [fluent-bit reference].
+// [fluent-bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 //
 // Parameters:
 //   - data: msgpack data
 //   - length: Byte length
 //   - tag: fluent-bit tag
-//   - S3Context: plugin context
+//   - S3Context: Plugin context
 //
 // Returns:
+//   - code: fluent-bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 //
 // nolint:revive
@@ -41,14 +41,15 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 
 	dec := decoder.NewStringDecoder(data, length)
 
+	// Loop through all records in fluent-bit chunk.
 	for {
 		ret, ts, record := output.GetRecord(dec)
 		if ret != 0 {
 			break
 		}
 
-		timestamp := decodeTs(ts)
-		msg, err := getMessage(record, ctx.Config)
+		timestamp := DecodeTs(ts)
+		msg, err := GetMessage(record, ctx.Config)
 		if err != nil {
 			err = fmt.Errorf("failed to get message from record: %w", err)
 			return output.FLB_ERROR, err
@@ -56,11 +57,9 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 
 		msgString, ok := msg.(string)
 		if !ok {
-			err = fmt.Errorf("string type assertion failed %v", msg)
+			err = fmt.Errorf("string type assertion for message failed %v", msg)
 			return output.FLB_ERROR, err
 		}
-
-		print(msgString)
 
 		event := ffi.LogEvent{
 			LogMessage: msgString,
@@ -69,31 +68,45 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 		logEvents = append(logEvents, event)
 	}
 
-	f, err := createFile(ctx.Config.Path, ctx.Config.File)
+	// Create file for IR output.
+	f, err := CreateFile(ctx.Config.Path, ctx.Config.File)
 	if err != nil {
 		return output.FLB_RETRY, err
 	}
 	defer f.Close()
 
-	// IR buffer using bytes.Buffer. So it will dynamically adjust if undersized.
-	irWriter := OpenIrWriter(length, ctx.Config.IREncoding, ctx.Config.TimeZone)
+	zstdEncoder, err := zstd.NewWriter(f)
+	if err != nil {
+		err = fmt.Errorf("error opening zstd encoder: %w", err)
+		return output.FLB_RETRY, err
+	}
+	defer zstdEncoder.Close()
 
-	err = encodeIR(irWriter, logEvents)
+	// IR buffer using bytes.Buffer. So it will dynamically adjust if undersized.
+	irWriter, err := OpenIRWriter(length, ctx.Config.IREncoding, ctx.Config.TimeZone)
+	if err != nil {
+		err = fmt.Errorf("error opening IR writer: %w", err)
+		return output.FLB_RETRY, err
+	}
+
+	err = EncodeIR(irWriter, logEvents)
 	if err != nil {
 		err = fmt.Errorf("error while encoding IR: %w", err)
 		return output.FLB_ERROR, err
 	}
 
-	_, err = irWriter.CloseTo(f)
+	// Write zstd compressed IR to file.
+	_, err = irWriter.CloseTo(zstdEncoder)
 	if err != nil {
 		err = fmt.Errorf("error writting IR to file: %w", err)
 		return output.FLB_RETRY, err
 	}
 
+	log.Printf("zstd compressed IR chunk written to %s", f.Name())
 	return output.FLB_OK, nil
 }
 
-// Decodes timestamp provided by fluent-bit engine into time.Time type. If timestamp cannot be
+// Decodes timestamp provided by fluent-bit engine into time.Time. If timestamp cannot be
 // decoded, returns system time.
 //
 // Parameters:
@@ -101,7 +114,7 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 //
 // Returns:
 //   - timestamp: time.Time timestamp
-func decodeTs(ts interface{}) time.Time {
+func DecodeTs(ts interface{}) time.Time {
 	var timestamp time.Time
 	switch t := ts.(type) {
 	case output.FLBTime:
@@ -116,25 +129,23 @@ func decodeTs(ts interface{}) time.Time {
 }
 
 // Retrieves message as a string from record object. The message can consist of the entire object or
-// just a single key. For a single key, user should set set_single_key to true in fluenbit.conf. To
-// prevent failure if the key is missing, user can specify allow_missing_key, and behaviour will
-// fallback to the entire object.
+// just a single key. For a single key, user should set set_single_key to true in fluentbit.conf.
+// In addition user, should set single_key to "log" which is default fluent-bit key for unparsed
+// messages; however, single_key can be set to another value. To prevent failure if the key is
+// missing, user can specify allow_missing_key, and behaviour will fallback to the entire object.
 //
 // Parameters:
-//   - record: Structured record from fluent-bit. Record contains a variable amount of keys and
-//
-// values.
+//   - record: Structured record from fluent-bit with variable amount of keys
 //   - config: Configuration based on fluent-bit.conf
 //
 // Returns:
-//   - msg: retrieved message
-//   - err: key not found, json.Marshal error
-func getMessage(record map[interface{}]interface{}, config context.S3Config) (interface{}, error) {
+//   - msg: Retrieved message
+//   - err: Key not found, json.Marshal error
+func GetMessage(record map[interface{}]interface{}, config context.S3Config) (interface{}, error) {
 	var msg interface{}
 	var ok bool
 	var err error
-
-	var json = jsoniter.ConfigCompatibleWithStandardLibrary
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
 
 	// If use_single_key=true, then look for key in record, and set message to the key's value.
 	if config.UseSingleKey {
@@ -143,7 +154,7 @@ func getMessage(record map[interface{}]interface{}, config context.S3Config) (in
 			// If key not found in record, see if allow_missing_key=false. If missing key is
 			// allowed. then fallback to marshal entire object.
 			if config.AllowMissingKey {
-				msg, err = json.Marshal(record)
+				msg, err = json.MarshalToString(record)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal record %v: %w", record, err)
 				}
@@ -153,12 +164,11 @@ func getMessage(record map[interface{}]interface{}, config context.S3Config) (in
 			}
 		}
 	} else {
-		msg, err = json.Marshal(record)
+		msg, err = json.MarshalToString(record)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal record %v: %w", record, err)
 		}
 	}
-
 	return msg, nil
 }
 
@@ -172,9 +182,8 @@ func getMessage(record map[interface{}]interface{}, config context.S3Config) (in
 // Returns:
 //   - f: os file
 //   - err: could not create directory, could not create file
-func createFile(path string, file string) (*os.File, error) {
-
-	// Make directory if does not exist
+func CreateFile(path string, file string) (*os.File, error) {
+	// Make directory if does not exist.
 	err := os.MkdirAll(path, 0o644)
 	if err != nil {
 		err = fmt.Errorf("failed to create directory %s: %w", path, err)
@@ -183,10 +192,10 @@ func createFile(path string, file string) (*os.File, error) {
 
 	currentTime := time.Now()
 
-	// Format the time as a string in RFC3339 format
+	// Format the time as a string in RFC3339 format.
 	timeString := currentTime.Format(time.RFC3339)
 
-	fileWithTs := fmt.Sprintf("%s_%s", file, timeString)
+	fileWithTs := fmt.Sprintf("%s_%s.zst", file, timeString)
 
 	fullFilePath := filepath.Join(path, fileWithTs)
 
@@ -197,23 +206,4 @@ func createFile(path string, file string) (*os.File, error) {
 		return nil, err
 	}
 	return f, nil
-}
-
-// Encodes events into IR
-//
-// Parameters:
-//   - irWriter: a writer to which the IR data will be written
-//   - eventBuffer: a slice of log events to be encoded
-//
-// Returns:
-//   - err: error if an event could not be written
-func encodeIR(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
-	for _, event := range eventBuffer {
-		_, err := irWriter.Write(event)
-		if err != nil {
-			err = fmt.Errorf("failed to encode event %v into ir: %w", event, err)
-			return err
-		}
-	}
-	return nil
 }

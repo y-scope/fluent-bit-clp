@@ -2,13 +2,12 @@
 // article/repo fo more information [fluent-bit go], [fluent-bit stdout example].
 //
 // [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// [fluent-bit stdout example]:
-// https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 // nolint:revive
+package main
 
 // Note package name "main" is required by fluent-bit which suppresses go docs. Do not remove
 // export, required for use by fluent-bit C calls.
-package main
 
 import (
 	"C"
@@ -54,8 +53,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
-	// Set the context for this instance so that params can be retrieved during flush. Context
-	// should only be set once to avoid race condition.
+	// Set the context for this instance so that params can be retrieved during flush.
 	output.FLBPluginSetContext(plugin, S3Ctx)
 	return output.FLB_OK
 }
@@ -69,7 +67,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 //   - tag: fluent-bit tag
 //
 // Returns:
-//   - successCode: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: fluent-bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginFlushCtx
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
@@ -77,17 +75,16 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 	// Type assert context back into the original type for the Go variable.
 	S3Ctx, ok := (p).(*context.S3Context)
 	if !ok {
-		log.Fatal("Could not read config during flush")
+		log.Fatal("Could not read context during flush")
 	}
-	config := S3Ctx.Config
 
-	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
+	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, S3Ctx.Config.Id)
 
-	successCode, err := flush.File(data, int(length), C.GoString(tag), S3Ctx)
+	code, err := flush.File(data, int(length), C.GoString(tag), S3Ctx)
 	if err != nil {
-		log.Printf("error flushing data %s", err)
+		log.Printf("error flushing data: %s", err)
 		// RETRY or ERROR
-		return successCode
+		return code
 	}
 
 	return output.FLB_OK
@@ -114,11 +111,10 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 
 	S3Ctx, ok := (p).(*context.S3Context)
 	if !ok {
-		log.Fatal("Could not read config during flush")
+		log.Fatal("Could not read context during flush")
 	}
-	config := S3Ctx.Config
 
-	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, config.Id)
+	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, S3Ctx.Config.Id)
 	return output.FLB_OK
 }
 

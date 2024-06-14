@@ -10,7 +10,7 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 )
 
-// Holds settings for s3 clp plugin from user defined fluent-bit configuration file.
+// Holds settings for S3 CLP plugin from user defined fluent-bit configuration file.
 type S3Config struct {
 	Id              string
 	Path            string
@@ -31,7 +31,7 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All errors in config wrapped
 func (s *S3Config) New(plugin unsafe.Pointer) error {
-	// TODO: redo validation using [validator]
+	// TODO: Redo validation using [validator].
 	// [validator]: https://pkg.go.dev/github.com/go-playground/validator/v10
 
 	// Slice holds config errors allowing function to return all errors at once instead of
@@ -39,13 +39,13 @@ func (s *S3Config) New(plugin unsafe.Pointer) error {
 	configErrors := []error{}
 
 	var err error
-	s.Id, err = getValueFLBConfig(plugin, "Id")
+	s.Id, err = getValueFLBConfig(plugin, "id")
 	configErrors = append(configErrors, err)
 
-	s.Path, err = getValueFLBConfig(plugin, "Path")
+	s.Path, err = getValueFLBConfig(plugin, "path")
 	configErrors = append(configErrors, err)
 
-	s.File, err = getValueFLBConfig(plugin, "File")
+	s.File, err = getValueFLBConfig(plugin, "file")
 	configErrors = append(configErrors, err)
 
 	var UseSingleKey string
@@ -67,10 +67,10 @@ func (s *S3Config) New(plugin unsafe.Pointer) error {
 	// Allow nil, so no need to check error.
 	s.SingleKey, _ = getValueFLBConfig(plugin, "single_key")
 
-	s.IREncoding, _ = getValueFLBConfig(plugin, "IR_encoding")
+	s.IREncoding, err = getValueFLBConfig(plugin, "IR_encoding")
 	configErrors = append(configErrors, err)
 
-	s.TimeZone, _ = getValueFLBConfig(plugin, "time_zone")
+	s.TimeZone, err = getValueFLBConfig(plugin, "time_zone")
 	configErrors = append(configErrors, err)
 
 	// Wrap all errors into one error before returning. Automically excludes nil errors.
