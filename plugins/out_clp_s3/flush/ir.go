@@ -28,7 +28,7 @@ func OpenIRWriter(size int, encoding string, timezone string) (*ir.Writer, error
 	case "FourByte":
 		irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](1024*1024, timezone)
 	default:
-		log.Fatalf("unsupported encoding %s",encoding)
+		log.Fatalf("unsupported encoding %s", encoding)
 	}
 	if err != nil {
 		return nil, err
@@ -54,4 +54,3 @@ func EncodeIR(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
 	}
 	return nil
 }
-
