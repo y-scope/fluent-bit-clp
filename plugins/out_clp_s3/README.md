@@ -48,24 +48,24 @@ Run fluent-bit
 ### Plugin configuration
 
 The following options must be configured in [fluent-bit.conf](fluent-bit.conf)
-- `id`: name of output
-- `path`: directory for output
-- `file`: file name prefix. Plugin will generate many files and append a timestamp
+- `id`: Name of output
+- `path`: Directory for output
+- `file`: File name prefix. Plugin will generate many files and append a timestamp
 - `use_single_key`: Output the value corresponding to this key, instead of the whole fluent-bit 
 record. It is recommended to set this to true. A fluent-bit record is a JSON-like object, and while 
-CLP can parse JSON into IR it is not recommended. key is set with `single_key` and
+CLP can parse JSON into IR it is not recommended. Key is set with `single_key` and
 will typically be set to "log", the default fluent-bit key for unparsed logs. If this is set to false, 
 plugin will parse the record as JSON
 - `allow_missing_key`: Fallback to whole record if key is missing from log. If set to false, an error will
 be recorded instead
-- `single_key`: value for single key
+- `single_key`: Value for single key
 - `IR_encoding`: CLP IR encoding type
 - `time_zone`: Time zone of the source producing the log events, so that local times (any time
 that is not a unix timestamp) are handled correctly
 
 See below for an example:
 
- ```shell
+ ```
 [OUTPUT]
     name out_clp_s3
     id dummy_metrics
