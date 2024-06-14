@@ -45,10 +45,6 @@ Run fluent-bit
   fluent-bit -c fluent-bit-custom.conf
   ```
 
-
-[1]: https://go.dev/doc/install
-[2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
-
 ### Plugin configuration
 
 The following options must be configured in [fluent-bit.conf](fluent-bit.conf)
@@ -59,7 +55,7 @@ The following options must be configured in [fluent-bit.conf](fluent-bit.conf)
 record. It is recommended to set this to true. A fluent-bit record is a JSON-like object, and while 
 CLP can parse JSON into IR it is not recommended. key is set with `single_key` and
 will typically be set to "log", the default fluent-bit key for unparsed logs. If this is set to false, 
-plugin will parse whole record
+plugin will parse the record as JSON
 - `allow_missing_key`: Fallback to whole record if key is missing from log. If set to false, an error will
 be recorded instead
 - `single_key`: value for single key
@@ -71,8 +67,8 @@ See below for an example:
 
  ```shell
 [OUTPUT]
-    name  out_clp_s3
-    id   dummy_metrics
+    name out_clp_s3
+    id dummy_metrics
     path ./
     file dummy
     use_single_key true
@@ -82,3 +78,6 @@ See below for an example:
     time_zone America/Toronto
     match *
   ```
+
+[1]: https://go.dev/doc/install
+[2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
