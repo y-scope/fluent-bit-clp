@@ -16,7 +16,7 @@ import (
 
 	"github.com/fluent/fluent-bit-go/output"
 
-	"github.com/y-scope/fluent-bit-clp/context"
+	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/y-scope/fluent-bit-clp/internal/constant"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
@@ -45,16 +45,17 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
-	S3Ctx, err := context.NewS3Context(plugin)
+
+	var config config.S3Config
+	err := config.New(plugin)
 	if err != nil {
 		log.Fatalf("Failed to load configuration %s", err)
 	}
-	config := S3Ctx.Config
 
 	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
 
 	// Set the context for this instance so that params can be retrieved during flush.
-	output.FLBPluginSetContext(plugin, S3Ctx)
+	output.FLBPluginSetContext(plugin, &config)
 	return output.FLB_OK
 }
 
@@ -73,14 +74,14 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	S3Ctx, ok := (p).(*context.S3Context)
+	config, ok := (p).(*config.S3Config)
 	if !ok {
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, S3Ctx.Config.Id)
+	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
 
-	code, err := flush.File(data, int(length), C.GoString(tag), S3Ctx)
+	code, err := flush.File(data, int(length), C.GoString(tag), config)
 	if err != nil {
 		log.Printf("error flushing data: %s", err)
 		// RETRY or ERROR
@@ -109,12 +110,12 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
 
-	S3Ctx, ok := (p).(*context.S3Context)
+	config, ok := (p).(*config.S3Config)
 	if !ok {
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, S3Ctx.Config.Id)
+	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, config.Id)
 	return output.FLB_OK
 }
 

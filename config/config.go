@@ -1,4 +1,7 @@
-package context
+// Package implements loading of fluent-bit configuration file. Configuration is accessible by
+// output plugin and stored by fluent-bit engine.
+
+package config
 
 import (
 	"errors"

@@ -17,7 +17,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/y-scope/clp-ffi-go/ffi"
 
-	"github.com/y-scope/fluent-bit-clp/context"
+	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/y-scope/fluent-bit-clp/decoder"
 )
 
@@ -28,14 +28,14 @@ import (
 //   - data: msgpack data
 //   - length: Byte length
 //   - tag: fluent-bit tag
-//   - S3Context: Plugin context
+//   - S3Config: Plugin configuration
 //
 // Returns:
 //   - code: fluent-bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 //
 // nolint:revive
-func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (int, error) {
+func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) (int, error) {
 	// Buffer to store events from fluent-bit chunk.
 	var logEvents []ffi.LogEvent
 
@@ -49,7 +49,7 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 		}
 
 		timestamp := DecodeTs(ts)
-		msg, err := GetMessage(record, ctx.Config)
+		msg, err := GetMessage(record, config)
 		if err != nil {
 			err = fmt.Errorf("failed to get message from record: %w", err)
 			return output.FLB_ERROR, err
@@ -69,7 +69,7 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 	}
 
 	// Create file for IR output.
-	f, err := CreateFile(ctx.Config.Path, ctx.Config.File)
+	f, err := CreateFile(config.Path, config.File)
 	if err != nil {
 		return output.FLB_RETRY, err
 	}
@@ -83,7 +83,7 @@ func File(data unsafe.Pointer, length int, tag string, ctx *context.S3Context) (
 	defer zstdEncoder.Close()
 
 	// IR buffer using bytes.Buffer. So it will dynamically adjust if undersized.
-	irWriter, err := OpenIRWriter(length, ctx.Config.IREncoding, ctx.Config.TimeZone)
+	irWriter, err := OpenIRWriter(length, config.IREncoding, config.TimeZone)
 	if err != nil {
 		err = fmt.Errorf("error opening IR writer: %w", err)
 		return output.FLB_RETRY, err
@@ -141,7 +141,7 @@ func DecodeTs(ts interface{}) time.Time {
 // Returns:
 //   - msg: Retrieved message
 //   - err: Key not found, json.Marshal error
-func GetMessage(record map[interface{}]interface{}, config context.S3Config) (interface{}, error) {
+func GetMessage(record map[interface{}]interface{}, config *config.S3Config) (interface{}, error) {
 	var msg interface{}
 	var ok bool
 	var err error
