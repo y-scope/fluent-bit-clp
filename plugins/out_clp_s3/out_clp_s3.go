@@ -73,7 +73,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	config, ok := (p).(*config.S3Config)
+	config, ok := p.(*config.S3Config)
 	if !ok {
 		log.Fatal("Could not read context during flush")
 	}
@@ -109,7 +109,7 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
 
-	config, ok := (p).(*config.S3Config)
+	config, ok := p.(*config.S3Config)
 	if !ok {
 		log.Fatal("Could not read context during flush")
 	}
