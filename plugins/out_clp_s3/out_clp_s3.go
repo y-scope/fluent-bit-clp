@@ -3,7 +3,6 @@
 //
 // [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
 // [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
-// nolint:revive
 package main
 
 // Note package name "main" is required by fluent-bit which suppresses go docs. Do not remove

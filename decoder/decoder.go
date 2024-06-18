@@ -1,5 +1,5 @@
 // Package implements msgpack decoder. [output] already has a msgpack decoder; however, it will
-// decode strings as []int8. This has two undiseriable consequences.
+// decode strings as []int8. This has two undesirable consequences.
 //
 //  1. Printing values with %v may output non-human readable arrays.
 //
@@ -11,8 +11,6 @@
 // another decoder). Modifying the decoder to output strings instead of bytes is cleaner, removes
 // complex recursive functions, and likely more performant. [NewStringDecoder] interfaces with
 // [output.GetRecord]; however, a type conversion is neccesary.
-//
-// nolint:revive
 //
 // [aws firehose plugin]: https://github.com/aws/amazon-kinesis-firehose-for-fluent-bit/blob/dcbe1a0191abd6242182af55547ccf99ee650ce9/plugins/plugins.go#L153
 package decoder

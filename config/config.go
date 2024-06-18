@@ -34,8 +34,9 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All errors in config wrapped
 func (s *S3Config) New(plugin unsafe.Pointer) error {
-	// TODO: Redo validation using [validator].
-	// [validator]: https://pkg.go.dev/github.com/go-playground/validator/v10
+	// TODO: Redo validation using validator. Validator will simplify warning for IR_encoding if
+	// a non-existing encoding is supplied.
+	// https://pkg.go.dev/github.com/go-playground/validator/v10
 
 	// Slice holds config errors allowing function to return all errors at once instead of
 	// one at a time. User can fix all errors at once.

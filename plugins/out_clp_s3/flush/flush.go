@@ -22,7 +22,6 @@ import (
 )
 
 // Flushes data to a file in IR format. Decode of msgpack based on [fluent-bit reference].
-// [fluent-bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 //
 // Parameters:
 //   - data: msgpack data
@@ -34,7 +33,7 @@ import (
 //   - code: fluent-bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 //
-// nolint:revive
+// [fluent-bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) (int, error) {
 	// Buffer to store events from fluent-bit chunk.
 	var logEvents []ffi.LogEvent
