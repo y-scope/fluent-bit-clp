@@ -1,5 +1,5 @@
-// Package implements msgpack decoder. [output] already has a msgpack decoder; however, it will
-// decode strings as []int8. This has two undesirable consequences.
+// Package implements msgpack decoder. fluent-bit-go already has a msgpack decoder; however, it
+// will decode strings as []int8. This has two undesirable consequences.
 //
 //  1. Printing values with %v may output non-human readable arrays.
 //
@@ -8,50 +8,145 @@
 //
 // To solve these issues, all other plugins such as the [aws firehose plugin], have recursive
 // functions which comb through decoded msgpack structures and convert bytes to strings (effectively
-// another decoder). Modifying the decoder to output strings instead of bytes is cleaner, removes
-// complex recursive functions, and likely more performant. [NewStringDecoder] interfaces with
-// [output.GetRecord]; however, a type conversion is neccesary.
+// another decoder). Creating a new decoder to output strings instead of bytes is cleaner,
+// removes complex recursive functions, and likely more performant.
 //
 // [aws firehose plugin]: https://github.com/aws/amazon-kinesis-firehose-for-fluent-bit/blob/dcbe1a0191abd6242182af55547ccf99ee650ce9/plugins/plugins.go#L153
 package decoder
 
 import (
 	"C"
+	"encoding/binary"
+	"fmt"
 	"reflect"
+	"time"
 	"unsafe"
 
-	"github.com/fluent/fluent-bit-go/output"
 	"github.com/ugorji/go/codec"
+
+	"github.com/y-scope/fluent-bit-clp/internal/constant"
 )
 
-// Redefined struct from fluent-bit-go. Unfortunately, unable to import directly from
-// [output.FLBDecoder] since fields are defined privately.
-type FLBDecoder struct {
-	handle *codec.MsgpackHandle
-	mpdec  *codec.Decoder
-}
-
-// Initializes a msgpack decoder which automatically converts bytes to strings.
+// Initializes a msgpack decoder which automatically converts bytes to strings. Decoder has an
+// extension setup for a custom fluent-bit [timestamp format]. During [timestamp encoding],
+// fluent-bit will set the [msgpack extension type] to "0". This decoder can recognize the
+// extension type, and will then decode the custom fluent-bit timestamp using a specific function
+// [ReadExt].
 //
 // Parameters:
 //   - data: msgpack data
 //   - length: Byte length
 //
 // Returns:
-//   - FLBDecoder: msgpack decoder
-func NewStringDecoder(data unsafe.Pointer, length int) *output.FLBDecoder {
+//   - decoder: msgpack decoder
+//
+// [timestamp format]: https://github.com/fluent/fluent-bit-docs/blob/master/development/msgpack-format.md#fluent-bit-usage
+// [timestamp encoding]: https://github.com/fluent/fluent-bit/blob/2138cee8f4878733956d42d82f6dcf95f0aa9339/src/flb_time.c#L237
+// [msgpack extension type]: https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types
+func New(data unsafe.Pointer, length int) *codec.Decoder {
 	var b []byte
-	dec := new(FLBDecoder)
-	dec.handle = new(codec.MsgpackHandle)
-	dec.handle.RawToString = true
-	dec.handle.WriteExt = true
-	dec.handle.SetBytesExt(reflect.TypeOf(output.FLBTime{}), 0, &output.FLBTime{})
+	var mh codec.MsgpackHandle
+
+	// Decoder settings for string conversion and error handling.
+	mh.RawToString = true
+	mh.WriteExt = true
+	mh.ErrorIfNoArrayExpand = true
+
+	// Set up custom extension for fluent-bit timestamp format.
+	mh.SetBytesExt(reflect.TypeOf(FlbTime{}), 0, &FlbTime{})
 
 	b = C.GoBytes(data, C.int(length))
-	dec.mpdec = codec.NewDecoderBytes(b, dec.handle)
+	decoder := codec.NewDecoderBytes(b, &mh)
+	return decoder
+}
 
-	// For decoder to interace with [output.GetRecord], it must be type converted.
-	// See [FLBDecoder] for reason why not using fluent-bit-go type.
-	decFluentTyped := (*output.FLBDecoder)(unsafe.Pointer(dec))
-	return decFluentTyped
+// Fluent-bit can encode timestamps in msgpack [fixext 8] format. Format stores an integer and a
+// byte array whose length is 8 bytes. The integer is the type, and the 4 MSBs are the seconds
+// (big-endian uint32) and 4 LSBs are nanoseconds.
+// [fixext 8]: https://github.com/msgpack/msgpack/blob/master/spec.md#ext-format-family
+type FlbTime struct {
+	time.Time
+}
+
+// Updates a value from a []byte.
+//
+// Parameters:
+//   - i: Pointer to the registered extension type
+//   - b: msgback data in fixext 8 format
+func (f FlbTime) ReadExt(i interface{}, b []byte) {
+	// Note that ts refers to the same object since i is a pointer.
+	ts := i.(*FlbTime)
+	sec := binary.BigEndian.Uint32(b)
+	nsec := binary.BigEndian.Uint32(b[4:])
+	ts.Time = time.Unix(int64(sec), int64(nsec))
+}
+
+// Function required by codec but not being used by decoder.
+func (f FlbTime) WriteExt(interface{}) []byte {
+	panic("unsupported")
+}
+
+// Function required by codec but not being used by decoder.
+func (f FlbTime) ConvertExt(v interface{}) interface{} {
+	return nil
+}
+
+// Function required by codec but not being used by decoder.
+func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
+	panic("unsupported")
+}
+
+// Retrieves data and timestamp from msgpack object.
+//
+// Parameters:
+//   - decoder: msgpack decoder
+//
+// Returns:
+//   - timestamp
+//   - record: Structured record from fluent-bit with variable amount of keys
+//   - ret: EndOfStream if chunk finished, or 0
+//   - err: error retrieving timestamp or data
+func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}, int, error) {
+	// expect array of length 2 for timestamp and data
+	var m [2]interface{}
+	err := decoder.Decode(&m)
+
+	if err != nil {
+		// If there is an error, it most likely means the chunk has no more data. Logic does not
+		// catch other decoding errors.
+		return nil, nil, constant.EndOfStream, nil
+	}
+
+	// Timestamp is located in first index.
+	t := m[0]
+	var timestamp interface{}
+
+	// fluent-bit can provide timestamp in multiple formats, so we use type switch to process
+	// correctly.
+	switch v := t.(type) {
+	// For earlier format [TIMESTAMP, MESSAGE].
+	case FlbTime:
+		timestamp = v
+	case uint64:
+		timestamp = v
+	// For fluent-bit V2 metadata type of format [[TIMESTAMP, METADATA], MESSAGE].
+	case []interface{}:
+		if len(v) < 2 {
+			err = fmt.Errorf("error decoding timestamp %v from stream", v)
+			return nil, nil, 0, err
+		}
+		timestamp = v[0]
+	default:
+		err = fmt.Errorf("error decoding timestamp %v from stream", v)
+		return nil, nil, 0, err
+	}
+
+	// Record is located in second index.
+	record, ok := m[1].(map[interface{}]interface{})
+	if !ok {
+		err = fmt.Errorf("error decoding record %v from stream", record)
+		return nil, nil, 0, err
+	}
+
+	return timestamp, record, 0, nil
 }

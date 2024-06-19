@@ -20,6 +20,7 @@ import (
 
 	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/y-scope/fluent-bit-clp/decoder"
+	"github.com/y-scope/fluent-bit-clp/internal/constant"
 )
 
 // Flushes data to a file in IR format. Decode of msgpack based on [fluent-bit reference].
@@ -39,12 +40,18 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 	// Buffer to store events from fluent-bit chunk.
 	var logEvents []ffi.LogEvent
 
-	dec := decoder.NewStringDecoder(data, length)
+	dec := decoder.New(data, length)
 
 	// Loop through all records in fluent-bit chunk.
 	for {
-		ret, ts, record := output.GetRecord(dec)
-		if ret != 0 {
+		ts, record, ret, err := decoder.GetRecord(dec)
+
+		if err != nil {
+			err = fmt.Errorf("error decoding data from stream: %w", err)
+			return output.FLB_ERROR, err
+		}
+
+		if ret == constant.EndOfStream {
 			break
 		}
 
@@ -118,12 +125,12 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 func DecodeTs(ts interface{}) time.Time {
 	var timestamp time.Time
 	switch t := ts.(type) {
-	case output.FLBTime:
-		timestamp = ts.(output.FLBTime).Time
+	case decoder.FlbTime:
+		timestamp = t.Time
 	case uint64:
 		timestamp = time.Unix(int64(t), 0)
 	default:
-		fmt.Println("time provided invalid, defaulting to now.")
+		fmt.Printf("time provided invalid, defaulting to now. Invalid type is %T", t)
 		timestamp = time.Now()
 	}
 	return timestamp
@@ -227,4 +234,3 @@ func WriteIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
 	}
 	return nil
 }
-
