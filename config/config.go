@@ -21,7 +21,6 @@ type S3Config struct {
 	UseSingleKey    bool
 	AllowMissingKey bool
 	SingleKey       string
-	IREncoding      string
 	TimeZone        string
 }
 
@@ -70,9 +69,6 @@ func (s *S3Config) New(plugin unsafe.Pointer) error {
 
 	// Allow nil, so no need to check error.
 	s.SingleKey, _ = getValueFLBConfig(plugin, "single_key")
-
-	s.IREncoding, err = getValueFLBConfig(plugin, "IR_encoding")
-	configErrors = append(configErrors, err)
 
 	s.TimeZone, err = getValueFLBConfig(plugin, "time_zone")
 	configErrors = append(configErrors, err)
