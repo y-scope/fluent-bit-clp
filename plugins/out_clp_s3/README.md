@@ -59,7 +59,6 @@ plugin will parse the record as JSON
 - `allow_missing_key`: Fallback to whole record if key is missing from log. If set to false, an error will
 be recorded instead
 - `single_key`: Value for single key
-- `IR_encoding`: CLP IR encoding type
 - `time_zone`: Time zone of the source producing the log events, so that local times (any time
 that is not a unix timestamp) are handled correctly
 
@@ -74,7 +73,6 @@ See below for an example:
     use_single_key true
     allow_missing_key true
     single_key log
-    IR_encoding FourByte
     time_zone America/Toronto
     match *
   ```
