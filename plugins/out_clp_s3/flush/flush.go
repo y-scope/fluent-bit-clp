@@ -16,6 +16,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/klauspost/compress/zstd"
 	"github.com/y-scope/clp-ffi-go/ffi"
+	"github.com/y-scope/clp-ffi-go/ir"
 
 	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/y-scope/fluent-bit-clp/decoder"
@@ -74,28 +75,29 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 	}
 	defer f.Close()
 
-	zstdEncoder, err := zstd.NewWriter(f)
+	zstdWriter, err := zstd.NewWriter(f)
 	if err != nil {
-		err = fmt.Errorf("error opening zstd encoder: %w", err)
+		err = fmt.Errorf("error opening zstd writer: %w", err)
 		return output.FLB_RETRY, err
 	}
-	defer zstdEncoder.Close()
+	defer zstdWriter.Close()
 
-	// IR buffer using bytes.Buffer. So it will dynamically adjust if undersized.
-	irWriter, err := OpenIRWriter(length, config.IREncoding, config.TimeZone)
+	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
+	// FourByteEncoding as default encoding.
+	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](length, config.TimeZone)
 	if err != nil {
 		err = fmt.Errorf("error opening IR writer: %w", err)
 		return output.FLB_RETRY, err
 	}
 
-	err = EncodeIR(irWriter, logEvents)
+	err = WriteIr(irWriter, logEvents)
 	if err != nil {
 		err = fmt.Errorf("error while encoding IR: %w", err)
 		return output.FLB_ERROR, err
 	}
 
 	// Write zstd compressed IR to file.
-	_, err = irWriter.CloseTo(zstdEncoder)
+	_, err = irWriter.CloseTo(zstdWriter)
 	if err != nil {
 		err = fmt.Errorf("error writting IR to file: %w", err)
 		return output.FLB_RETRY, err
@@ -206,3 +208,23 @@ func CreateFile(path string, file string) (*os.File, error) {
 	}
 	return f, nil
 }
+
+// Writes log events to a IR Writer.
+//
+// Parameters:
+//   - irWriter
+//   - eventBuffer: a slice of log events to be encoded
+//
+// Returns:
+//   - err: error if an event could not be written
+func WriteIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
+	for _, event := range eventBuffer {
+		_, err := irWriter.Write(event)
+		if err != nil {
+			err = fmt.Errorf("failed to encode event %v into ir: %w", event, err)
+			return err
+		}
+	}
+	return nil
+}
+
