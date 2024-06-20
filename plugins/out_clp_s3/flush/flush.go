@@ -136,7 +136,7 @@ func DecodeTs(ts interface{}) time.Time {
 }
 
 // Retrieves message as a string from record object. The message can consist of the entire object or
-// just a single key. For a single key, user should set set_single_key to true in fluentbit.conf.
+// just a single key. For a single key, user should set use_single_key to true in fluentbit.conf.
 // In addition user, should set single_key to "log" which is default fluent-bit key for unparsed
 // messages; however, single_key can be set to another value. To prevent failure if the key is
 // missing, user can specify allow_missing_key, and behaviour will fallback to the entire object.
