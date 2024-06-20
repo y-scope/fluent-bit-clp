@@ -23,8 +23,6 @@ import (
 	"unsafe"
 
 	"github.com/ugorji/go/codec"
-
-	"github.com/y-scope/fluent-bit-clp/internal/constant"
 )
 
 // Initializes a msgpack decoder which automatically converts bytes to strings. Decoder has an
@@ -104,17 +102,17 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 // Returns:
 //   - timestamp
 //   - record: Structured record from fluent-bit with variable amount of keys
-//   - ret: EndOfStream if chunk finished, or 0
+//   - endOfStream: true if chunk finished
 //   - err: error retrieving timestamp or data
-func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}, int, error) {
-	// expect array of length 2 for timestamp and data
+func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}, bool, error) {
+	// Expect array of length 2 for timestamp and data.
 	var m [2]interface{}
 	err := decoder.Decode(&m)
 
 	if err != nil {
 		// If there is an error, it most likely means the chunk has no more data. Logic does not
 		// catch other decoding errors.
-		return nil, nil, constant.EndOfStream, nil
+		return nil, nil, true, nil
 	}
 
 	// Timestamp is located in first index.
@@ -133,20 +131,20 @@ func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}
 	case []interface{}:
 		if len(v) < 2 {
 			err = fmt.Errorf("error decoding timestamp %v from stream", v)
-			return nil, nil, 0, err
+			return nil, nil, false, err
 		}
 		timestamp = v[0]
 	default:
 		err = fmt.Errorf("error decoding timestamp %v from stream", v)
-		return nil, nil, 0, err
+		return nil, nil, false, err
 	}
 
 	// Record is located in second index.
 	record, ok := m[1].(map[interface{}]interface{})
 	if !ok {
 		err = fmt.Errorf("error decoding record %v from stream", record)
-		return nil, nil, 0, err
+		return nil, nil, false, err
 	}
 
-	return timestamp, record, 0, nil
+	return timestamp, record, false, nil
 }

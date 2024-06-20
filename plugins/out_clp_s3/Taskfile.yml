@@ -6,6 +6,7 @@ tasks:
       - go build -buildmode=c-shared -o out_clp_s3.so
     sources:
       - ./**/*.go
+      - ../../**/*.go
     generates:
       - out_clp_s3.h
       - out_clp_s3.go

@@ -20,7 +20,6 @@ import (
 
 	"github.com/y-scope/fluent-bit-clp/config"
 	"github.com/y-scope/fluent-bit-clp/decoder"
-	"github.com/y-scope/fluent-bit-clp/internal/constant"
 )
 
 // Flushes data to a file in IR format. Decode of msgpack based on [fluent-bit reference].
@@ -44,14 +43,14 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 
 	// Loop through all records in fluent-bit chunk.
 	for {
-		ts, record, ret, err := decoder.GetRecord(dec)
+		ts, record, endOfStream, err := decoder.GetRecord(dec)
 
 		if err != nil {
 			err = fmt.Errorf("error decoding data from stream: %w", err)
 			return output.FLB_ERROR, err
 		}
 
-		if ret == constant.EndOfStream {
+		if endOfStream {
 			break
 		}
 
