@@ -13,7 +13,7 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 )
 
-// Holds settings for S3 CLP plugin from user defined fluent-bit configuration file.
+// Holds settings for S3 CLP plugin from user defined Fluent Bit configuration file.
 type S3Config struct {
 	Id              string
 	Path            string
@@ -33,8 +33,7 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All errors in config wrapped
 func (s *S3Config) New(plugin unsafe.Pointer) error {
-	// TODO: Redo validation using validator. Validator will simplify warning for IR_encoding if
-	// a non-existing encoding is supplied.
+	// TODO: Redo validation to simplify configuration error reporting.
 	// https://pkg.go.dev/github.com/go-playground/validator/v10
 
 	// Slice holds config errors allowing function to return all errors at once instead of

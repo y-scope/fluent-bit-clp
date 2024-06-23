@@ -38,9 +38,9 @@ Change [plugin-config.conf](plugin-config.conf) to reference the plugin binary
 
 Change [fluent-bit.conf](fluent-bit.conf) to suit your needs. 
 See [Plugin configuration](#plugin-configuration) for description of fields.
-Note changing configuration files may break docker setup, so best to copy them first
+Note changing configuration files may break docker setup, so best to copy them first.
 
-Run fluent-bit
+Run Fluent Bit
   ```shell
   fluent-bit -c fluent-bit-custom.conf
   ```
@@ -51,16 +51,16 @@ The following options must be configured in [fluent-bit.conf](fluent-bit.conf)
 - `id`: Name of output
 - `path`: Directory for output
 - `file`: File name prefix. Plugin will generate many files and append a timestamp
-- `use_single_key`: Output the value corresponding to this key, instead of the whole fluent-bit 
-record. It is recommended to set this to true. A fluent-bit record is a JSON-like object, and while 
+- `use_single_key`: Output the value corresponding to this key, instead of the whole Fluent Bit 
+record. It is recommended to set this to true. A Fluent Bit record is a JSON-like object, and while 
 CLP can parse JSON into IR it is not recommended. Key is set with `single_key` and
-will typically be set to "log", the default fluent-bit key for unparsed logs. If this is set to false, 
-plugin will parse the record as JSON
+will typically be set to "log", the default Fluent Bit key for unparsed logs. If this is set to false, 
+plugin will parse the record as JSON.
 - `allow_missing_key`: Fallback to whole record if key is missing from log. If set to false, an error will
-be recorded instead
+be recorded instead.
 - `single_key`: Value for single key
 - `time_zone`: Time zone of the source producing the log events, so that local times (any time
-that is not a unix timestamp) are handled correctly
+that is not a unix timestamp) are handled correctly.
 
 See below for an example:
 

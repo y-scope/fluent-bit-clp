@@ -25,9 +25,9 @@ import (
 // Flushes data to a file in IR format. Decode of msgpack based on [fluent-bit reference].
 //
 // Parameters:
-//   - data: msgpack data
+//   - data: Msgpack data
 //   - length: Byte length
-//   - tag: fluent-bit tag
+//   - tag: Fluent Bit tag
 //   - S3Config: Plugin configuration
 //
 // Returns:
@@ -117,7 +117,7 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 // decoded, returns system time.
 //
 // Parameters:
-//   - ts: timestamp provided by fluent-bit
+//   - ts: Timestamp provided by fluent-bit
 //
 // Returns:
 //   - timestamp: time.Time timestamp
@@ -179,16 +179,16 @@ func GetMessage(record map[interface{}]interface{}, config *config.S3Config) (in
 	return msg, nil
 }
 
-// Creates a new file to output IR. A new file is created for every fluent-bit chunk. File name is
-// based on user configuration and the system timestamp is added as a suffix.
+// Creates a new file to output IR. A new file is created for every Fluent Bit chunk.
+// The system timestamp is added as a suffix.
 //
 // Parameters:
-//   - path: path from fluent-bit.conf
-//   - file: file name from fluent-bit.conf
+//   - path: Directory path to create to write files inside
+//   - file: File name prefix
 //
 // Returns:
-//   - f: os file
-//   - err: could not create directory, could not create file
+//   - f: The created file
+//   - err: Could not create directory, could not create file
 func CreateFile(path string, file string) (*os.File, error) {
 	// Make directory if does not exist.
 	err := os.MkdirAll(path, 0o644)
@@ -218,8 +218,8 @@ func CreateFile(path string, file string) (*os.File, error) {
 // Writes log events to a IR Writer.
 //
 // Parameters:
-//   - irWriter
-//   - eventBuffer: a slice of log events to be encoded
+//   - irWriter: CLP IR writer to write each log event with
+//   - eventBuffer: A slice of log events to be encoded
 //
 // Returns:
 //   - err: error if an event could not be written

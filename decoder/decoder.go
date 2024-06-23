@@ -26,17 +26,17 @@ import (
 )
 
 // Initializes a msgpack decoder which automatically converts bytes to strings. Decoder has an
-// extension setup for a custom fluent-bit [timestamp format]. During [timestamp encoding],
-// fluent-bit will set the [msgpack extension type] to "0". This decoder can recognize the
+// extension setup for a custom Fluent Bit [timestamp format]. During [timestamp encoding],
+// Fluent Bit will set the [msgpack extension type] to "0". This decoder can recognize the
 // extension type, and will then decode the custom fluent-bit timestamp using a specific function
 // [ReadExt].
 //
 // Parameters:
-//   - data: msgpack data
+//   - data: Msgpack data
 //   - length: Byte length
 //
 // Returns:
-//   - decoder: msgpack decoder
+//   - decoder: Msgpack decoder
 //
 // [timestamp format]: https://github.com/fluent/fluent-bit-docs/blob/master/development/msgpack-format.md#fluent-bit-usage
 // [timestamp encoding]: https://github.com/fluent/fluent-bit/blob/2138cee8f4878733956d42d82f6dcf95f0aa9339/src/flb_time.c#L237
@@ -50,7 +50,7 @@ func New(data unsafe.Pointer, length int) *codec.Decoder {
 	mh.WriteExt = true
 	mh.ErrorIfNoArrayExpand = true
 
-	// Set up custom extension for fluent-bit timestamp format.
+	// Set up custom extension for Fluent Bit timestamp format.
 	mh.SetBytesExt(reflect.TypeOf(FlbTime{}), 0, &FlbTime{})
 
 	b = C.GoBytes(data, C.int(length))
@@ -97,11 +97,11 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 // Retrieves data and timestamp from msgpack object.
 //
 // Parameters:
-//   - decoder: msgpack decoder
+//   - decoder: Msgpack decoder
 //
 // Returns:
-//   - timestamp
-//   - record: Structured record from fluent-bit with variable amount of keys
+//   - timestamp: Timestamp retrieved from Fluent Bit
+//   - record: Structured record from Fluent Bit with variable amount of keys
 //   - endOfStream: true if chunk finished
 //   - err: error retrieving timestamp or data
 func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}, bool, error) {
@@ -119,7 +119,7 @@ func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}
 	t := m[0]
 	var timestamp interface{}
 
-	// fluent-bit can provide timestamp in multiple formats, so we use type switch to process
+	// Fluent Bit can provide timestamp in multiple formats, so we use type switch to process
 	// correctly.
 	switch v := t.(type) {
 	// For earlier format [TIMESTAMP, MESSAGE].
