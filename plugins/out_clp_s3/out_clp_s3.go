@@ -1,4 +1,4 @@
-// Package defines high-level callback functions required by Fluent Bit go plugin documentation. 
+// Package defines high-level callback functions required by Fluent Bit go plugin documentation.
 // See article/repo fo more information [Fluent Bit go], [Fluent Bit stdout example].
 //
 // [Fluent Bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
