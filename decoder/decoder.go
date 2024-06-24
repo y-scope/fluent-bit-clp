@@ -18,10 +18,11 @@ import (
 	"C"
 	"encoding/binary"
 	"fmt"
-	jsoniter "github.com/json-iterator/go"
 	"reflect"
 	"time"
 	"unsafe"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/ugorji/go/codec"
 )
@@ -132,12 +133,12 @@ func GetRecord(decoder *codec.Decoder) (interface{}, string, bool, error) {
 	case []interface{}:
 		if len(v) < 2 {
 			err = fmt.Errorf("error decoding timestamp %v from stream", v)
-			return nil, "",false, err
+			return nil, "", false, err
 		}
 		timestamp = v[0]
 	default:
 		err = fmt.Errorf("error decoding timestamp %v from stream", v)
-		return nil,"",false, err
+		return nil, "", false, err
 	}
 
 	// Record is located in second index.
@@ -155,5 +156,5 @@ func GetRecord(decoder *codec.Decoder) (interface{}, string, bool, error) {
 		return nil, "", false, err
 	}
 
-	return timestamp, jsonRecord ,false, nil
+	return timestamp, jsonRecord, false, nil
 }
