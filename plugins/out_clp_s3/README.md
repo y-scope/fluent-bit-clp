@@ -50,7 +50,7 @@ Run Fluent Bit
 The following options must be configured in [fluent-bit.conf](fluent-bit.conf)
 - `id`: Name of output
 - `path`: Directory for output
-- `file`: File name prefix. Plugin will generate many files and append a timestamp
+- `file`: File name prefix. Plugin will generate many files and append a timestamp.
 - `use_single_key`: Output the value corresponding to this key, instead of the whole Fluent Bit 
 record. It is recommended to set this to true. A Fluent Bit record is a JSON-like object, and while 
 CLP can parse JSON into IR it is not recommended. Key is set with `single_key` and
