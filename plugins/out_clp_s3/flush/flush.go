@@ -136,26 +136,26 @@ func DecodeTs(ts interface{}) time.Time {
 }
 
 // Retrieves message from a record object. The message can consist of the entire object or
-// just a single key. For a single key, user should set use_single_key to true in fluentbit.conf.
+// just a single key. For a single key, user should set use_single_key to true in fluent-bit.conf.
 // In addition user, should set single_key to "log" which is default Fluent bit key for unparsed
 // messages; however, single_key can be set to another value. To prevent failure if the key is
 // missing, user can specify allow_missing_key, and behaviour will fallback to the entire object.
 //
 // Parameters:
-//   - record: Json record from Fluent bit with variable amount of keys
+//   - record: JSON record from Fluent bit with variable amount of keys
 //   - config: Configuration based on fluent-bit.conf
 //
 // Returns:
 //   - msg: Retrieved message
-//   - err: Key not found, json.Marshal error
-func GetMessage(JsonRecord string, config *config.S3Config) (interface{}, error) {
+//   - err: Key not found, json.Unmarshal error
+func GetMessage(jsonRecord string, config *config.S3Config) (interface{}, error) {
 	// If use_single_key=true, then look for key in record, and set message to the key's value.
 	if config.UseSingleKey {
 		var record map[interface{}]interface{}
 		json := jsoniter.ConfigCompatibleWithStandardLibrary
-		err := json.UnmarshalFromString(JsonRecord, &record)
+		err := json.UnmarshalFromString(jsonRecord, &record)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal json record %s: %w", JsonRecord, err)
+			return nil, fmt.Errorf("failed to unmarshal json record %s: %w", jsonRecord, err)
 		}
 
 		singleKeyMsg, ok := record[config.SingleKey]
@@ -163,7 +163,7 @@ func GetMessage(JsonRecord string, config *config.S3Config) (interface{}, error)
 			// If key not found in record, see if allow_missing_key=false. If missing key is
 			// allowed, then return entire record.
 			if config.AllowMissingKey {
-				return JsonRecord, nil
+				return jsonRecord, nil
 				// If key not found in record and allow_missing_key=false, then return an error.
 			} else {
 				return nil, fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
@@ -171,7 +171,7 @@ func GetMessage(JsonRecord string, config *config.S3Config) (interface{}, error)
 		}
 		return singleKeyMsg, nil
 	}
-	return JsonRecord, nil
+	return jsonRecord, nil
 }
 
 // Creates a new file to output IR. A new file is created for every Fluent Bit chunk.
