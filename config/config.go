@@ -1,5 +1,5 @@
-// Package implements loading of fluent-bit configuration file. Configuration is accessible by
-// output plugin and stored by fluent-bit engine.
+// Package implements loading of Fluent Bit configuration file. Configuration is accessible by
+// output plugin and stored by Fluent Bit engine.
 
 package config
 
@@ -27,7 +27,7 @@ type S3Config struct {
 // Generates configuration struct containing user-defined settings.
 //
 // Parameters:
-//   - plugin: fluent-bit plugin reference
+//   - plugin: Fluent Bit plugin reference
 //
 // Returns:
 //   - S3Config: Configuration based on fluent-bit.conf
@@ -80,7 +80,7 @@ func (s *S3Config) New(plugin unsafe.Pointer) error {
 // Retrieves individuals values from fluent-bit.conf.
 //
 // Parameters:
-//   - plugin: fluent-bit plugin reference
+//   - plugin: Fluent Bit plugin reference
 //   - configKey: Key from fluent-bit.conf
 //
 // Returns:

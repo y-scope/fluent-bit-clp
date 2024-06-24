@@ -1,5 +1,5 @@
-// Package implements methods to send data to output. All data provided by fluent-bit is encoded
-// with msgpack.
+// Package implements methods to send data to output. All data provided by Fluent Bit is encoded
+// with Msgpack.
 
 package flush
 
@@ -22,7 +22,7 @@ import (
 	"github.com/y-scope/fluent-bit-clp/decoder"
 )
 
-// Flushes data to a file in IR format. Decode of msgpack based on [fluent-bit reference].
+// Flushes data to a file in IR format. Decode of Msgpack based on [Fluent Bit reference].
 //
 // Parameters:
 //   - data: Msgpack data
@@ -31,17 +31,17 @@ import (
 //   - S3Config: Plugin configuration
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 //
-// [fluent-bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
+// [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) (int, error) {
-	// Buffer to store events from fluent-bit chunk.
+	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
 
 	dec := decoder.New(data, length)
 
-	// Loop through all records in fluent-bit chunk.
+	// Loop through all records in Fluent Bit chunk.
 	for {
 		ts, record, endOfStream, err := decoder.GetRecord(dec)
 
@@ -113,11 +113,11 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 	return output.FLB_OK, nil
 }
 
-// Decodes timestamp provided by fluent-bit engine into time.Time. If timestamp cannot be
+// Decodes timestamp provided by Fluent Bit engine into time.Time. If timestamp cannot be
 // decoded, returns system time.
 //
 // Parameters:
-//   - ts: Timestamp provided by fluent-bit
+//   - ts: Timestamp provided by Fluent Bit
 //
 // Returns:
 //   - timestamp: time.Time timestamp
@@ -135,48 +135,43 @@ func DecodeTs(ts interface{}) time.Time {
 	return timestamp
 }
 
-// Retrieves message as a string from record object. The message can consist of the entire object or
+// Retrieves message from a record object. The message can consist of the entire object or
 // just a single key. For a single key, user should set use_single_key to true in fluentbit.conf.
-// In addition user, should set single_key to "log" which is default fluent-bit key for unparsed
+// In addition user, should set single_key to "log" which is default Fluent bit key for unparsed
 // messages; however, single_key can be set to another value. To prevent failure if the key is
 // missing, user can specify allow_missing_key, and behaviour will fallback to the entire object.
 //
 // Parameters:
-//   - record: Structured record from fluent-bit with variable amount of keys
+//   - record: Json record from Fluent bit with variable amount of keys
 //   - config: Configuration based on fluent-bit.conf
 //
 // Returns:
 //   - msg: Retrieved message
 //   - err: Key not found, json.Marshal error
-func GetMessage(record map[interface{}]interface{}, config *config.S3Config) (interface{}, error) {
-	var msg interface{}
-	var ok bool
-	var err error
-	json := jsoniter.ConfigCompatibleWithStandardLibrary
-
+func GetMessage(JsonRecord string, config *config.S3Config) (interface{}, error) {
 	// If use_single_key=true, then look for key in record, and set message to the key's value.
 	if config.UseSingleKey {
-		msg, ok = record[config.SingleKey]
+		var record map[interface{}]interface{}
+		json := jsoniter.ConfigCompatibleWithStandardLibrary
+		err := json.UnmarshalFromString(JsonRecord, &record)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal json record %s: %w", JsonRecord, err)
+		}
+
+		singleKeyMsg, ok := record[config.SingleKey]
 		if !ok {
 			// If key not found in record, see if allow_missing_key=false. If missing key is
-			// allowed. then fallback to marshal entire object.
+			// allowed, then return entire record.
 			if config.AllowMissingKey {
-				msg, err = json.MarshalToString(record)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal record %v: %w", record, err)
-				}
+				return JsonRecord, nil
 				// If key not found in record and allow_missing_key=false, then return an error.
 			} else {
 				return nil, fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
 			}
 		}
-	} else {
-		msg, err = json.MarshalToString(record)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal record %v: %w", record, err)
-		}
+		return singleKeyMsg, nil
 	}
-	return msg, nil
+	return JsonRecord, nil
 }
 
 // Creates a new file to output IR. A new file is created for every Fluent Bit chunk.

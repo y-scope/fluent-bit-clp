@@ -1,4 +1,4 @@
-// Package implements msgpack decoder. fluent-bit-go already has a msgpack decoder; however, it
+// Package implements Msgpack decoder. Fluent Bit Go already has a Msgpack decoder; however, it
 // will decode strings as []int8. This has two undesirable consequences.
 //
 //  1. Printing values with %v may output non-human readable arrays.
@@ -7,7 +7,7 @@
 //     strings.
 //
 // To solve these issues, all other plugins such as the [aws firehose plugin], have recursive
-// functions which comb through decoded msgpack structures and convert bytes to strings (effectively
+// functions which comb through decoded Msgpack structures and convert bytes to strings (effectively
 // another decoder). Creating a new decoder to output strings instead of bytes is cleaner,
 // removes complex recursive functions, and likely more performant.
 //
@@ -18,6 +18,7 @@ import (
 	"C"
 	"encoding/binary"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"reflect"
 	"time"
 	"unsafe"
@@ -25,10 +26,10 @@ import (
 	"github.com/ugorji/go/codec"
 )
 
-// Initializes a msgpack decoder which automatically converts bytes to strings. Decoder has an
+// Initializes a Msgpack decoder which automatically converts bytes to strings. Decoder has an
 // extension setup for a custom Fluent Bit [timestamp format]. During [timestamp encoding],
-// Fluent Bit will set the [msgpack extension type] to "0". This decoder can recognize the
-// extension type, and will then decode the custom fluent-bit timestamp using a specific function
+// Fluent Bit will set the [Msgpack extension type] to "0". This decoder can recognize the
+// extension type, and will then decode the custom Fluent Bit timestamp using a specific function
 // [ReadExt].
 //
 // Parameters:
@@ -40,7 +41,7 @@ import (
 //
 // [timestamp format]: https://github.com/fluent/fluent-bit-docs/blob/master/development/msgpack-format.md#fluent-bit-usage
 // [timestamp encoding]: https://github.com/fluent/fluent-bit/blob/2138cee8f4878733956d42d82f6dcf95f0aa9339/src/flb_time.c#L237
-// [msgpack extension type]: https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types
+// [Msgpack extension type]: https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types
 func New(data unsafe.Pointer, length int) *codec.Decoder {
 	var b []byte
 	var mh codec.MsgpackHandle
@@ -58,7 +59,7 @@ func New(data unsafe.Pointer, length int) *codec.Decoder {
 	return decoder
 }
 
-// Fluent-bit can encode timestamps in msgpack [fixext 8] format. Format stores an integer and a
+// Fluent-bit can encode timestamps in Msgpack [fixext 8] format. Format stores an integer and a
 // byte array whose length is 8 bytes. The integer is the type, and the 4 MSBs are the seconds
 // (big-endian uint32) and 4 LSBs are nanoseconds.
 // [fixext 8]: https://github.com/msgpack/msgpack/blob/master/spec.md#ext-format-family
@@ -94,7 +95,7 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 	panic("unsupported")
 }
 
-// Retrieves data and timestamp from msgpack object.
+// Retrieves data and timestamp from Msgpack object.
 //
 // Parameters:
 //   - decoder: Msgpack decoder
@@ -104,7 +105,7 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 //   - record: Structured record from Fluent Bit with variable amount of keys
 //   - endOfStream: true if chunk finished
 //   - err: error retrieving timestamp or data
-func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}, bool, error) {
+func GetRecord(decoder *codec.Decoder) (interface{}, string, bool, error) {
 	// Expect array of length 2 for timestamp and data.
 	var m [2]interface{}
 	err := decoder.Decode(&m)
@@ -112,7 +113,7 @@ func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}
 	if err != nil {
 		// If there is an error, it most likely means the chunk has no more data. Logic does not
 		// catch other decoding errors.
-		return nil, nil, true, nil
+		return nil, "", true, nil
 	}
 
 	// Timestamp is located in first index.
@@ -131,20 +132,28 @@ func GetRecord(decoder *codec.Decoder) (interface{}, map[interface{}]interface{}
 	case []interface{}:
 		if len(v) < 2 {
 			err = fmt.Errorf("error decoding timestamp %v from stream", v)
-			return nil, nil, false, err
+			return nil, "",false, err
 		}
 		timestamp = v[0]
 	default:
 		err = fmt.Errorf("error decoding timestamp %v from stream", v)
-		return nil, nil, false, err
+		return nil,"",false, err
 	}
 
 	// Record is located in second index.
 	record, ok := m[1].(map[interface{}]interface{})
 	if !ok {
 		err = fmt.Errorf("error decoding record %v from stream", record)
-		return nil, nil, false, err
+		return nil, "", false, err
 	}
 
-	return timestamp, record, false, nil
+	// Marshall record to json string.
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
+	JsonRecord, err := json.MarshalToString(record)
+	if err != nil {
+		err = fmt.Errorf("failed to marshal record %v: %w", record, err)
+		return nil, "", false, err
+	}
+
+	return timestamp, JsonRecord ,false, nil
 }

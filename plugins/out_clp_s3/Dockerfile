@@ -1,8 +1,8 @@
-# Builds plugin binary in go container and then runs in fluent-bit container.
+# Builds plugin binary in go container and then runs in Fluent Bit container.
 
-# Using bullseye tag to match debian version from fluent-bit image [fluent-bit Debian version].
+# Using bullseye tag to match debian version from Fluent Bit image [Fluent Bit Debian version].
 # Matching debian versions prevents glibc compatibility issues.
-# [fluent-bit Debian version]: https://github.com/fluent/fluent-bit/blob/master/dockerfiles/Dockerfile
+# [Fluent Bit Debian version]: https://github.com/fluent/fluent-bit/blob/master/dockerfiles/Dockerfile
 FROM golang:1.22.3-bullseye as builder
 
 # install task
@@ -23,7 +23,7 @@ RUN task build
 
 FROM fluent/fluent-bit:3.0.6
 
-# Copy plugin binary to fluent-bit image. 
+# Copy plugin binary to Fluent Bit image. 
 COPY --from=builder /root/plugins/out_clp_s3/out_clp_s3.so /fluent-bit/bin/
 COPY --from=builder /root/plugins/out_clp_s3/*.conf /fluent-bit/etc/
 

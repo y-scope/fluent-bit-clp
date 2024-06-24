@@ -1,12 +1,12 @@
-// Package defines high-level callback functions required by fluent-bit go plugin documentation. See
-// article/repo fo more information [fluent-bit go], [fluent-bit stdout example].
+// Package defines high-level callback functions required by Fluent Bit go plugin documentation. 
+// See article/repo fo more information [Fluent Bit go], [Fluent Bit stdout example].
 //
-// [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// [Fluent Bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
+// [Fluent Bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 package main
 
-// Note package name "main" is required by fluent-bit which suppresses go docs. Do not remove
-// export, required for use by fluent-bit C calls.
+// Note package name "main" is required by Fluent Bit which suppresses go docs. Do not remove
+// export, required for use by Fluent Bit C calls.
 
 import (
 	"C"
@@ -20,10 +20,10 @@ import (
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
 
-// Required fluent-bit registration callback.
+// Required Fluent Bit registration callback.
 //
 // Parameters:
-//   - def: fluent-bit plugin definition
+//   - def: Fluent Bit plugin definition
 //
 // Returns:
 //   - nil
@@ -34,13 +34,13 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 	return output.FLBPluginRegister(def, constant.S3PluginName, "Clp s3 plugin")
 }
 
-// Required fluent-bit initialization callback.
+// Required Fluent Bit initialization callback.
 //
 // Parameters:
-//   - def: fluent-bit plugin reference
+//   - def: Fluent Bit plugin reference
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
@@ -58,16 +58,16 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	return output.FLB_OK
 }
 
-// Required fluent-bit flush callback.
+// Required Fluent Bit flush callback.
 //
 // Parameters:
-//   - ctx: fluent-bit plugin context
-//   - data: msgpack data
+//   - ctx: Fluent Bit plugin context
+//   - data: Msgpack data
 //   - length: Byte length
-//   - tag: fluent-bit tag
+//   - tag: Fluent Bit tag
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginFlushCtx
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
@@ -96,13 +96,13 @@ func FLBPluginExit() int {
 	return output.FLB_OK
 }
 
-// Required fluent-bit exit callback.
+// Required Fluent Bit exit callback.
 //
 // Parameters:
-//   - ctx: fluent-bit plugin context
+//   - ctx: Fluent Bit plugin context
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginExitCtx
 func FLBPluginExitCtx(ctx unsafe.Pointer) int {
