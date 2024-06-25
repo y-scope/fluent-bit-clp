@@ -71,7 +71,7 @@ type FlbTime struct {
 //
 // Parameters:
 //   - i: Pointer to the registered extension type
-//   - b: msgback data in fixext 8 format
+//   - b: Msgpack data in fixext 8 format
 func (f FlbTime) ReadExt(i interface{}, b []byte) {
 	// Note that ts refers to the same object since i is a pointer.
 	ts := i.(*FlbTime)

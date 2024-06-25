@@ -158,7 +158,7 @@ func getMessage(jsonRecord []byte, config *config.S3Config) (string, error) {
 
 	singleKeyMsg, ok := record[config.SingleKey]
 	if !ok {
-		// If key not found in record, see if allow_missing_key=false. If missing key is
+		// If key not found in record, see if allow_missing_key=true. If missing key is
 		// allowed, then return entire record.
 		if config.AllowMissingKey {
 			return string(jsonRecord), nil
