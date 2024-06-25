@@ -102,9 +102,9 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 //
 // Returns:
 //   - timestamp: Timestamp retrieved from Fluent Bit
-//   - record: Structured record from Fluent Bit with variable amount of keys
+//   - record: JSON record from Fluent Bit with variable amount of keys
 //   - endOfStream: true if chunk finished
-//   - err: error retrieving timestamp, error retrieving record, error marshalling record
+//   - err: error retrieving timestamp, error marshalling record
 func GetRecord(decoder *codec.Decoder) (interface{}, []byte, bool, error) {
 	// Expect array of length 2 for timestamp and data. Also intialize expected types for
 	// timestamp and record
@@ -145,7 +145,7 @@ func GetRecord(decoder *codec.Decoder) (interface{}, []byte, bool, error) {
 	// Record is located in second index.
 	record := m[1]
 
-	// Marshall record to json string.
+	// Marshall record to json.
 	jsonRecord, err := json.Marshal(record)
 	if err != nil {
 		err = fmt.Errorf("failed to marshal record %v: %w", record, err)

@@ -141,14 +141,14 @@ func decodeTs(ts interface{}) time.Time {
 //
 // Returns:
 //   - msg: Retrieved message
-//   - err: Key not found, json.Unmarshal error
+//   - err: Key not found, json.Unmarshal error, string type assertion error
 func getMessage(jsonRecord []byte, config *config.S3Config) (string, error) {
 	// If use_single_key=true, then look for key in record, and set message to the key's value.
 	if config.UseSingleKey {
 		var record map[string]interface{}
 		err := json.Unmarshal(jsonRecord, &record)
 		if err != nil {
-			return "", fmt.Errorf("failed to unmarshal json record %s: %w", jsonRecord, err)
+			return "", fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
 		}
 		singleKeyMsg, ok := record[config.SingleKey]
 		if !ok {
