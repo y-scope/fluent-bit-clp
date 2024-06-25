@@ -7,6 +7,7 @@ import (
 	"C"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -43,15 +44,16 @@ func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config
 
 	// Loop through all records in Fluent Bit chunk.
 	for {
-		ts, record, endOfStream, err := decoder.GetRecord(dec)
+		ts, record, err := decoder.GetRecord(dec)
 
 		if err != nil {
-			err = fmt.Errorf("error decoding data from stream: %w", err)
-			return output.FLB_ERROR, err
-		}
-
-		if endOfStream {
+			if err == io.EOF {
+			// Chunk decoding finished. Break out of loop and send log events to output.
 			break
+			} else {
+				err = fmt.Errorf("error decoding data from stream: %w", err)
+				return output.FLB_ERROR, err
+			}
 		}
 
 		timestamp := decodeTs(ts)
@@ -143,33 +145,36 @@ func decodeTs(ts interface{}) time.Time {
 //   - msg: Retrieved message
 //   - err: Key not found, json.Unmarshal error, string type assertion error
 func getMessage(jsonRecord []byte, config *config.S3Config) (string, error) {
-	// If use_single_key=true, then look for key in record, and set message to the key's value.
-	if config.UseSingleKey {
-		var record map[string]interface{}
-		err := json.Unmarshal(jsonRecord, &record)
-		if err != nil {
-			return "", fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
-		}
-		singleKeyMsg, ok := record[config.SingleKey]
-		if !ok {
-			// If key not found in record, see if allow_missing_key=false. If missing key is
-			// allowed, then return entire record.
-			if config.AllowMissingKey {
-				return string(jsonRecord), nil
-				// If key not found in record and allow_missing_key=false, then return an error.
-			} else {
-				return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
-			}
-		}
-
-		stringMsg, ok := singleKeyMsg.(string)
-		if !ok {
-			return "", fmt.Errorf("string type assertion for message failed %v", singleKeyMsg)
-		}
-
-		return stringMsg, nil
+	// If use_single_key=false, return the entire record.
+	if !config.UseSingleKey {
+		return string(jsonRecord), nil
 	}
-	return string(jsonRecord), nil
+
+	// If use_single_key=true, then look for key in record, and set message to the key's value.
+	var record map[string]interface{}
+	err := json.Unmarshal(jsonRecord, &record)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
+	}
+
+	singleKeyMsg, ok := record[config.SingleKey]
+	if !ok {
+		// If key not found in record, see if allow_missing_key=false. If missing key is
+		// allowed, then return entire record.
+		if config.AllowMissingKey {
+			return string(jsonRecord), nil
+			// If key not found in record and allow_missing_key=false, then return an error.
+		} else {
+			return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
+		}
+	}
+
+	stringMsg, ok := singleKeyMsg.(string)
+	if !ok {
+		return "", fmt.Errorf("string type assertion for message failed %v", singleKeyMsg)
+	}
+
+	return stringMsg, nil
 }
 
 // Creates a new file to output IR. A new file is created for every Fluent Bit chunk.

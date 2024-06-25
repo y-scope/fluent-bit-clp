@@ -103,19 +103,17 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 // Returns:
 //   - timestamp: Timestamp retrieved from Fluent Bit
 //   - record: JSON record from Fluent Bit with variable amount of keys
-//   - endOfStream: true if chunk finished
-//   - err: error retrieving timestamp, error marshalling record
-func GetRecord(decoder *codec.Decoder) (interface{}, []byte, bool, error) {
+//   - err: decode error, error retrieving timestamp, error marshalling record
+func GetRecord(decoder *codec.Decoder) (interface{}, []byte, error) {
 	// Expect array of length 2 for timestamp and data. Also intialize expected types for
 	// timestamp and record
 	m := [2]interface{}{nil, make(map[string]interface{})}
 
 	err := decoder.Decode(&m)
-
 	if err != nil {
-		// If there is an error, it most likely means the chunk has no more data. Logic does not
-		// catch other decoding errors.
-		return nil, nil, true, nil
+		// io.EOF errors signify chunk is empty. They should be caught and trigger end of decoding. Other 
+		// decoding errors are not expected in normal operation of plugin.
+		return nil, nil, err
 	}
 
 	// Timestamp is located in first index.
@@ -134,12 +132,12 @@ func GetRecord(decoder *codec.Decoder) (interface{}, []byte, bool, error) {
 	case []interface{}:
 		if len(v) < 2 {
 			err = fmt.Errorf("error decoding timestamp %v from stream", v)
-			return nil, nil, false, err
+			return nil, nil, err
 		}
 		timestamp = v[0]
 	default:
 		err = fmt.Errorf("error decoding timestamp %v from stream", v)
-		return nil, nil, false, err
+		return nil, nil, err
 	}
 
 	// Record is located in second index.
@@ -149,8 +147,8 @@ func GetRecord(decoder *codec.Decoder) (interface{}, []byte, bool, error) {
 	jsonRecord, err := json.Marshal(record)
 	if err != nil {
 		err = fmt.Errorf("failed to marshal record %v: %w", record, err)
-		return nil, nil, false, err
+		return nil, nil, err
 	}
 
-	return timestamp, jsonRecord, false, nil
+	return timestamp, jsonRecord, nil
 }
