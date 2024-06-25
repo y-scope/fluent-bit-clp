@@ -111,8 +111,8 @@ func GetRecord(decoder *codec.Decoder) (interface{}, []byte, error) {
 
 	err := decoder.Decode(&m)
 	if err != nil {
-		// io.EOF errors signify chunk is empty. They should be caught and trigger end of decoding. Other 
-		// decoding errors are not expected in normal operation of plugin.
+		// io.EOF errors signify chunk is empty. They should be caught and trigger end of decoding.
+		// Other decoding errors are not expected in normal operation of plugin.
 		return nil, nil, err
 	}
 
