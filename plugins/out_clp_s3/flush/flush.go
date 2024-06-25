@@ -45,14 +45,12 @@ func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config
 	// Loop through all records in Fluent Bit chunk.
 	for {
 		ts, record, err := decoder.GetRecord(dec)
-		if err != nil {
-			if err == io.EOF {
-				// Chunk decoding finished. Break out of loop and send log events to output.
-				break
-			} else {
-				err = fmt.Errorf("error decoding data from stream: %w", err)
-				return output.FLB_ERROR, err
-			}
+		if err == io.EOF {
+			// Chunk decoding finished. Break out of loop and send log events to output.
+			break
+		} else if err != nil {
+			err = fmt.Errorf("error decoding data from stream: %w", err)
+			return output.FLB_ERROR, err
 		}
 
 		timestamp := decodeTs(ts)
