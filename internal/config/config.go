@@ -78,7 +78,7 @@ func NewS3(plugin unsafe.Pointer) (S3Config, error) {
 	return config, err
 }
 
-// Retrieves individuals values from fluent-bit.conf.
+// Retrieves individual values from fluent-bit.conf.
 //
 // Parameters:
 //   - plugin: Fluent Bit plugin reference
