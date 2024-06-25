@@ -1,13 +1,12 @@
-// Package defines high-level callback functions required by fluent-bit go plugin documentation. See
-// article/repo fo more information [fluent-bit go], [fluent-bit stdout example].
+// Package defines high-level callback functions required by Fluent Bit go plugin documentation.
+// See article/repo fo more information [Fluent Bit go], [Fluent Bit stdout example].
 //
-// [fluent-bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// [fluent-bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
-// nolint:revive
-
-// Note package name "main" is required by fluent-bit which suppresses go docs. Do not remove
-// export, required for use by fluent-bit C calls.
+// [Fluent Bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
+// [Fluent Bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 package main
+
+// Note package name "main" is required by Fluent Bit which suppresses go docs. Do not remove
+// export, required for use by Fluent Bit C calls.
 
 import (
 	"C"
@@ -16,72 +15,75 @@ import (
 
 	"github.com/fluent/fluent-bit-go/output"
 
-	"github.com/y-scope/fluent-bit-clp/config"
-	"github.com/y-scope/fluent-bit-clp/internal/constant"
+	"github.com/y-scope/fluent-bit-clp/internal/config"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
 
-// Required fluent-bit registration callback.
+const s3PluginName = "out_clp_s3"
+
+// Required Fluent Bit registration callback.
 //
 // Parameters:
-//   - def: fluent-bit plugin definition
+//   - def: Fluent Bit plugin definition
 //
 // Returns:
 //   - nil
 //
 //export FLBPluginRegister
 func FLBPluginRegister(def unsafe.Pointer) int {
-	log.Printf("[%s] Register called", constant.S3PluginName)
-	return output.FLBPluginRegister(def, constant.S3PluginName, "Clp s3 plugin")
+	log.Printf("[%s] Register called", s3PluginName)
+	return output.FLBPluginRegister(def, s3PluginName, "Clp s3 plugin")
 }
 
-// Required fluent-bit initialization callback.
+// Required Fluent Bit initialization callback.
 //
 // Parameters:
-//   - def: fluent-bit plugin reference
+//   - def: Fluent Bit plugin reference
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
-	// Returns pointer to a config instance based on fluent-bit configuration.
-	config, err := config.S3New(plugin)
+	config, err := config.NewS3(plugin)
 	if err != nil {
 		log.Fatalf("Failed to load configuration %s", err)
 	}
 
-	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
+	log.Printf("[%s] Init called for id: %s", s3PluginName, config.Id)
 
-	// Set the context for this instance so that params can be retrieved during flush. Context
-	// should only be set once to avoid race condition.
-	output.FLBPluginSetContext(plugin, config)
+	// Set the context for this instance so that params can be retrieved during flush.
+	output.FLBPluginSetContext(plugin, &config)
 	return output.FLB_OK
 }
 
-// Required fluent-bit flush callback.
+// Required Fluent Bit flush callback.
 //
 // Parameters:
-//   - ctx: fluent-bit plugin context
-//   - data: msgpack data
+//   - ctx: Fluent Bit plugin context
+//   - data: Msgpack data
 //   - length: Byte length
-//   - tag: fluent-bit tag
+//   - tag: Fluent Bit tag
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginFlushCtx
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	config := (p).(*config.S3Config)
-	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
+	config, ok := p.(*config.S3Config)
+	if !ok {
+		log.Fatal("Could not read context during flush")
+	}
 
-	err := flush.File(data, int(length), C.GoString(tag), config)
+	log.Printf("[%s] Flush called for id: %s", s3PluginName, config.Id)
+
+	code, err := flush.ToFile(data, int(length), C.GoString(tag), config)
 	if err != nil {
-		log.Printf("error flushing data %s", err)
-		// retry later
-		return output.FLB_RETRY
+		log.Printf("error flushing data: %s", err)
+		// RETRY or ERROR
+		return code
 	}
 
 	return output.FLB_OK
@@ -89,30 +91,35 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 
 //export FLBPluginExit
 func FLBPluginExit() int {
-	log.Printf("[%s] Exit called for unknown instance", constant.S3PluginName)
+	log.Printf("[%s] Exit called for unknown instance", s3PluginName)
 	return output.FLB_OK
 }
 
-// Required fluent-bit exit callback.
+// Required Fluent Bit exit callback.
 //
 // Parameters:
-//   - ctx: fluent-bit plugin context
+//   - ctx: Fluent Bit plugin context
 //
 // Returns:
-//   - code: fluent-bit success code (OK, RETRY, ERROR)
+//   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //
 //export FLBPluginExitCtx
 func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	config := (p).(*config.S3Config)
-	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, config.Id)
+
+	config, ok := p.(*config.S3Config)
+	if !ok {
+		log.Fatal("Could not read context during flush")
+	}
+
+	log.Printf("[%s] Exit called for id: %s", s3PluginName, config.Id)
 	return output.FLB_OK
 }
 
 //export FLBPluginUnregister
 func FLBPluginUnregister(def unsafe.Pointer) {
-	log.Printf("[%s] Unregister called", constant.S3PluginName)
+	log.Printf("[%s] Unregister called", s3PluginName)
 	output.FLBPluginUnregister(def)
 }
 
