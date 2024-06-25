@@ -32,7 +32,7 @@ type S3Config struct {
 // Returns:
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All errors in config wrapped
-func (s *S3Config) New(plugin unsafe.Pointer) error {
+func NewS3(plugin unsafe.Pointer) (S3Config, error) {
 	// TODO: Redo validation to simplify configuration error reporting.
 	// https://pkg.go.dev/github.com/go-playground/validator/v10
 
@@ -41,13 +41,14 @@ func (s *S3Config) New(plugin unsafe.Pointer) error {
 	configErrors := []error{}
 
 	var err error
-	s.Id, err = getValueFLBConfig(plugin, "id")
+	var config S3Config
+	config.Id, err = getValueFLBConfig(plugin, "id")
 	configErrors = append(configErrors, err)
 
-	s.Path, err = getValueFLBConfig(plugin, "path")
+	config.Path, err = getValueFLBConfig(plugin, "path")
 	configErrors = append(configErrors, err)
 
-	s.File, err = getValueFLBConfig(plugin, "file")
+	config.File, err = getValueFLBConfig(plugin, "file")
 	configErrors = append(configErrors, err)
 
 	var UseSingleKey string
@@ -55,7 +56,7 @@ func (s *S3Config) New(plugin unsafe.Pointer) error {
 	configErrors = append(configErrors, err)
 
 	// Type conversion to bool.
-	s.UseSingleKey, err = strconv.ParseBool(UseSingleKey)
+	config.UseSingleKey, err = strconv.ParseBool(UseSingleKey)
 	configErrors = append(configErrors, err)
 
 	var AllowMissingKey string
@@ -63,18 +64,18 @@ func (s *S3Config) New(plugin unsafe.Pointer) error {
 	configErrors = append(configErrors, err)
 
 	// Type conversion to bool.
-	s.AllowMissingKey, err = strconv.ParseBool(AllowMissingKey)
+	config.AllowMissingKey, err = strconv.ParseBool(AllowMissingKey)
 	configErrors = append(configErrors, err)
 
 	// Allow nil, so no need to check error.
-	s.SingleKey, _ = getValueFLBConfig(plugin, "single_key")
+	config.SingleKey, _ = getValueFLBConfig(plugin, "single_key")
 
-	s.TimeZone, err = getValueFLBConfig(plugin, "time_zone")
+	config.TimeZone, err = getValueFLBConfig(plugin, "time_zone")
 	configErrors = append(configErrors, err)
 
 	// Wrap all errors into one error before returning. Automically excludes nil errors.
 	err = errors.Join(configErrors...)
-	return err
+	return config, err
 }
 
 // Retrieves individuals values from fluent-bit.conf.

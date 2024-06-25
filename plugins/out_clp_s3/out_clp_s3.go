@@ -15,10 +15,11 @@ import (
 
 	"github.com/fluent/fluent-bit-go/output"
 
-	"github.com/y-scope/fluent-bit-clp/config"
-	"github.com/y-scope/fluent-bit-clp/internal/constant"
+	"github.com/y-scope/fluent-bit-clp/internal/config"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
+
+const s3PluginName = "out_clp_s3"
 
 // Required Fluent Bit registration callback.
 //
@@ -30,8 +31,8 @@ import (
 //
 //export FLBPluginRegister
 func FLBPluginRegister(def unsafe.Pointer) int {
-	log.Printf("[%s] Register called", constant.S3PluginName)
-	return output.FLBPluginRegister(def, constant.S3PluginName, "Clp s3 plugin")
+	log.Printf("[%s] Register called", s3PluginName)
+	return output.FLBPluginRegister(def, s3PluginName, "Clp s3 plugin")
 }
 
 // Required Fluent Bit initialization callback.
@@ -44,14 +45,12 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
-
-	var config config.S3Config
-	err := config.New(plugin)
+	config, err := config.NewS3(plugin)
 	if err != nil {
 		log.Fatalf("Failed to load configuration %s", err)
 	}
 
-	log.Printf("[%s] Init called for id: %s", constant.S3PluginName, config.Id)
+	log.Printf("[%s] Init called for id: %s", s3PluginName, config.Id)
 
 	// Set the context for this instance so that params can be retrieved during flush.
 	output.FLBPluginSetContext(plugin, &config)
@@ -78,9 +77,9 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Flush called for id: %s", constant.S3PluginName, config.Id)
+	log.Printf("[%s] Flush called for id: %s", s3PluginName, config.Id)
 
-	code, err := flush.File(data, int(length), C.GoString(tag), config)
+	code, err := flush.ToFile(data, int(length), C.GoString(tag), config)
 	if err != nil {
 		log.Printf("error flushing data: %s", err)
 		// RETRY or ERROR
@@ -92,7 +91,7 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 
 //export FLBPluginExit
 func FLBPluginExit() int {
-	log.Printf("[%s] Exit called for unknown instance", constant.S3PluginName)
+	log.Printf("[%s] Exit called for unknown instance", s3PluginName)
 	return output.FLB_OK
 }
 
@@ -114,13 +113,13 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Exit called for id: %s", constant.S3PluginName, config.Id)
+	log.Printf("[%s] Exit called for id: %s", s3PluginName, config.Id)
 	return output.FLB_OK
 }
 
 //export FLBPluginUnregister
 func FLBPluginUnregister(def unsafe.Pointer) {
-	log.Printf("[%s] Unregister called", constant.S3PluginName)
+	log.Printf("[%s] Unregister called", s3PluginName)
 	output.FLBPluginUnregister(def)
 }
 

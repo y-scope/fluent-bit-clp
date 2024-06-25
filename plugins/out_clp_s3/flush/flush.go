@@ -5,6 +5,7 @@ package flush
 
 import (
 	"C"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -13,13 +14,12 @@ import (
 	"unsafe"
 
 	"github.com/fluent/fluent-bit-go/output"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/klauspost/compress/zstd"
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 
-	"github.com/y-scope/fluent-bit-clp/config"
-	"github.com/y-scope/fluent-bit-clp/decoder"
+	"github.com/y-scope/fluent-bit-clp/internal/config"
+	"github.com/y-scope/fluent-bit-clp/internal/decoder"
 )
 
 // Flushes data to a file in IR format. Decode of Msgpack based on [Fluent Bit reference].
@@ -35,7 +35,7 @@ import (
 //   - err: Error if flush fails
 //
 // [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
-func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) (int, error) {
+func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config) (int, error) {
 	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
 
@@ -54,8 +54,8 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 			break
 		}
 
-		timestamp := DecodeTs(ts)
-		msg, err := GetMessage(record, config)
+		timestamp := decodeTs(ts)
+		msg, err := getMessage(record, config)
 		if err != nil {
 			err = fmt.Errorf("failed to get message from record: %w", err)
 			return output.FLB_ERROR, err
@@ -69,7 +69,7 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 	}
 
 	// Create file for IR output.
-	f, err := CreateFile(config.Path, config.File)
+	f, err := createFile(config.Path, config.File)
 	if err != nil {
 		return output.FLB_RETRY, err
 	}
@@ -90,7 +90,7 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 		return output.FLB_RETRY, err
 	}
 
-	err = WriteIr(irWriter, logEvents)
+	err = writeIr(irWriter, logEvents)
 	if err != nil {
 		err = fmt.Errorf("error while encoding IR: %w", err)
 		return output.FLB_ERROR, err
@@ -115,7 +115,7 @@ func File(data unsafe.Pointer, length int, tag string, config *config.S3Config) 
 //
 // Returns:
 //   - timestamp: time.Time timestamp
-func DecodeTs(ts interface{}) time.Time {
+func decodeTs(ts interface{}) time.Time {
 	var timestamp time.Time
 	switch t := ts.(type) {
 	case decoder.FlbTime:
@@ -142,12 +142,11 @@ func DecodeTs(ts interface{}) time.Time {
 // Returns:
 //   - msg: Retrieved message
 //   - err: Key not found, json.Unmarshal error
-func GetMessage(jsonRecord string, config *config.S3Config) (string, error) {
+func getMessage(jsonRecord []byte, config *config.S3Config) (string, error) {
 	// If use_single_key=true, then look for key in record, and set message to the key's value.
 	if config.UseSingleKey {
 		var record map[string]interface{}
-		json := jsoniter.ConfigCompatibleWithStandardLibrary
-		err := json.UnmarshalFromString(jsonRecord, &record)
+		err := json.Unmarshal(jsonRecord, &record)
 		if err != nil {
 			return "", fmt.Errorf("failed to unmarshal json record %s: %w", jsonRecord, err)
 		}
@@ -156,7 +155,7 @@ func GetMessage(jsonRecord string, config *config.S3Config) (string, error) {
 			// If key not found in record, see if allow_missing_key=false. If missing key is
 			// allowed, then return entire record.
 			if config.AllowMissingKey {
-				return jsonRecord, nil
+				return string(jsonRecord), nil
 				// If key not found in record and allow_missing_key=false, then return an error.
 			} else {
 				return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
@@ -170,7 +169,7 @@ func GetMessage(jsonRecord string, config *config.S3Config) (string, error) {
 
 		return stringMsg, nil
 	}
-	return jsonRecord, nil
+	return string(jsonRecord), nil
 }
 
 // Creates a new file to output IR. A new file is created for every Fluent Bit chunk.
@@ -183,7 +182,7 @@ func GetMessage(jsonRecord string, config *config.S3Config) (string, error) {
 // Returns:
 //   - f: The created file
 //   - err: Could not create directory, could not create file
-func CreateFile(path string, file string) (*os.File, error) {
+func createFile(path string, file string) (*os.File, error) {
 	// Make directory if does not exist.
 	err := os.MkdirAll(path, 0o644)
 	if err != nil {
@@ -217,7 +216,7 @@ func CreateFile(path string, file string) (*os.File, error) {
 //
 // Returns:
 //   - err: error if an event could not be written
-func WriteIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
+func writeIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
 	for _, event := range eventBuffer {
 		_, err := irWriter.Write(event)
 		if err != nil {
