@@ -5,22 +5,28 @@ package flush
 
 import (
 	"C"
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
 	"unsafe"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+
 	"github.com/fluent/fluent-bit-go/output"
 	"github.com/klauspost/compress/zstd"
+
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 
-	"github.com/y-scope/fluent-bit-clp/internal/config"
 	"github.com/y-scope/fluent-bit-clp/internal/decoder"
+	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
 // Flushes data to a file in IR format. Decode of Msgpack based on [Fluent Bit reference].
@@ -36,7 +42,7 @@ import (
 //   - err: Error if flush fails
 //
 // [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
-func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config) (int, error) {
+func ToFile(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (int, error) {
 	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
 
@@ -45,16 +51,18 @@ func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config
 	// Loop through all records in Fluent Bit chunk.
 	for {
 		ts, record, err := decoder.GetRecord(dec)
-		if err == io.EOF {
-			// Chunk decoding finished. Break out of loop and send log events to output.
-			break
-		} else if err != nil {
-			err = fmt.Errorf("error decoding data from stream: %w", err)
-			return output.FLB_ERROR, err
+		if err != nil {
+			if err == io.EOF {
+				// Chunk decoding finished. Break out of loop and send log events to output.
+				break
+			} else {
+				err = fmt.Errorf("error decoding data from stream: %w", err)
+				return output.FLB_ERROR, err
+			}
 		}
 
 		timestamp := decodeTs(ts)
-		msg, err := getMessage(record, config)
+		msg, err := getMessage(record, ctx.Config)
 		if err != nil {
 			err = fmt.Errorf("failed to get message from record: %w", err)
 			return output.FLB_ERROR, err
@@ -67,14 +75,9 @@ func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config
 		logEvents = append(logEvents, event)
 	}
 
-	// Create file for IR output.
-	f, err := createFile(config.Path, config.File)
-	if err != nil {
-		return output.FLB_RETRY, err
-	}
-	defer f.Close()
+	var buf bytes.Buffer
 
-	zstdWriter, err := zstd.NewWriter(f)
+	zstdWriter, err := zstd.NewWriter(&buf)
 	if err != nil {
 		err = fmt.Errorf("error opening zstd writer: %w", err)
 		return output.FLB_RETRY, err
@@ -83,7 +86,7 @@ func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config
 
 	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
 	// FourByteEncoding as default encoding.
-	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](length, config.TimeZone)
+	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](length, ctx.Config.TimeZone)
 	if err != nil {
 		err = fmt.Errorf("error opening IR writer: %w", err)
 		return output.FLB_RETRY, err
@@ -102,7 +105,34 @@ func ToFile(data unsafe.Pointer, length int, tag string, config *config.S3Config
 		return output.FLB_RETRY, err
 	}
 
-	log.Printf("zstd compressed IR chunk written to %s", f.Name())
+	currentTime := time.Now()
+
+	// Format the time as a string in RFC3339Nano format.
+	timeString := currentTime.Format(time.RFC3339Nano)
+
+	fileName := fmt.Sprintf("%s_%s_%s.zst", tag, timeString, ctx.Config.Id)
+	fullFilePath := filepath.Join(ctx.Config.S3BucketPrefix, fileName)
+
+	// Upload the file to S3.
+	tag = fmt.Sprintf("fluentBitTag=%s", tag)
+	result, err := ctx.S3Uploader.Upload(context.TODO(), &s3.PutObjectInput{
+		Bucket:  aws.String(ctx.Config.S3Bucket),
+		Key:     aws.String(fullFilePath),
+		Body:    &buf,
+		Tagging: &tag,
+	})
+
+	if err != nil {
+		err = fmt.Errorf("failed to upload file, %v", err)
+		return output.FLB_ERROR, err
+	}
+
+	url, err := url.QueryUnescape(result.Location)
+	if err != nil {
+		url = result.Location
+	}
+
+	fmt.Printf("file uploaded to %s \n", url)
 	return output.FLB_OK, nil
 }
 
@@ -141,7 +171,7 @@ func decodeTs(ts interface{}) time.Time {
 // Returns:
 //   - msg: Retrieved message
 //   - err: Key not found, json.Unmarshal error, string type assertion error
-func getMessage(jsonRecord []byte, config *config.S3Config) (string, error) {
+func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	// If use_single_key=false, return the entire record.
 	if !config.UseSingleKey {
 		return string(jsonRecord), nil
