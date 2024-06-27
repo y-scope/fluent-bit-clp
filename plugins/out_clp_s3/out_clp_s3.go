@@ -45,15 +45,15 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
-	S3Ctx, err := outctx.NewS3Context(plugin)
+	outCtx, err := outctx.NewS3Context(plugin)
 	if err != nil {
 		log.Fatalf("Failed to initialize plugin: %s", err)
 	}
 
-	log.Printf("[%s] Init called for id: %s", s3PluginName, S3Ctx.Config.Id)
+	log.Printf("[%s] Init called for id: %s", s3PluginName, outCtx.Config.Id)
 
 	// Set the context for this instance so that params can be retrieved during flush.
-	output.FLBPluginSetContext(plugin, S3Ctx)
+	output.FLBPluginSetContext(plugin, outCtx)
 	return output.FLB_OK
 }
 
@@ -72,14 +72,14 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
-	S3Ctx, ok := p.(*outctx.S3Context)
+	outCtx, ok := p.(*outctx.S3Context)
 	if !ok {
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Flush called for id: %s", s3PluginName, S3Ctx.Config.Id)
+	log.Printf("[%s] Flush called for id: %s", s3PluginName, outCtx.Config.Id)
 
-	code, err := flush.ToS3(data, int(length), C.GoString(tag), S3Ctx)
+	code, err := flush.ToS3(data, int(length), C.GoString(tag), outCtx)
 	if err != nil {
 		log.Printf("error flushing data: %s", err)
 		// RETRY or ERROR

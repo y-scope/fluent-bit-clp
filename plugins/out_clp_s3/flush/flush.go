@@ -33,7 +33,7 @@ import (
 // Tag key when tagging s3 objects with Fluent Bit tag.
 const s3TagKey = "fluentBitTag"
 
-// Flushes data to a s3 in IR format. Decode of Msgpack based on [Fluent Bit reference].
+// Flushes data to s3 in IR format. Decode of Msgpack based on [Fluent Bit reference].
 //
 // Parameters:
 //   - data: Msgpack data
@@ -116,7 +116,7 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 		ctx.Uploader,
 	)
 	if err != nil {
-		err = fmt.Errorf("failed to upload chunk to s3, %v", err)
+		err = fmt.Errorf("failed to upload chunk to s3, %w", err)
 		return output.FLB_ERROR, err
 	}
 
