@@ -115,7 +115,6 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 		ctx.Config.Id,
 		ctx.Uploader,
 	)
-
 	if err != nil {
 		err = fmt.Errorf("failed to upload chunk to s3, %v", err)
 		return output.FLB_ERROR, err
@@ -232,7 +231,6 @@ func uploadToS3(
 	id string,
 	uploader *manager.Uploader,
 ) (string, error) {
-
 	currentTime := time.Now()
 	// Format the time as a string in RFC3339Nano format.
 	timeString := currentTime.Format(time.RFC3339Nano)
@@ -248,7 +246,6 @@ func uploadToS3(
 		Body:    io,
 		Tagging: &tag,
 	})
-
 	if err != nil {
 		return "", err
 	}

@@ -37,8 +37,8 @@ type S3Context struct {
 //   - plugin: Fluent Bit plugin reference
 //
 // Returns:
-//	 - S3Context: Plugin context
-//	 - err: User configuration load failed, aws errors
+//   - S3Context: Plugin context
+//   - err: User configuration load failed, aws errors
 func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {

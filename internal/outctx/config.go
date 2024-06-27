@@ -46,17 +46,17 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 	config := S3Config{
 		// Default Id is uuid to safeguard against s3 filename namespace collision. User may use
 		// multiple collectors to send logs to same s3 path. Id is appended to s3 filename.
-		S3Region:		 "us-east-1",
+		S3Region:        "us-east-1",
 		S3BucketPrefix:  "logs/",
 		Id:              uuid.New().String(),
 		UseSingleKey:    true,
 		AllowMissingKey: true,
 		SingleKey:       "log",
-		TimeZone:	     "America/Toronto",
+		TimeZone:        "America/Toronto",
 	}
 
 	// Map used to loop over user inputs saving a [output.FLBPluginConfigKey] call for each key.
-	// Potential to interate over struct using reflect; however, better to avoid reflect package. 
+	// Potential to interate over struct using reflect; however, better to avoid reflect package.
 	pluginSettings := map[string]interface{}{
 		"s3_region":         &config.S3Region,
 		"s3_bucket":         &config.S3Bucket,
