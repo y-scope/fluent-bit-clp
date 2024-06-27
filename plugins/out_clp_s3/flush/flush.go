@@ -31,7 +31,14 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
+// If set to true, will output files to local system. Helpful when testing and do not want to send
+// to s3.
 var debug = false
+// Debug directory for files set to current directory. 
+var debugDir = "./"
+
+// Tag key when tagging s3 objects with Fluent Bit tag. 
+const s3TagKey = "fluentBitTag"
 
 // Flushes data to a file in IR format. Decode of Msgpack based on [Fluent Bit reference].
 //
@@ -84,13 +91,15 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 	var io io.ReadWriter = &buf
 	var outputLocation string
 
+	// If debug is true, create a file in local directory.
 	if debug {
 		// Create file for IR output.
-		f, err := createFile(ctx.Config.S3BucketPrefix,tag)
+		f, err := createFile(debugDir,tag)
 		if err != nil {
 			return output.FLB_RETRY, err
 		}
 		defer f.Close()
+		// Set output location for IR and file name for logging.
 		io = f
 		outputLocation = f.Name()
 	}
@@ -119,14 +128,14 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 	// Write zstd compressed IR to file.
 	_, err = irWriter.CloseTo(zstdWriter)
 	if err != nil {
-		err = fmt.Errorf("error writting IR to file: %w", err)
+		err = fmt.Errorf("error writting IR to buf: %w", err)
 		return output.FLB_RETRY, err
 	}
 
 	if debug {
 		log.Printf("zstd compressed IR chunk written to file %s", outputLocation)
 		return output.FLB_OK, nil
-	} 
+	}
 
 	outputLocation, err = uploadToS3(
 		ctx.Config.S3Bucket,
@@ -138,7 +147,7 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 	)
 
 	if err != nil {
-		err = fmt.Errorf("failed to upload file, %v", err)
+		err = fmt.Errorf("failed to upload chunk to s3, %v", err)
 		return output.FLB_ERROR, err
 	}
 
@@ -234,12 +243,12 @@ func createFile(path string, file string) (*os.File, error) {
 
 	currentTime := time.Now()
 
-	// Format the time as a string in RFC3339 format.
-	timeString := currentTime.Format(time.RFC3339)
+	// Format the time as a string in RFC3339Nano format.
+	timeString := currentTime.Format(time.RFC3339Nano)
 
-	fileWithTs := fmt.Sprintf("%s_%s.zst", file, timeString)
+	fileName := fmt.Sprintf("%s_%s.zst", file, timeString)
 
-	fullFilePath := filepath.Join(path, fileWithTs)
+	fullFilePath := filepath.Join(path, fileName)
 
 	// If the file doesn't exist, create it.
 	f, err := os.OpenFile(fullFilePath, os.O_WRONLY|os.O_CREATE, 0o644)
@@ -272,15 +281,15 @@ func writeIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
 // Uploads log events to s3.
 //
 // Parameters:
-//	- bucket: S3 bucket
-//	- bucketPrefix: Directory prefix in s3
-//	- data: chunk of compressed IR
-//	- tag: Fluent Bit tag
-//	- id: Id of output plugin
-//	- uploader: AWS s3 upload manager
+//   - bucket: S3 bucket
+//   - bucketPrefix: Directory prefix in s3
+//   - data: chunk of compressed IR
+//   - tag: Fluent Bit tag
+//   - id: Id of output plugin
+//   - uploader: AWS s3 upload manager
 //
 // Returns:
-//   - err: error if an event could not be written
+//   - err: error uploading, error unescaping string
 func uploadToS3(
 	bucket string,
 	bucketPrefix string,
@@ -289,6 +298,7 @@ func uploadToS3(
 	id string,
 	uploader *manager.Uploader,
 ) (string, error) {
+
 	currentTime := time.Now()
 	// Format the time as a string in RFC3339Nano format.
 	timeString := currentTime.Format(time.RFC3339Nano)
@@ -297,7 +307,7 @@ func uploadToS3(
 	fullFilePath := filepath.Join(bucketPrefix, fileName)
 
 	// Upload the file to S3.
-	tag = fmt.Sprintf("fluentBitTag=%s", tag)
+	tag = fmt.Sprintf("%s=%s", s3TagKey, tag)
 	result, err := uploader.Upload(context.TODO(), &s3.PutObjectInput{
 		Bucket:  aws.String(bucket),
 		Key:     aws.String(fullFilePath),
@@ -309,6 +319,7 @@ func uploadToS3(
 		return "", err
 	}
 
+	// Result location is less readable when escaped. 
 	uploadLocation, err := url.QueryUnescape(result.Location)
 	if err != nil {
 		return "", err
