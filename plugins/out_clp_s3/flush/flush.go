@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"github.com/fluent/fluent-bit-go/output"
@@ -28,6 +30,8 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/decoder"
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
+
+var debug = false
 
 // Flushes data to a file in IR format. Decode of Msgpack based on [Fluent Bit reference].
 //
@@ -41,8 +45,9 @@ import (
 //   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 //
-// [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
-func ToFile(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (int, error) {
+// [Fluent Bit reference]:
+// https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
+func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (int, error) {
 	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
 
@@ -76,8 +81,21 @@ func ToFile(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) 
 	}
 
 	var buf bytes.Buffer
+	var io io.ReadWriter = &buf
+	var outputLocation string
 
-	zstdWriter, err := zstd.NewWriter(&buf)
+	if debug {
+		// Create file for IR output.
+		f, err := createFile(ctx.Config.S3BucketPrefix,tag)
+		if err != nil {
+			return output.FLB_RETRY, err
+		}
+		defer f.Close()
+		io = f
+		outputLocation = f.Name()
+	}
+
+	zstdWriter, err := zstd.NewWriter(io)
 	if err != nil {
 		err = fmt.Errorf("error opening zstd writer: %w", err)
 		return output.FLB_RETRY, err
@@ -105,34 +123,26 @@ func ToFile(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) 
 		return output.FLB_RETRY, err
 	}
 
-	currentTime := time.Now()
+	if debug {
+		log.Printf("zstd compressed IR chunk written to file %s", outputLocation)
+		return output.FLB_OK, nil
+	} 
 
-	// Format the time as a string in RFC3339Nano format.
-	timeString := currentTime.Format(time.RFC3339Nano)
-
-	fileName := fmt.Sprintf("%s_%s_%s.zst", tag, timeString, ctx.Config.Id)
-	fullFilePath := filepath.Join(ctx.Config.S3BucketPrefix, fileName)
-
-	// Upload the file to S3.
-	tag = fmt.Sprintf("fluentBitTag=%s", tag)
-	result, err := ctx.S3Uploader.Upload(context.TODO(), &s3.PutObjectInput{
-		Bucket:  aws.String(ctx.Config.S3Bucket),
-		Key:     aws.String(fullFilePath),
-		Body:    &buf,
-		Tagging: &tag,
-	})
+	outputLocation, err = uploadToS3(
+		ctx.Config.S3Bucket,
+		ctx.Config.S3BucketPrefix,
+		io,
+		tag,
+		ctx.Config.Id,
+		ctx.Uploader,
+	)
 
 	if err != nil {
 		err = fmt.Errorf("failed to upload file, %v", err)
 		return output.FLB_ERROR, err
 	}
 
-	url, err := url.QueryUnescape(result.Location)
-	if err != nil {
-		url = result.Location
-	}
-
-	fmt.Printf("file uploaded to %s \n", url)
+	log.Printf("chunk uploaded to %s", outputLocation)
 	return output.FLB_OK, nil
 }
 
@@ -257,4 +267,52 @@ func writeIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
 		}
 	}
 	return nil
+}
+
+// Uploads log events to s3.
+//
+// Parameters:
+//	- bucket: S3 bucket
+//	- bucketPrefix: Directory prefix in s3
+//	- data: chunk of compressed IR
+//	- tag: Fluent Bit tag
+//	- id: Id of output plugin
+//	- uploader: AWS s3 upload manager
+//
+// Returns:
+//   - err: error if an event could not be written
+func uploadToS3(
+	bucket string,
+	bucketPrefix string,
+	io io.ReadWriter,
+	tag string,
+	id string,
+	uploader *manager.Uploader,
+) (string, error) {
+	currentTime := time.Now()
+	// Format the time as a string in RFC3339Nano format.
+	timeString := currentTime.Format(time.RFC3339Nano)
+
+	fileName := fmt.Sprintf("%s_%s_%s.zst", tag, timeString, id)
+	fullFilePath := filepath.Join(bucketPrefix, fileName)
+
+	// Upload the file to S3.
+	tag = fmt.Sprintf("fluentBitTag=%s", tag)
+	result, err := uploader.Upload(context.TODO(), &s3.PutObjectInput{
+		Bucket:  aws.String(bucket),
+		Key:     aws.String(fullFilePath),
+		Body:    io,
+		Tagging: &tag,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	uploadLocation, err := url.QueryUnescape(result.Location)
+	if err != nil {
+		return "", err
+	}
+
+	return uploadLocation, nil
 }

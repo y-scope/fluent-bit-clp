@@ -1,8 +1,7 @@
 // Package implements a context which is accessible by output plugin. The Fluent Bit engine stores a
-// pointer each context.
+// pointer to each context.
 
 package outctx
-
 // using outctx to prevent namespace collision with go context lib.
 
 import (
@@ -29,7 +28,7 @@ const (
 // Holds objects accessible to plugin during flush.
 type S3Context struct {
 	Config     S3Config
-	S3Uploader *manager.Uploader
+	Uploader *manager.Uploader
 }
 
 // Creates a new context. Loads configuration from user. Loads and tests aws credentials.
@@ -40,8 +39,7 @@ type S3Context struct {
 // Returns:
 //   - S3Context: Plugin context
 //
-// - err: User configuration load failed, aws configuration load failed, aws creds invalid, aws
-// bucket missing
+// - err: User configuration load failed, aws errors
 func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {
@@ -67,8 +65,6 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 		awsConfig.Credentials = aws.NewCredentialsCache(creds)
 	}
 
-	// Create an Amazon S3 service client. V1 sdk docs described client as thread safe.
-	// Plugin is currently single threaded regardless but noting if threads added in future.
 	s3Client := s3.NewFromConfig(awsConfig)
 
 	// Confirm bucket exists and test aws credentials.
@@ -77,7 +73,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	})
 	if err != nil {
 		// AWS does have some error types that can be checked with [error.As] such as
-		// [s3.BucketAlreadyExists]. However, it can be difficult to find the appropriate type. As a
+		// [s3.NotFound]. However, it can be difficult to always find the appropriate type. As a
 		// result, using aws [smithy-go] to handle using error codes.
 		// https://aws.github.io/aws-sdk-go-v2/docs/handling-errors/#api-error-responses
 		var ae smithy.APIError
@@ -98,7 +94,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 
 	ctx := S3Context{
 		Config:     *config,
-		S3Uploader: uploader,
+		Uploader: uploader,
 	}
 
 	return &ctx, nil
