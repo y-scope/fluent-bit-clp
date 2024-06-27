@@ -31,16 +31,11 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// If set to true, will output files to local system. Helpful when testing and do not want to send
-// to s3.
-var debug = false
-// Debug directory for files set to current directory. 
-var debugDir = "./"
 
 // Tag key when tagging s3 objects with Fluent Bit tag. 
 const s3TagKey = "fluentBitTag"
 
-// Flushes data to a file in IR format. Decode of Msgpack based on [Fluent Bit reference].
+// Flushes data to a s3 in IR format. Decode of Msgpack based on [Fluent Bit reference].
 //
 // Parameters:
 //   - data: Msgpack data
@@ -88,23 +83,8 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 	}
 
 	var buf bytes.Buffer
-	var io io.ReadWriter = &buf
-	var outputLocation string
 
-	// If debug is true, create a file in local directory.
-	if debug {
-		// Create file for IR output.
-		f, err := createFile(debugDir,tag)
-		if err != nil {
-			return output.FLB_RETRY, err
-		}
-		defer f.Close()
-		// Set output location for IR and file name for logging.
-		io = f
-		outputLocation = f.Name()
-	}
-
-	zstdWriter, err := zstd.NewWriter(io)
+	zstdWriter, err := zstd.NewWriter(&buf)
 	if err != nil {
 		err = fmt.Errorf("error opening zstd writer: %w", err)
 		return output.FLB_RETRY, err
@@ -132,15 +112,10 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 		return output.FLB_RETRY, err
 	}
 
-	if debug {
-		log.Printf("zstd compressed IR chunk written to file %s", outputLocation)
-		return output.FLB_OK, nil
-	}
-
-	outputLocation, err = uploadToS3(
+	outputLocation, err := uploadToS3(
 		ctx.Config.S3Bucket,
 		ctx.Config.S3BucketPrefix,
-		io,
+		&buf,
 		tag,
 		ctx.Config.Id,
 		ctx.Uploader,
@@ -221,42 +196,6 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	}
 
 	return stringMsg, nil
-}
-
-// Creates a new file to output IR. A new file is created for every Fluent Bit chunk.
-// The system timestamp is added as a suffix.
-//
-// Parameters:
-//   - path: Directory path to create to write files inside
-//   - file: File name prefix
-//
-// Returns:
-//   - f: The created file
-//   - err: Could not create directory, could not create file
-func createFile(path string, file string) (*os.File, error) {
-	// Make directory if does not exist.
-	err := os.MkdirAll(path, 0o644)
-	if err != nil {
-		err = fmt.Errorf("failed to create directory %s: %w", path, err)
-		return nil, err
-	}
-
-	currentTime := time.Now()
-
-	// Format the time as a string in RFC3339Nano format.
-	timeString := currentTime.Format(time.RFC3339Nano)
-
-	fileName := fmt.Sprintf("%s_%s.zst", file, timeString)
-
-	fullFilePath := filepath.Join(path, fileName)
-
-	// If the file doesn't exist, create it.
-	f, err := os.OpenFile(fullFilePath, os.O_WRONLY|os.O_CREATE, 0o644)
-	if err != nil {
-		err = fmt.Errorf("failed to create file %s: %w", fullFilePath, err)
-		return nil, err
-	}
-	return f, nil
 }
 
 // Writes log events to a IR Writer.
