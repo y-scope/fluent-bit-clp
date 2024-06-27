@@ -117,7 +117,7 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 	)
 	if err != nil {
 		err = fmt.Errorf("failed to upload chunk to s3, %w", err)
-		return output.FLB_ERROR, err
+		return output.FLB_RETRY, err
 	}
 
 	log.Printf("chunk uploaded to %s", outputLocation)
