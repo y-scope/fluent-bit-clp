@@ -1,6 +1,6 @@
-# S3 CLP output plugin
+# Fluent Bit S3 output plugin for CLP
 
-Output plugin for Fluent Bit that sends records in CLP IR format to AWS S3.
+Fluent Bit output plugin that sends records in CLP's compressed IR format to AWS S3.
 
 ### Getting Started
 
