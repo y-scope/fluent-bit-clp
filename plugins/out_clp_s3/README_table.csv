@@ -1,0 +1,10 @@
+﻿Key,Description,Default
+s3_region,The AWS region of your S3 bucket,us-east-1
+s3_bucket,"	S3 Bucket name. Just the name, no aws prefix neccesary.",None
+s3_bucket_prefix,Bucket prefix path,logs/
+role_arn,ARN of an IAM role to assume ,None
+id,Name of output plugin. ,Random UUID
+use_single_key,"Output the value corresponding to this key, instead of the whole Fluent Bit record.",TRUE
+allow_missing_key,"Fallback to whole record if key is missing from log. If set to false, an error will be recorded instead.",TRUE
+single_key,Value for single key,log
+time_zone,"Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.",America/Toronto
