@@ -1,16 +1,15 @@
-// Package implements a context which is accessible by output plugin and stored by fluent-bit
-// engine.
+// Package implements a context which is accessible by output plugin. The Fluent Bit engine stores a
+// pointer each context.
+
 package outctx
+
+// using outctx to prevent namespace collision with go context lib.
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"unsafe"
-
-	//"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -18,73 +17,83 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go"
 )
 
+// AWS error codes.
 const (
 	invalidCredsCode  = "InvalidClientTokenId"
 	bucketMissingCode = "NotFound"
 )
 
-// Holds configuration and state
+// Holds objects accessible to plugin during flush.
 type S3Context struct {
 	Config     S3Config
 	S3Uploader *manager.Uploader
 }
 
-// Creates a new context including loading of configuration and initialization of plugin state.
+// Creates a new context. Loads configuration from user. Loads and tests aws credentials.
 //
 // Parameters:
-//   - plugin: fluent-bit plugin reference
+//   - plugin: Fluent Bit plugin reference
 //
 // Returns:
-//   - S3Context: plugin context
-//   - err: configuration load failed
+//   - S3Context: Plugin context
+//
+// - err: User configuration load failed, aws configuration load failed, aws creds invalid, aws
+// bucket missing
 func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load configuration %w", err)
 	}
 
-	// Load the aws credentials. Library will look for credentials in a specfic [hierarchy].
-	// [hierarchy]: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
+	// Load the aws credentials. [awsConfig.LoadDefaultConfig] will look for credentials in a
+	// specfic hierarchy.
+	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
 	awsConfig, err := awsConfig.LoadDefaultConfig(context.TODO(),
 		awsConfig.WithRegion(config.S3Region),
 	)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("could not load aws credentials %w", err)
 	}
 
-	// Allows user to assume a provided role. Fluent Bit s3 plugin provides functionality.
+	// Allows user to assume a provided role. Fluent Bit s3 plugin provides this feature.
 	// In many cases, the EC2 instance will already have permission for the s3 bucket;
-	// however, if it dosen't, this options allows the plugin to use a role with access.
+	// however, if it dosen't, this option allows the plugin to assume role with bucket access.
 	if config.RoleArn != "" {
 		stsClient := sts.NewFromConfig(awsConfig)
 		creds := stscreds.NewAssumeRoleProvider(stsClient, config.RoleArn)
 		awsConfig.Credentials = aws.NewCredentialsCache(creds)
 	}
 
-	// Create an Amazon S3 service client. Older version described client as thread safe, assuming
-	// v2 also thread safe.
+	// Create an Amazon S3 service client. V1 sdk docs described client as thread safe.
+	// Plugin is currently single threaded regardless but noting if threads added in future.
 	s3Client := s3.NewFromConfig(awsConfig)
 
-	// Confirm bucket exists. Also tests connection to client.
+	// Confirm bucket exists and test aws credentials.
 	_, err = s3Client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(config.S3Bucket),
 	})
 	if err != nil {
+		// AWS does have some error types that can be checked with [error.As] such as
+		// [s3.BucketAlreadyExists]. However, it can be difficult to find the appropriate type. As a
+		// result, using aws [smithy-go] to handle using error codes.
+		// https://aws.github.io/aws-sdk-go-v2/docs/handling-errors/#api-error-responses
 		var ae smithy.APIError
 		if errors.As(err, &ae) {
 			switch code := ae.ErrorCode(); code {
 			case invalidCredsCode:
-				err = fmt.Errorf("error failed to connect to aws: %w", err)
+				err = fmt.Errorf("error aws credentials are invalid: %w", err)
 			case bucketMissingCode:
 				err = fmt.Errorf("error bucket %s could not be found: %w", config.S3Bucket, err)
+			default:
+				err = fmt.Errorf("error aws %s: %w", code, err)
 			}
 		}
 		return nil, err
 	}
 
-	// Create an uploader passing it the client
 	uploader := manager.NewUploader(s3Client)
 
 	ctx := S3Context{

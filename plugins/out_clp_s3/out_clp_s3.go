@@ -47,7 +47,7 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 func FLBPluginInit(plugin unsafe.Pointer) int {
 	S3Ctx, err := outctx.NewS3Context(plugin)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %s", err)
+		log.Fatalf("Failed to initialize plugin: %s", err)
 	}
 
 	log.Printf("[%s] Init called for id: %s", s3PluginName, S3Ctx.Config.Id)

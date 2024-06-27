@@ -72,7 +72,6 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 
 		// If user did not specify a value, do not overwrite default value.
 		if userInput != "" {
-
 			// Type switch to type parse boolean strings into boolean type. This is neccesary since
 			// all values are provided as strings.
 			switch configField := untypedField.(type) {
@@ -110,7 +109,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 	// one at a time. User can fix all errors at once.
 	configErrors := []error{}
 
-	// Refactor errors provided by [validator] so they are more readable. 
+	// Refactor errors provided by [validator] so they are more readable.
 	if err != nil {
 		valErr := err.(validator.ValidationErrors)
 		// ValidateStruct will provide an error for each field, so loop over all errors.
@@ -119,7 +118,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 				err.Field(), err.Value(), err.Tag())
 			configErrors = append(configErrors, err)
 		}
-		// Wrap all errors into one error before returning. Automically excludes nil errors.
+		// Wrap all errors into one error before returning.
 		err = errors.Join(configErrors...)
 		return nil, err
 	}
