@@ -61,7 +61,7 @@ Run Fluent Bit
   ```
 ### AWS Credentials
 
-The plugin will look for credentials using the following hierchary
+The plugin will look for credentials using the following hierarchy
   1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_WEB_IDENTITY_TOKEN_FILE`)
   2. Shared configuration files (normally `$HOME/.aws/config`)
   3. If using ECS task definition or RunTask API, IAM role for tasks.
