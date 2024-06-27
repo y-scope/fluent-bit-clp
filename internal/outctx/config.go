@@ -1,15 +1,12 @@
-// Package implements loading of Fluent Bit configuration file. Configuration is accessible by
-// output plugin and stored by Fluent Bit engine.
-
 package outctx
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
-	"unsafe"
 	"strings"
+	"unsafe"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -17,79 +14,46 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 )
 
-// Holds settings for S3 CLP plugin from user defined Fluent Bit configuration file.
+// Holds settings for S3 CLP plugin from user-defined Fluent Bit configuration file.
+// The "conf" struct tags are the plugin options described to user in README, and allow user to see
+// snake case "use_single_key" vs. camel case "SingleKey" in validation error messages. The
+// "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
+// can be found in docs for [validator].
 type S3Config struct {
-	Id              string `conf:"id" validate:"-" `
-	UseSingleKey    bool `conf:"use_single_key" validate:"boolean"`
-	AllowMissingKey bool `conf:"allow_missing_key" validate:"boolean"`
-	SingleKey       string `conf:"time_zone" validate:"required_if=use_single_key true"`
-	TimeZone        string `conf:"time_zone" validate:"timezone"`
-	S3Bucket        string `conf:"s3_bucket" validate:"required"`
-	S3BucketPrefix  string `conf:"s3_bucket_prefix" validate:"dirpath"`
-	S3Region        string `conf:"time_zone" validate:"required"`
-	RoleArn         string `conf:"role_arn" validate:"omitempty,startswith=arn:aws:iam"`
+	Id              string `conf:"id"                validate:"-"`
+	UseSingleKey    bool   `conf:"use_single_key"    validate:"boolean"`
+	AllowMissingKey bool   `conf:"allow_missing_key" validate:"boolean"`
+	SingleKey       string `conf:"time_zone"         validate:"required_if=use_single_key true"`
+	TimeZone        string `conf:"time_zone"         validate:"timezone"`
+	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
+	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
+	S3Region        string `conf:"time_zone"         validate:"required"`
+	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
 }
 
-
-// Holds user input provided in the config. [S3Config] cannot be used since it holds bool
-// types and [output.FLBPluginConfigKey] can only import strings. The "conf" struct tags 
-// are the plugin options described to user in README. These struct tags allow user 
-// to see snake case "use_single_key" vs. camel case "SingleKey" in the error message. 
-// Map keys are the plugin options described to user in README. The "validate" struct tags are 
-// rules to be consumed by [validator]. The functionality of each rule can be found in docs for 
-// [validator].
-type S3UserInput struct {
-	Id              string `conf:"id" validate:"-" `
-	UseSingleKey    string `conf:"use_single_key" validate:"boolean"`
-	AllowMissingKey string `conf:"allow_missing_key" validate:"boolean"`
-	SingleKey       string `conf:"time_zone" validate:"required_if=use_single_key true"`
-	TimeZone        string `conf:"time_zone" validate:"timezone"`
-	S3Bucket        string `conf:"s3_bucket" validate:"required"`
-	S3BucketPrefix  string `conf:"s3_bucket_prefix" validate:"dirpath"`
-	S3Region        string `conf:"time_zone" validate:"required"`
-	RoleArn         string `conf:"role_arn" validate:"omitempty,startswith=arn:aws:iam"`
-}
-
-// Map keys are the plugin options described to user in README. The values are rules to be consumed
-// by [validator]. The map is used to check if the user input meets specific rules. The
-// functionality of each rule can be found in docs for [validator]. "required" is only
-// neccesary if no rule is defined. Effectively means user must put something. "omitempty"
-// ignores validation for fields which user left blank.
-/*
-var pluginOptions = map[string]interface{}{
-	"id":                "-",
-	"use_single_key":    "boolean",
-	"allow_missing_key": "boolean",
-	"single_key":        "required_if=use_single_key true",
-	"time_zone":         "timezone",
-	"s3_bucket":         "required",
-	"s3_bucket_prefix":  "dirpath",
-	"s3_region":         "required",
-	"role_arn":          "omitempty,startswith=arn:aws:iam",
-}
-*/
-
-// Generates configuration struct containing user-defined settings.
+// Generates configuration struct containing user-defined settings. In addition, sets default values
+// and validates user input.
 //
 // Parameters:
 //   - plugin: Fluent Bit plugin reference
 //
 // Returns:
 //   - S3Config: Configuration based on fluent-bit.conf
-//   - err: All errors in config wrapped
-func NewS3(plugin unsafe.Pointer) (*S3Config, error) {
-	// TODO: Redo validation to simplify configuration error reporting.
-	// https://pkg.go.dev/github.com/go-playground/validator/v10
-
- 	var err error
+//   - err: All validation errors in config wrapped, parse bool error
+func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
+	// Define default values for optional settings. Setting defaults before validation
+	// simplifies validation configuration, and ensures that default settings are also validated.
 	config := S3Config{
+		// Default Id is uuid to safeguard against s3 filename namespace collision. User may use
+		// multiple collectors to send logs to same s3 path. Id is appended to s3 filename.
 		Id:              uuid.New().String(),
 		UseSingleKey:    true,
 		AllowMissingKey: true,
 		SingleKey:       "log",
 	}
 
-	var pluginOptions = map[string]interface{}{
+	// Map used to loop over user inputs saving a [output.FLBPluginConfigKey] call for each key.
+	pluginSettings := map[string]interface{}{
 		"id":                &config.Id,
 		"use_single_key":    &config.UseSingleKey,
 		"allow_missing_key": &config.AllowMissingKey,
@@ -101,50 +65,36 @@ func NewS3(plugin unsafe.Pointer) (*S3Config, error) {
 		"role_arn":          &config.RoleArn,
 	}
 
-	// Retrieve values defined in fluent-bit.conf. Function supplied by Fluent Bit retrieves all
-	// values as strings. If the option is not defined by user, it is set to "".
-	for key, userValue := range pluginOptions {
-		value := output.FLBPluginConfigKey(plugin, key)
-		if value != "" {
-			switch uv := userValue.(type) {
-			case *string:
-				*uv = value
-			case *bool:
-				boolValue, err := strconv.ParseBool(value)
-				if err != nil {
-					return nil, fmt.Errorf("error could not parse value %v into bool", value)
-				}
-				*uv = boolValue
-			default:
-				return nil, fmt.Errorf("unable to parse type %T", userValue)
-			}
-		}
-	}
-	/*
-	// Define default values for optional settings. Setting defaults before validation simplifies
-	// validation settings, and ensures that default settings are also validated.
-	defaultConfig := map[string]string{
-		"id ":               uuid.New().String(),
-		"use_single_key":    "true",
-		"allow_missing_key": "true",
-		"single_key":        "log",
-	}
+	for settingName, untypedField := range pluginSettings {
+		// [output.FLBPluginConfigKey] retrieves values defined in fluent-bit.conf. Unfortunately,
+		// retrieves all values as strings. If the option is not defined by user, it is set to "".
+		userInput := output.FLBPluginConfigKey(plugin, settingName)
 
-	// If user did not specify a value, replace empty string with default value
-	for key, userValue := range pluginOptions {
-		if *userValue == "" {
-			// If user value is empty, check if a default value exists. If exists, set config value
-			// to default value.
-			defaultValue, ok := defaultConfig[key]
-			if ok {
-				*userValue = defaultValue
+		// If user did not specify a value, do not overwrite default value.
+		if userInput != "" {
+
+			// Type switch to type parse boolean strings into boolean type. This is neccesary since
+			// all values are provided as strings.
+			switch configField := untypedField.(type) {
+			case *string:
+				*configField = userInput
+			case *bool:
+				// This will throw error if input is "".
+				boolInput, err := strconv.ParseBool(userInput)
+				if err != nil {
+					return nil, fmt.Errorf("error could not parse input %v into bool", userInput)
+				}
+				*configField = boolInput
+			default:
+				return nil, fmt.Errorf("unable to parse type %T", untypedField)
 			}
 		}
 	}
-	*/
 
 	validate := validator.New(validator.WithRequiredStructEnabled())
 
+	// Sets validator to return snake case setting names to user. Used example directly from
+	// [validator.RegisterTagNameFunc] and replaced "json" with "conf".
 	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("conf"), ",", 2)[0]
 		// skip if tag key says it should be ignored
@@ -154,10 +104,13 @@ func NewS3(plugin unsafe.Pointer) (*S3Config, error) {
 		return name
 	})
 
-	err = validate.Struct(&config)
+	err := validate.Struct(&config)
 
+	// Slice holds config errors allowing function to return all errors at once instead of
+	// one at a time. User can fix all errors at once.
 	configErrors := []error{}
 
+	// Refactor errors provided by [validator] so they are more readable. 
 	if err != nil {
 		valErr := err.(validator.ValidationErrors)
 		// ValidateStruct will provide an error for each field, so loop over all errors.
@@ -166,6 +119,7 @@ func NewS3(plugin unsafe.Pointer) (*S3Config, error) {
 				err.Field(), err.Value(), err.Tag())
 			configErrors = append(configErrors, err)
 		}
+		// Wrap all errors into one error before returning. Automically excludes nil errors.
 		err = errors.Join(configErrors...)
 		return nil, err
 	}

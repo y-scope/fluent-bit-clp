@@ -40,7 +40,7 @@ type S3Context struct {
 //   - S3Context: plugin context
 //   - err: configuration load failed
 func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
-	config, err := NewS3(plugin)
+	config, err := NewS3Config(plugin)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,6 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	_, err = s3Client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(config.S3Bucket),
 	})
-
 	if err != nil {
 		var ae smithy.APIError
 		if errors.As(err, &ae) {
