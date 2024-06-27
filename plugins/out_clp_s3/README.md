@@ -23,7 +23,9 @@ Start a container
 
 #### Using local setup
 
-Install [go][1] and [fluent-bit][2]
+Install [go][1] and [fluent-bit][2] 
+
+Confirm AWS credentials are properly setup, see [aws credentials](#aws-credentials) for info
 
 Run task to build a binary in the plugin directory
   ```shell
@@ -43,6 +45,7 @@ See below for an example:
 
  ```
 [OUTPUT]
+    name  out_clp_s3
     s3_bucket myBucket
     role_arn arn:aws:iam::000000000000:role/accessToMyBucket
     match *
@@ -74,6 +77,16 @@ recommended to set this to true. A Fluent Bit record is a JSON-like object, and 
 can parse JSON into IR it is not recommended. Key is set with single_key and will typically
  be set to "log", the default Fluent Bit key for unparsed logs. If this is set to false, plugin
 will parse the record as JSON.
+
+### AWS Credentials
+
+The plugin will look for credentials using the following hierchary
+  1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_WEB_IDENTITY_TOKEN_FILE`)
+  2. Shared configuration files (normally `$HOME/.aws/config`)
+  3. If using ECS task definition or RunTask API, IAM role for tasks
+  4. If running on an Amazon EC2 instance, IAM role for Amazon EC2
+
+Moreover, if `role_arn` is set, the plugin will assume the role provided.
 
 [1]: https://go.dev/doc/install
 [2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
