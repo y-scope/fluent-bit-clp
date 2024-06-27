@@ -20,15 +20,15 @@ import (
 // "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
 // can be found in docs for [validator].
 type S3Config struct {
+	S3Region        string `conf:"time_zone"         validate:"required"`
+	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
+	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
+	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
 	Id              string `conf:"id"                validate:"required"`
 	UseSingleKey    bool   `conf:"use_single_key"    validate:"boolean"`
 	AllowMissingKey bool   `conf:"allow_missing_key" validate:"boolean"`
 	SingleKey       string `conf:"time_zone"         validate:"required_if=use_single_key true"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
-	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
-	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
-	S3Region        string `conf:"time_zone"         validate:"required"`
-	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values
@@ -46,24 +46,27 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 	config := S3Config{
 		// Default Id is uuid to safeguard against s3 filename namespace collision. User may use
 		// multiple collectors to send logs to same s3 path. Id is appended to s3 filename.
+		S3Region:		 "us-east-1",
+		S3BucketPrefix:  "logs/",
 		Id:              uuid.New().String(),
 		UseSingleKey:    true,
 		AllowMissingKey: true,
 		SingleKey:       "log",
+		TimeZone:	     "America/Toronto",
 	}
 
 	// Map used to loop over user inputs saving a [output.FLBPluginConfigKey] call for each key.
 	// Potential to interate over struct using reflect; however, better to avoid reflect package. 
 	pluginSettings := map[string]interface{}{
+		"s3_region":         &config.S3Region,
+		"s3_bucket":         &config.S3Bucket,
+		"s3_bucket_prefix":  &config.S3BucketPrefix,
+		"role_arn":          &config.RoleArn,
 		"id":                &config.Id,
 		"use_single_key":    &config.UseSingleKey,
 		"allow_missing_key": &config.AllowMissingKey,
 		"single_key":        &config.SingleKey,
 		"time_zone":         &config.TimeZone,
-		"s3_bucket":         &config.S3Bucket,
-		"s3_bucket_prefix":  &config.S3BucketPrefix,
-		"s3_region":         &config.S3Region,
-		"role_arn":          &config.RoleArn,
 	}
 
 	for settingName, untypedField := range pluginSettings {

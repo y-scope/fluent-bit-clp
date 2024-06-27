@@ -1,6 +1,12 @@
-# fluent-bit-clp
+# Fluent Bit output plugins for CLP
 
-Repository contains CLP output plugins for fluent-bit that store records in CLP IR format.
+Repository contains Fluent Bit output plugins that store records in CLP's compressed IR 
+(intermediate representation) format. More details on IR can be found in this [Uber Engineering Blog][1].
+
+### Usage
+Each plugin has its own README to help get started. Currently, we only have a 
+[AWS S3 plugin](plugins/out_clp_s3/README.md), but please submit an issue if 
+you need to send IR to another output. 
 
 ### Linting
 
@@ -12,3 +18,5 @@ curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/insta
 ```
 
 2. Run with `golangci-lint run`
+
+[1]: https://www.uber.com/en-US/blog/reducing-logging-cost-by-two-orders-of-magnitude-using-clp
