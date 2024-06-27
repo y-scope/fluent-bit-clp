@@ -2,8 +2,8 @@
 // pointer to each context.
 
 package outctx
-// using outctx to prevent namespace collision with go context lib.
 
+// using outctx to prevent namespace collision with [context].
 import (
 	"context"
 	"errors"
@@ -27,7 +27,7 @@ const (
 
 // Holds objects accessible to plugin during flush.
 type S3Context struct {
-	Config     S3Config
+	Config   S3Config
 	Uploader *manager.Uploader
 }
 
@@ -37,9 +37,8 @@ type S3Context struct {
 //   - plugin: Fluent Bit plugin reference
 //
 // Returns:
-//   - S3Context: Plugin context
-//
-// - err: User configuration load failed, aws errors
+//	 - S3Context: Plugin context
+//	 - err: User configuration load failed, aws errors
 func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {
@@ -93,7 +92,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	uploader := manager.NewUploader(s3Client)
 
 	ctx := S3Context{
-		Config:     *config,
+		Config:   *config,
 		Uploader: uploader,
 	}
 

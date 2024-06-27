@@ -20,7 +20,7 @@ import (
 // "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
 // can be found in docs for [validator].
 type S3Config struct {
-	Id              string `conf:"id"                validate:"-"`
+	Id              string `conf:"id"                validate:"required"`
 	UseSingleKey    bool   `conf:"use_single_key"    validate:"boolean"`
 	AllowMissingKey bool   `conf:"allow_missing_key" validate:"boolean"`
 	SingleKey       string `conf:"time_zone"         validate:"required_if=use_single_key true"`
@@ -41,8 +41,8 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All validation errors in config wrapped, parse bool error
 func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
-	// Define default values for optional settings. Setting defaults before validation
-	// simplifies validation configuration, and ensures that default settings are also validated.
+	// Define default values for settings. Setting defaults before validation simplifies validation
+	// configuration, and ensures that default settings are also validated.
 	config := S3Config{
 		// Default Id is uuid to safeguard against s3 filename namespace collision. User may use
 		// multiple collectors to send logs to same s3 path. Id is appended to s3 filename.
@@ -53,6 +53,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 	}
 
 	// Map used to loop over user inputs saving a [output.FLBPluginConfigKey] call for each key.
+	// Potential to interate over struct using reflect; however, better to avoid reflect package. 
 	pluginSettings := map[string]interface{}{
 		"id":                &config.Id,
 		"use_single_key":    &config.UseSingleKey,
@@ -114,7 +115,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		valErr := err.(validator.ValidationErrors)
 		// ValidateStruct will provide an error for each field, so loop over all errors.
 		for _, err := range valErr {
-			err := fmt.Errorf("error validating option %s=%s failed test %s",
+			err := fmt.Errorf("error validating option %s=%s, failed test %s",
 				err.Field(), err.Value(), err.Tag())
 			configErrors = append(configErrors, err)
 		}

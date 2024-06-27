@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"net/url"
-	"os"
 	"path/filepath"
 	"time"
 	"unsafe"
@@ -31,8 +30,7 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-
-// Tag key when tagging s3 objects with Fluent Bit tag. 
+// Tag key when tagging s3 objects with Fluent Bit tag.
 const s3TagKey = "fluentBitTag"
 
 // Flushes data to a s3 in IR format. Decode of Msgpack based on [Fluent Bit reference].
@@ -47,8 +45,7 @@ const s3TagKey = "fluentBitTag"
 //   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 //
-// [Fluent Bit reference]:
-// https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
+// [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (int, error) {
 	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
@@ -58,14 +55,12 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 	// Loop through all records in Fluent Bit chunk.
 	for {
 		ts, record, err := decoder.GetRecord(dec)
-		if err != nil {
-			if err == io.EOF {
-				// Chunk decoding finished. Break out of loop and send log events to output.
-				break
-			} else {
-				err = fmt.Errorf("error decoding data from stream: %w", err)
-				return output.FLB_ERROR, err
-			}
+		if err == io.EOF {
+			// Chunk decoding finished. Break out of loop and send log events to output.
+			break
+		} else if err != nil {
+			err = fmt.Errorf("error decoding data from stream: %w", err)
+			return output.FLB_ERROR, err
 		}
 
 		timestamp := decodeTs(ts)
@@ -222,7 +217,7 @@ func writeIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
 // Parameters:
 //   - bucket: S3 bucket
 //   - bucketPrefix: Directory prefix in s3
-//   - data: chunk of compressed IR
+//   - io: Chunk of compressed IR
 //   - tag: Fluent Bit tag
 //   - id: Id of output plugin
 //   - uploader: AWS s3 upload manager
@@ -258,7 +253,7 @@ func uploadToS3(
 		return "", err
 	}
 
-	// Result location is less readable when escaped. 
+	// Result location is less readable when escaped.
 	uploadLocation, err := url.QueryUnescape(result.Location)
 	if err != nil {
 		return "", err
