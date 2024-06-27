@@ -73,7 +73,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	if err != nil {
 		// AWS does have some error types that can be checked with [error.As] such as
 		// [s3.NotFound]. However, it can be difficult to always find the appropriate type. As a
-		// result, using aws [smithy-go] to handle using error codes.
+		// result, using aws [smithy-go] to handle error codes.
 		// https://aws.github.io/aws-sdk-go-v2/docs/handling-errors/#api-error-responses
 		var ae smithy.APIError
 		if errors.As(err, &ae) {
