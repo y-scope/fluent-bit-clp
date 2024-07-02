@@ -25,8 +25,8 @@ type S3Config struct {
 	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
 	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
 	Id              string `conf:"id"                validate:"required"`
-	UseSingleKey    bool   `conf:"use_single_key"    validate:"boolean"`
-	AllowMissingKey bool   `conf:"allow_missing_key" validate:"boolean"`
+	UseSingleKey    bool   `conf:"use_single_key"    validate:"-"`
+	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
 	SingleKey       string `conf:"time_zone"         validate:"required_if=use_single_key true"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
 }
@@ -75,23 +75,26 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		userInput := output.FLBPluginConfigKey(plugin, settingName)
 
 		// If user did not specify a value, do not overwrite default value.
-		if userInput != "" {
-			// Type switch to type parse boolean strings into boolean type. This is neccesary since
-			// all values are provided as strings.
-			switch configField := untypedField.(type) {
-			case *string:
-				*configField = userInput
-			case *bool:
-				// This will throw error if input is "".
-				boolInput, err := strconv.ParseBool(userInput)
-				if err != nil {
-					return nil, fmt.Errorf("error could not parse input %v into bool", userInput)
-				}
-				*configField = boolInput
-			default:
-				return nil, fmt.Errorf("unable to parse type %T", untypedField)
-			}
+		if userInput == "" {
+			continue
 		}
+
+		// Type switch to type parse boolean strings into boolean type. This is neccesary since
+		// all values are provided as strings.
+		switch configField := untypedField.(type) {
+		case *string:
+			*configField = userInput
+		case *bool:
+			// This will throw error if input is "".
+			boolInput, err := strconv.ParseBool(userInput)
+			if err != nil {
+				return nil, fmt.Errorf("error could not parse input %v into bool", userInput)
+			}
+			*configField = boolInput
+		default:
+			return nil, fmt.Errorf("unable to parse type %T", untypedField)
+		}
+
 	}
 
 	validate := validator.New(validator.WithRequiredStructEnabled())

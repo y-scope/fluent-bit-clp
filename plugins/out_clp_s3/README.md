@@ -4,9 +4,10 @@ Fluent Bit output plugin that sends records in CLP's compressed IR format to AWS
 
 ### Getting Started
 
-First, confirm your AWS credentials are properly setup, see [aws credentials](#aws-credentials) for info.
+First, confirm your AWS credentials are properly setup, see [AWS credentials](#AWS-credentials) for
+information.
 
-Next, change the output section [fluent-bit.conf](fluent-bit.conf) to suit your needs. 
+Next, change the output section [fluent-bit.conf](fluent-bit.conf) to suit your needs.
 See [Plugin configuration](#plugin-configuration) for description of fields.
 
 See below for an example:
@@ -40,7 +41,7 @@ Dummy logs will be written to your s3 bucket.
 
 #### Using local setup
 
-Install [go][1] and [fluent-bit][2] 
+Install [go][1] and [fluent-bit][2]
 
 Run task to build a binary in the plugin directory
   ```shell
@@ -51,8 +52,8 @@ Change [plugin-config.conf](plugin-config.conf) to reference the plugin binary
   [PLUGINS]
       Path /<LOCAL_PATH>/out_clp_s3.so
   ```
-Note changing this path may break docker setup. To preserve docker setup, copy 
-[plugin-config.conf](plugin-config.conf) and change `plugins_file` in 
+Note changing this path may break docker setup. To preserve docker setup, copy
+[plugin-config.conf](plugin-config.conf) and change `plugins_file` in
 [fluent-bit.conf](fluent-bit.conf) to new file name.
 
 Run Fluent Bit
@@ -61,13 +62,19 @@ Run Fluent Bit
   ```
 ### AWS Credentials
 
-The plugin will look for credentials using the following hierarchy
-  1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_WEB_IDENTITY_TOKEN_FILE`)
-  2. Shared configuration files (normally `$HOME/.aws/config`)
+The plugin will look for credentials using the following hierarchy:
+  1. Environment variables
+  2. Shared configuration files
   3. If using ECS task definition or RunTask API, IAM role for tasks.
   4. If running on an Amazon EC2 instance, IAM role for Amazon EC2.
 
-Moreover, if `role_arn` is set, the plugin will assume the role provided.
+Moreover, the plugin can assume a role by adding optional `role_arn` to
+[plugin-config.conf](plugin-config.conf). Example shown below:
+```
+role_arn arn:aws:iam::000000000000:role/accessToMyBucket
+```
+
+More detailed information for specifying credentials from AWS can be found [here][3].
 
 ### Plugin configuration
 
@@ -85,11 +92,12 @@ Moreover, if `role_arn` is set, the plugin will assume the role provided.
 
 #### Use Single Key
 
-Output the value corresponding to this key, instead of the whole Fluent Bit record. It is 
-recommended to set this to true. A Fluent Bit record is a JSON-like object, and while CLP 
+Output the value corresponding to this key, instead of the whole Fluent Bit record. It is
+recommended to set this to true. A Fluent Bit record is a JSON-like object, and while CLP
 can parse JSON into IR it is not recommended. Key is set with single_key and will typically
 be set to "log", the default Fluent Bit key for unparsed logs. If this is set to false, plugin
 will parse the record as JSON.
 
 [1]: https://go.dev/doc/install
 [2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
+[3]: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials

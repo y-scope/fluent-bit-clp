@@ -1,17 +1,24 @@
 # Fluent Bit output plugins for CLP
 
-Repository contains Fluent Bit output plugins that store records in CLP's compressed IR 
+Repository contains Fluent Bit output plugins that store records in CLP's compressed IR
 (intermediate representation) format. More details on IR can be found in this [Uber Engineering Blog][1].
 
 The general flow is as follows:
 
-Raw Logs --> Fluent Bit --> Output Plugin --> IR --> Zstd --> Output
-
+```mermaid
+flowchart LR
+    A[App Logs] --> |Tailed by| B[Fluent Bit]
+    B -->|Forwards to| clp
+    subgraph clp[CLP Output Plugin]
+    Logs[App Logs] --> D[Parse into IR] --> E[Compress with Zstd]
+    end
+    clp -->|Uploads to| F[Output]
+```
 
 ### Usage
-Each plugin has its own README to help get started. Currently, we only have a 
-[AWS S3 plugin](plugins/out_clp_s3/README.md), but please submit an issue if 
-you need to send IR to another output. 
+Each plugin has its own README to help get started. Currently, we only have a
+[AWS S3 plugin](plugins/out_clp_s3/README.md), but please submit an issue if
+you need to send IR to another output.
 
 ### Linting
 
