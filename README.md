@@ -8,13 +8,13 @@ The general flow is as follows:
 ```mermaid
 %%{init: {'theme':'neutral','themeVariables': {'primaryBorderColor': 'black','lineColor': 'black'}}}%%
 flowchart LR
-    A(Fluent Bit Input) --> C
+    A(Fluent Bit Input) --> B
     subgraph CLP Output Plugin
-    C(Parse into IR) --> D(Compress with Zstd)
+    B(Parse into IR) --> C(Compress with Zstd)
     end
     D --> E(Output)
     classDef format fill:#007DF4,color:white
-    class A,B,C,D,E format
+    class A,B,C,D format
 ```
 
 #### Fluent Bit Input
