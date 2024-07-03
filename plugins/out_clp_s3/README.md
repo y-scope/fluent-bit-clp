@@ -16,7 +16,6 @@ See below for an example:
 [OUTPUT]
     name  out_clp_s3
     s3_bucket myBucket
-    role_arn arn:aws:iam::000000000000:role/accessToMyBucket
     match *
   ```
 
