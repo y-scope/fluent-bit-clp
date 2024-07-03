@@ -12,7 +12,7 @@ flowchart LR
     subgraph CLP Output Plugin
     B(Parse into IR) --> C(Compress with Zstd)
     end
-    D --> E(Output)
+    C --> D(Output)
     classDef format fill:#007DF4,color:white
     class A,B,C,D format
 ```
