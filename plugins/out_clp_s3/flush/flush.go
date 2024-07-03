@@ -84,7 +84,6 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 		err = fmt.Errorf("error opening zstd writer: %w", err)
 		return output.FLB_RETRY, err
 	}
-	defer zstdWriter.Close()
 
 	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
 	// FourByteEncoding as default encoding.
@@ -104,6 +103,11 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 	_, err = irWriter.CloseTo(zstdWriter)
 	if err != nil {
 		err = fmt.Errorf("error writting IR to buf: %w", err)
+		return output.FLB_RETRY, err
+	}
+
+	err = zstdWriter.Close()
+	if err != nil {
 		return output.FLB_RETRY, err
 	}
 
