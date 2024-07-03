@@ -130,5 +130,5 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		return nil, err
 	}
 
-	return &config, err
+	return &config, nil
 }
