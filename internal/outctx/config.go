@@ -27,7 +27,7 @@ type S3Config struct {
 	Id              string `conf:"id"                validate:"required"`
 	UseSingleKey    bool   `conf:"use_single_key"    validate:"-"`
 	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
-	SingleKey       string `conf:"time_zone"         validate:"required_if=use_single_key true"`
+	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
 }
 
