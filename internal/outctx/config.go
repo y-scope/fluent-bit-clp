@@ -20,7 +20,7 @@ import (
 // "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
 // can be found in docs for [validator].
 type S3Config struct {
-	S3Region        string `conf:"time_zone"         validate:"required"`
+	S3Region        string `conf:"s3_region"         validate:"required"`
 	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
 	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
 	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
