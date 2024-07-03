@@ -6,14 +6,25 @@ Repository contains Fluent Bit output plugins that store records in CLP's compre
 The general flow is as follows:
 
 ```mermaid
+%%{init: {'theme':'neutral','themeVariables': {'primaryBorderColor': 'black','lineColor': 'black'}}}%%
 flowchart LR
-    A[App Logs] --> |Tailed by| B[Fluent Bit]
-    B -->|Forwards to| clp
-    subgraph clp[CLP Output Plugin]
-    Logs[App Logs] --> D[Parse into IR] --> E[Compress with Zstd]
+    A(Fluent Bit Input) --> C
+    subgraph CLP Output Plugin
+    C(Parse into IR) --> D(Compress with Zstd)
     end
-    clp -->|Uploads to| F[Output]
+    D --> E(Output)
+    classDef format fill:#007DF4,color:white
+    class A,B,C,D,E format
 ```
+
+##### Fluent Bit Input
+Fluent Bit can collect application logs from >40 different [sources][2]. Common sources include tailing
+log files and other Fluent Bit instances.
+##### CLP Output Plugin
+Output plugin recieves logs from Fluent Bit and parses them into [CLP IR][1]. CLP IR consists of a timestamp, a list of variable values, and the
+log type. IR is then compressed with [Zstd][3] in default mode without dictionaries.
+##### Output
+Compressed IR output is sent to plugin output (currently only AWS S3 is supported). CLP can directly ingest compressed IR output and convert into archives for efficient storage and search.
 
 ### Usage
 Each plugin has its own README to help get started. Currently, we only have a
@@ -32,3 +43,5 @@ curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/insta
 2. Run with `golangci-lint run`
 
 [1]: https://www.uber.com/en-US/blog/reducing-logging-cost-by-two-orders-of-magnitude-using-clp
+[2]: https://docs.fluentbit.io/manual/pipeline/inputs
+[3]: https://github.com/facebook/zstd
