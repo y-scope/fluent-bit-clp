@@ -30,17 +30,23 @@ flowchart LR
 ```
 
 #### Fluent Bit Input
+
 Fluent Bit can collect application logs from >40 different [sources][2]. Common sources include
 tailing log files and other Fluent Bit instances.
+
 #### CLP Output Plugin
+
 Output plugin recieves logs from Fluent Bit and parses them into [CLP IR][1]. CLP IR consists of a
 timestamp, a list of variable values, and the log type. IR is then compressed with [Zstd][3] in
 default mode without dictionaries.
+
 #### Output
+
 Compressed IR output is sent to plugin output (currently only AWS S3 is supported). CLP can directly
 ingest compressed IR output and convert into archives for efficient storage and search.
 
 ### Usage
+
 Each plugin has its own README to help get started. Currently, we only have a
 [AWS S3 plugin](plugins/out_clp_s3/README.md), but please submit an issue if you need to send IR to
 another output.
