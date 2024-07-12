@@ -52,6 +52,11 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 
 	log.Printf("[%s] Init called for id: %s", s3PluginName, outCtx.Config.Id)
 
+	err = flush.RecoverOnStart(outCtx)
+	if err != nil {
+		log.Fatalf("Failed to recover logs stored on disk: %s", err)
+	}
+
 	// Set the context for this instance so that params can be retrieved during flush.
 	output.FLBPluginSetContext(plugin, outCtx)
 	return output.FLB_OK
@@ -108,12 +113,18 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
 
-	config, ok := p.(*outctx.S3Config)
+	outCtx, ok := p.(*outctx.S3Context)
 	if !ok {
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Exit called for id: %s", s3PluginName, config.Id)
+	log.Printf("[%s] Exit called for id: %s", s3PluginName, outCtx.Config.Id)
+
+	err := flush.GracefulExit(outCtx)
+	if err != nil {
+		log.Printf("Failed to exit gracefully")
+	}
+
 	return output.FLB_OK
 }
 
