@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"time"
 	"unsafe"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,6 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
+
+	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 )
 
 // AWS error codes.
@@ -29,6 +33,14 @@ const (
 type S3Context struct {
 	Config   S3Config
 	Uploader *manager.Uploader
+	Tags map[string]*Tag
+}
+
+type Tag struct {
+	Key string
+	Index   int
+	Start time.Time
+	Writer *irzstd.IrZstdWriter
 }
 
 // Creates a new context. Loads configuration from user. Loads and tests aws credentials.
@@ -94,6 +106,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	ctx := S3Context{
 		Config:   *config,
 		Uploader: uploader,
+		Tags: make(map[string]*Tag),
 	}
 
 	return &ctx, nil
