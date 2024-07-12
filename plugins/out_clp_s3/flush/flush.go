@@ -10,28 +10,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"io/fs"
 	"net/url"
 	"path/filepath"
 	"time"
 	"unsafe"
+
+	"log"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	"github.com/fluent/fluent-bit-go/output"
-	"github.com/klauspost/compress/zstd"
 
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 
 	"github.com/y-scope/fluent-bit-clp/internal/decoder"
+	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
 // Tag key when tagging s3 objects with Fluent Bit tag.
 const s3TagKey = "fluentBitTag"
+
+// const sizeThreshold = 5*1024*1024
+const sizeThreshold = 500
 
 // Flushes data to s3 in IR format. Decode of Msgpack based on [Fluent Bit reference].
 //
@@ -46,7 +52,7 @@ const s3TagKey = "fluentBitTag"
 //   - err: Error if flush fails
 //
 // [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
-func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (int, error) {
+func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context) (int, error) {
 	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
 
@@ -77,54 +83,44 @@ func ToS3(data unsafe.Pointer, length int, tag string, ctx *outctx.S3Context) (i
 		logEvents = append(logEvents, event)
 	}
 
-	var buf bytes.Buffer
+	var err error
+	tag, ok := ctx.Tags[tagKey]
 
-	zstdWriter, err := zstd.NewWriter(&buf)
-	if err != nil {
-		err = fmt.Errorf("error opening zstd writer: %w", err)
-		return output.FLB_RETRY, err
+	// If tag has not been encountered before, create a new tag.
+	if !ok {
+		irStore, zstdStore, err := irzstd.NewStores(ctx.Config.Store,ctx.Config.StoreDir,tagKey)
+		if err != nil {
+			return output.FLB_RETRY, fmt.Errorf("error creating stores: %w", err)
+		}
+
+		tag, err = newTag(tagKey,ctx.Config.TimeZone,length,ctx.Config.Store, irStore, zstdStore)
+		if err != nil {
+			return output.FLB_RETRY, fmt.Errorf("error creating tag: %w", err)
+		}
+		ctx.Tags[tagKey] = tag
 	}
 
-	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
-	// FourByteEncoding as default encoding.
-	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](length, ctx.Config.TimeZone)
+	err = tag.Writer.WriteIrZstd(logEvents)
 	if err != nil {
-		err = fmt.Errorf("error opening IR writer: %w", err)
-		return output.FLB_RETRY, err
-	}
-
-	err = writeIr(irWriter, logEvents)
-	if err != nil {
-		err = fmt.Errorf("error while encoding IR: %w", err)
 		return output.FLB_ERROR, err
 	}
 
-	// Write zstd compressed IR to file.
-	_, err = irWriter.CloseTo(zstdWriter)
+	storeSize, err := tag.Writer.GetZstdStoreSize()
 	if err != nil {
-		err = fmt.Errorf("error writting IR to buf: %w", err)
-		return output.FLB_RETRY, err
+		// Do not retry since logs already written to store.
+		return output.FLB_ERROR, fmt.Errorf("error could not get size of zstd store: %w", err)
 	}
 
-	err = zstdWriter.Close()
-	if err != nil {
-		return output.FLB_RETRY, err
+	UploadSize := ctx.Config.UploadSizeMb << 20
+	bestBefore := tag.Start.Add(ctx.Config.Timeout)
+
+	if !ctx.Config.Store || storeSize >= UploadSize || time.Now().After(bestBefore) {
+		err := FlushZstdToS3(tag,ctx)
+		if err != nil {
+			return output.FLB_ERROR, fmt.Errorf("error flushing zstdStore to s3: %w", err)
+		}
 	}
 
-	outputLocation, err := uploadToS3(
-		ctx.Config.S3Bucket,
-		ctx.Config.S3BucketPrefix,
-		&buf,
-		tag,
-		ctx.Config.Id,
-		ctx.Uploader,
-	)
-	if err != nil {
-		err = fmt.Errorf("failed to upload chunk to s3, %w", err)
-		return output.FLB_RETRY, err
-	}
-
-	log.Printf("chunk uploaded to %s", outputLocation)
 	return output.FLB_OK, nil
 }
 
@@ -231,19 +227,20 @@ func uploadToS3(
 	bucket string,
 	bucketPrefix string,
 	io io.ReadWriter,
-	tag string,
+	tagKey string,
+	index int,
 	id string,
 	uploader *manager.Uploader,
 ) (string, error) {
 	currentTime := time.Now()
-	// Format the time as a string in RFC3339Nano format.
-	timeString := currentTime.Format(time.RFC3339Nano)
+	// Format the time as a string in RFC3339 format.
+	timeString := currentTime.Format(time.RFC3339)
 
-	fileName := fmt.Sprintf("%s_%s_%s.zst", tag, timeString, id)
+	fileName := fmt.Sprintf("%s_%d_%s_%s.zst", tagKey, timeString, id)
 	fullFilePath := filepath.Join(bucketPrefix, fileName)
 
 	// Upload the file to S3.
-	tag = fmt.Sprintf("%s=%s", s3TagKey, tag)
+	tag := fmt.Sprintf("%s=%s", s3TagKey, tagKey)
 	result, err := uploader.Upload(context.TODO(), &s3.PutObjectInput{
 		Bucket:  aws.String(bucket),
 		Key:     aws.String(fullFilePath),
@@ -261,4 +258,48 @@ func uploadToS3(
 	}
 
 	return uploadLocation, nil
+}
+
+func newTag(tagKey string, timezone string, size int, store bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*outctx.Tag, error) {
+	writer, err := irzstd.NewIrZstdWriter(timezone, size, store, irStore, zstdStore)
+	if err != nil {
+		return nil, err
+	}
+
+	tag := outctx.Tag{
+		Key: tagKey,
+		Start: time.Now(),
+		Writer: writer,
+	}
+
+	return &tag, nil
+}
+
+func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) (error) {
+		// Adds null byte to terminate stream.
+		err := tag.Writer.EndStream()
+		if err != nil {
+			return fmt.Errorf("error closing irzstd stream: %w", err)
+		}
+
+		outputLocation, err := uploadToS3(
+			ctx.Config.S3Bucket,
+			ctx.Config.S3BucketPrefix,
+			tag.Writer.ZstdStore,
+			tag.Key,
+			tag.Index,
+			ctx.Config.Id,
+			ctx.Uploader,
+		)
+		if err != nil {
+			err = fmt.Errorf("failed to upload chunk to s3, %w", err)
+			return err
+		}
+
+		tag.Index += 1
+
+		log.Printf("chunk uploaded to %s", outputLocation)
+		tag.Writer.Reset()
+
+		return nil
 }
