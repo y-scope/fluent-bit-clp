@@ -75,7 +75,7 @@ func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context)
 			return output.FLB_RETRY, fmt.Errorf("error creating stores: %w", err)
 		}
 
-		tag, err = newTag(tagKey, ctx.Config.TimeZone, length,ctx.Config.DiskStore, irStore, zstdStore)
+		tag, err = NewTag(tagKey, ctx.Config.TimeZone, length,ctx.Config.DiskStore, irStore, zstdStore)
 		if err != nil {
 			return output.FLB_RETRY, fmt.Errorf("error creating tag: %w", err)
 		}
@@ -300,7 +300,7 @@ func uploadToS3(
 //
 // Returns:
 //   - err: Error creating new writer
-func newTag(tagKey string, timezone string, size int, diskStore bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*outctx.Tag, error) {
+func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*outctx.Tag, error) {
 	writer, err := irzstd.NewIrZstdWriter(timezone, size, diskStore, irStore, zstdStore)
 	if err != nil {
 		return nil, err
