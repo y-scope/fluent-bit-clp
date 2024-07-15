@@ -94,7 +94,7 @@ func NewIrZstdWriter(timezone string, size int, diskStore bool, irStore io.ReadW
 
 // Converts log events to Zstd compressed IR and outputs to Zstd Store. IR may be temporarily
 // stored in IR store until store surpasses [irSizeThreshold] with compression to Zstd pushed out to
-// a later call. See [IrZstdWriter] for details on behaviour.
+// a later call. See [IrZstdWriter] for more specific details on behaviour.
 //
 // Parameters:
 //   - logEvents: A slice of log events to be encoded
@@ -225,7 +225,9 @@ func (w *IrZstdWriter) Reset() error {
 	return nil
 }
 
-// Gets the size of a file.
+// Gets the size of a disk store. [zstd] does not provide the amount of bytes written with
+// each write. Therefore, cannot keep track of size with variable as implemented for IR with
+// [IrTotalBytes]. Instead, call stat to get size.
 //
 // Parameters:
 //   - store: Disk store
@@ -233,7 +235,7 @@ func (w *IrZstdWriter) Reset() error {
 // Returns:
 //   - size: Size of input file
 //   - err: Error from stat
-func GetStoreSize(store io.ReadWriter) (int, error) {
+func GetDiskStoreSize(store io.ReadWriter) (int, error) {
 
 	file, ok := store.(*os.File)
 	if !ok {
@@ -279,7 +281,7 @@ func (w *IrZstdWriter) FlushIrStore() (error) {
 	}
 
 	// No need to flush if the store is empty.
-	// Flush is called during Close(), and possible IR is empty.
+	// Flush is called during Close(), and possible IR Store is empty.
 	if w.IrTotalBytes == 0 {
 		return nil
 	}

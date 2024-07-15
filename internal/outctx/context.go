@@ -38,8 +38,9 @@ type S3Context struct {
 
 type Tag struct {
 	Key string
-	Index   int
+	Index int
 	Start time.Time
+	ResetStart bool
 	Writer *irzstd.IrZstdWriter
 }
 

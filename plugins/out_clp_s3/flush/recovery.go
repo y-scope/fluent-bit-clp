@@ -101,7 +101,7 @@ func RecoverOnStart(ctx *outctx.S3Context) error {
 			return fmt.Errorf("error opening ir file %s: %w",irPath, err)
 		}
 
-		irSize, err := irzstd.GetStoreSize(irStore)
+		irSize, err := irzstd.GetDiskStoreSize(irStore)
 
 		zstdStore, err := os.Open(zstdPath)
 		if err != nil {
@@ -115,7 +115,7 @@ func RecoverOnStart(ctx *outctx.S3Context) error {
 			return  fmt.Errorf("error creating tag: %w", err)
 		}
 
-		// Can avoid unnecesary Flush of IR store if it is empty. 
+		// Can avoid unnecesary Flush of IR store if it is empty.
 		tag.Writer.IrTotalBytes = irSize
 
 		ctx.Tags[tagKey] = tag
