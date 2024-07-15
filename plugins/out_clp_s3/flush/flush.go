@@ -299,6 +299,7 @@ func uploadToS3(
 //   - ZstdStore: Location to store Zstd compressed IR
 //
 // Returns:
+//	 - tag: Tag resources and metadata
 //   - err: Error creating new writer
 func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*outctx.Tag, error) {
 	writer, err := irzstd.NewIrZstdWriter(timezone, size, diskStore, irStore, zstdStore)
@@ -319,7 +320,7 @@ func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io
 // IR store is flushed and IR/Zstd streams are terminated.
 //
 // Parameters:
-//   - tag: Struct containing tag resources
+//   - tag: Tag resources and metadata
 //   - ctx: Plugin context
 //
 // Returns:

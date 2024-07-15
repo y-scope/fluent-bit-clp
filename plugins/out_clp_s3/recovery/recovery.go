@@ -140,7 +140,7 @@ func FlushStores(ctx *outctx.S3Context) error {
 			return  fmt.Errorf("error creating tag: %w", err)
 		}
 
-		// Can avoid unnecesary Flush of IR store if it is empty.
+		// Can avoid unnecessary flush of IR store if it is empty.
 		tag.Writer.IrTotalBytes = int(irStoreSize)
 
 		ctx.Tags[tagKey] = tag

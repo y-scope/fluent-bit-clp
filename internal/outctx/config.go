@@ -31,9 +31,9 @@ type S3Config struct {
 	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
 	DiskStore       bool   `conf:"disk_store"        validate:"-"`
-	StoreDir        string `conf:"store_dir"         validate:"dirpath"`
+	StoreDir        string `conf:"store_dir"         validate:"omitempty, dirpath"`
 	Timeout         time.Duration `conf:"timeout"    validate:"-"`
-	UploadSizeMb    int `conf:"upload_size_mb"       validate:"gt=2,lt=1000"`
+	UploadSizeMb    int `conf:"upload_size_mb"       validate:"omitempty,gt=2,lt=1000"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values
@@ -46,8 +46,7 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All validation errors in config wrapped, parse bool error
 func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
-	//defaultTimeout, _ := time.ParseDuration("10m")
-	defaultTimeout, _ := time.ParseDuration("30s")
+	defaultTimeout, _ := time.ParseDuration("10m")
 
 	// Define default values for settings. Setting defaults before validation simplifies validation
 	// configuration, and ensures that default settings are also validated.
@@ -61,7 +60,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		AllowMissingKey: true,
 		SingleKey:       "log",
 		TimeZone:        "America/Toronto",
-		DiskStore:        false,
+		DiskStore:        true,
 		StoreDir:        "tmp/out_clp_s3/",
 		Timeout:         defaultTimeout,
 		UploadSizeMb:    16,
