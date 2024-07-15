@@ -55,11 +55,8 @@ const ZstdDir = "zstd"
 //   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context) (int, error) {
-	// Buffer to store events from Fluent Bit chunk.
-	var logEvents []ffi.LogEvent
 
 	dec := decoder.New(data, length)
-
 	logEvents, err := decodeMsgpack(dec, ctx.Config)
 	if err != nil {
 		return output.FLB_ERROR, err
@@ -67,15 +64,16 @@ func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context)
 
 	tag, ok := ctx.Tags[tagKey]
 
-	// If tag does not exist yet, create new stores and tag. If disk store is on, stores buffer
-	// logs.
+	// If tag does not exist yet, create new stores and tag. If disk store is on, stores are created on disk
+	// and are used to buffer Fluent Bit chunks. If disk store is off, store is in memory and
+	// chunks are not buffered.
 	if !ok {
 		irStore, zstdStore, err := newStores(ctx.Config.DiskStore, ctx.Config.StoreDir, tagKey)
 		if err != nil {
 			return output.FLB_RETRY, fmt.Errorf("error creating stores: %w", err)
 		}
 
-		tag, err = NewTag(tagKey, ctx.Config.TimeZone, length,ctx.Config.DiskStore, irStore, zstdStore)
+		tag, err = NewTag(tagKey, ctx.Config.TimeZone, length, ctx.Config.DiskStore, irStore, zstdStore)
 		if err != nil {
 			return output.FLB_RETRY, fmt.Errorf("error creating tag: %w", err)
 		}
@@ -121,7 +119,7 @@ func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context)
 //
 // [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
-
+	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
 
 	// Loop through all records in Fluent Bit chunk.
@@ -264,7 +262,7 @@ func uploadToS3(
 	// Format the time as a string in RFC3339 format.
 	timeString := currentTime.Format(time.RFC3339)
 
-	fileName := fmt.Sprintf("%s_%d_%s_%s.zst", tagKey, timeString, id)
+	fileName := fmt.Sprintf("%s_%d_%s_%s.zst", tagKey, index, timeString, id)
 	fullFilePath := filepath.Join(bucketPrefix, fileName)
 
 	// Upload the file to S3.
@@ -316,7 +314,7 @@ func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io
 	return &tag, nil
 }
 
-// Sends Zstd store to S3 and resets writer and stores for future uploads. Prior to upload,
+// Sends Zstd store to s3 and reset writer and stores for future uploads. Prior to upload,
 // IR store is flushed and IR/Zstd streams are terminated.
 //
 // Parameters:
@@ -324,7 +322,7 @@ func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io
 //   - ctx: Plugin context
 //
 // Returns:
-//   - err: Error creating closing writer, error uploading to s3, error reseting writer and stores
+//   - err: Error creating closing writer, error uploading to s3, error reseting writer
 func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) (error) {
 
 		// Flush IR store if exists, and terminate IR/Zstd streams.
@@ -363,12 +361,12 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) (error) {
 }
 
 // Checks if criteria are met to upload to s3. If disk store is off, then chunk is always uploaded
-// and always returns true. If disk store is on, check if Zstd Store is greater than upload size or
-// if the logs are stale. Logs are stale if the current time is greater than the start time
+// and always returns true. If disk store is on, check if Zstd store size is greater than upload size
+// or if the logs are stale. Logs are stale if the current time is greater than the start time
 // (time of first recieved chunk) + configuration timeout.
 //
 // Parameters:
-//   - tag: Struct containing tag resources
+//   - tag: Tag resources and metadata
 //   - diskStore: On/off for disk store
 //   - uploadSizeMb: S3 upload size in MB
 //   - timeout: Configuration timeout
@@ -425,7 +423,7 @@ func newStores(diskStore bool, storeDir string, tagkey string) (io.ReadWriter, i
 	// Create file for IR.
 	irFileName := fmt.Sprintf("%s.ir", tagkey)
 	irStoreDir := filepath.Join(storeDir, IrDir)
-	irFile, err := CreateFile(irStoreDir, irFileName)
+	irFile, err := createFile(irStoreDir, irFileName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating file: %w", err)
 	}
@@ -435,7 +433,7 @@ func newStores(diskStore bool, storeDir string, tagkey string) (io.ReadWriter, i
 	// Create file for Zstd.
 	zstdFileName := fmt.Sprintf("%s.zst", tagkey)
 	zstdStoreDir := filepath.Join(storeDir, ZstdDir)
-	zstdFile, err := CreateFile(zstdStoreDir, zstdFileName)
+	zstdFile, err := createFile(zstdStoreDir, zstdFileName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating file: %w", err)
 	}
@@ -455,7 +453,7 @@ func newStores(diskStore bool, storeDir string, tagkey string) (io.ReadWriter, i
 // Returns:
 //   - f: The created file
 //   - err: Could not create directory, could not create file
-func CreateFile(path string, file string) (*os.File, error) {
+func createFile(path string, file string) (*os.File, error) {
 	// Make directory if does not exist.
 	err := os.MkdirAll(path, 0o751)
 	if err != nil {

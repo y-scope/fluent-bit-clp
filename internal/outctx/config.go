@@ -21,19 +21,19 @@ import (
 // "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
 // can be found in docs for [validator].
 type S3Config struct {
-	S3Region        string `conf:"s3_region"         validate:"required"`
-	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
-	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
-	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
-	Id              string `conf:"id"                validate:"required"`
-	UseSingleKey    bool   `conf:"use_single_key"    validate:"-"`
-	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
-	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
-	TimeZone        string `conf:"time_zone"         validate:"timezone"`
-	DiskStore       bool   `conf:"disk_store"        validate:"-"`
-	StoreDir        string `conf:"store_dir"         validate:"omitempty, dirpath"`
+	S3Region        string        `conf:"s3_region"         validate:"required"`
+	S3Bucket        string        `conf:"s3_bucket"         validate:"required"`
+	S3BucketPrefix  string        `conf:"s3_bucket_prefix"  validate:"dirpath"`
+	RoleArn         string        `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
+	Id              string        `conf:"id"                validate:"required"`
+	UseSingleKey    bool          `conf:"use_single_key"    validate:"-"`
+	AllowMissingKey bool          `conf:"allow_missing_key" validate:"-"`
+	SingleKey       string        `conf:"single_key"        validate:"required_if=use_single_key true"`
+	TimeZone        string        `conf:"time_zone"         validate:"timezone"`
+	DiskStore       bool          `conf:"disk_store"        validate:"-"`
+	StoreDir        string        `conf:"store_dir"         validate:"omitempty, dirpath"`
 	Timeout         time.Duration `conf:"timeout"    validate:"-"`
-	UploadSizeMb    int `conf:"upload_size_mb"       validate:"omitempty,gt=2,lt=1000"`
+	UploadSizeMb    int           `conf:"upload_size_mb"       validate:"omitempty,gt=2,lt=1000"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values
@@ -60,7 +60,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		AllowMissingKey: true,
 		SingleKey:       "log",
 		TimeZone:        "America/Toronto",
-		DiskStore:        true,
+		DiskStore:       true,
 		StoreDir:        "tmp/out_clp_s3/",
 		Timeout:         defaultTimeout,
 		UploadSizeMb:    16,
@@ -78,9 +78,9 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		"allow_missing_key": &config.AllowMissingKey,
 		"single_key":        &config.SingleKey,
 		"time_zone":         &config.TimeZone,
-		"disk_store":   	 &config.DiskStore,
-		"store_dir":   	     &config.StoreDir,
-		"timeout":   	     &config.Timeout,
+		"disk_store":        &config.DiskStore,
+		"store_dir":         &config.StoreDir,
+		"timeout":           &config.Timeout,
 		"upload_size_mb":    &config.UploadSizeMb,
 	}
 
@@ -107,13 +107,13 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 			}
 			*configField = boolInput
 		case *time.Duration:
-			durationInput, err :=  time.ParseDuration(userInput)
+			durationInput, err := time.ParseDuration(userInput)
 			if err != nil {
 				return nil, fmt.Errorf("error could not parse input %v into duration", userInput)
 			}
 			*configField = durationInput
 		case *int:
-			intInput, err :=  strconv.Atoi(userInput)
+			intInput, err := strconv.Atoi(userInput)
 			if err != nil {
 				return nil, fmt.Errorf("error could not parse input %v into int", userInput)
 			}
@@ -156,5 +156,5 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		return nil, err
 	}
 
-	return &config, err
+	return &config, nil
 }

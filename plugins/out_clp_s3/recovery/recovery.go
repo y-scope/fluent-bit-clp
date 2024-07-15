@@ -4,6 +4,7 @@ package recovery
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -29,25 +30,14 @@ func GracefulExit(ctx *outctx.S3Context) error {
 	}
 
 	for _, tag := range ctx.Tags {
-
-		irFile, ok := tag.Writer.IrStore.(*os.File)
-		if !ok {
-			return fmt.Errorf("error type assertion from store to file failed")
-		}
-		irFileName := irFile.Name()
-		err := irFile.Close()
+		err := closeStore(tag.Writer.IrStore)
 		if err != nil {
-			return fmt.Errorf("error could not close file %s: %w", irFileName, err)
+			return err
 		}
 
-		zstdFile, ok := tag.Writer.ZstdStore.(*os.File)
-		if !ok {
-			return fmt.Errorf("error type assertion from store to file failed")
-		}
-		zstdFileName := zstdFile.Name()
-		err = zstdFile.Close()
+		err = closeStore(tag.Writer.ZstdStore)
 		if err != nil {
-			return fmt.Errorf("error could not close file %s: %w", zstdFileName, err)
+			return err
 		}
 	}
 
@@ -93,7 +83,7 @@ func FlushStores(ctx *outctx.S3Context) error {
 	}
 
 	// Check if keys match.
-	for fileName, _ := range irFiles {
+	for fileName := range irFiles {
 		if _, ok := zstdFiles[fileName]; !ok  {
 			return fmt.Errorf("error files in IR and zstd store do not match")
 		}
@@ -140,12 +130,12 @@ func FlushStores(ctx *outctx.S3Context) error {
 			return  fmt.Errorf("error creating tag: %w", err)
 		}
 
-		// Can avoid unnecessary flush of IR store if it is empty.
+		// Set size of IR store. Can avoid unnecessary flush of IR store if it is empty.
 		tag.Writer.IrTotalBytes = int(irStoreSize)
 
 		ctx.Tags[tagKey] = tag
 
-		err = flush.FlushZstdToS3(tag,ctx)
+		err = flush.FlushZstdToS3(tag, ctx)
 		if err != nil {
 			return fmt.Errorf("error flushing Zstd Store to s3: %w", err)
 		}
@@ -182,11 +172,34 @@ func getFiles(dir string) (map[string]os.FileInfo, error) {
 		}
 
 		// Check if regular file (not directory, etc..)
-		if fileInfo.Mode().IsRegular() == false {
+		if !fileInfo.Mode().IsRegular() {
 			return nil, fmt.Errorf("error %s is not a regular file: %w", fileName, err)
 		}
 
 		files[fileName] = fileInfo
 	}
 	return files, nil
+}
+
+// Closes file associated with store.
+//
+// Parameters:
+//   - store: Disk store
+//
+// Returns:
+//   - err: Error with type assertion, error closing file
+func closeStore(store io.ReadWriter) error {
+
+	file, ok := store.(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from store to file failed")
+	}
+
+	fileName := file.Name()
+	err := file.Close()
+	if err != nil {
+		return fmt.Errorf("error could not close file %s: %w", fileName, err)
+	}
+
+	return nil
 }

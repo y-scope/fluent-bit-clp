@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 	"unsafe"
 
@@ -36,17 +35,17 @@ const (
 type S3Context struct {
 	Config   S3Config
 	Uploader *manager.Uploader
-	Tags map[string]*Tag
+	Tags     map[string]*Tag
 }
 
-// Tag resources and metadata. Start is the time of first Fluent Bit chunk recieved. Start is used
-// to track if logs are stale and is reset after each upload.
+// Tag resources and metadata. Start is the time when first Fluent Bit is chunk recieved for each
+// upload. Start is used to track if logs are stale and is reset after each upload.
 type Tag struct {
-	Key string
-	Index int
-	Start time.Time
+	Key        string
+	Index      int
+	Start      time.Time
 	ResetStart bool
-	Writer *irzstd.IrZstdWriter
+	Writer     *irzstd.IrZstdWriter
 }
 
 // Creates a new context. Loads configuration from user. Loads and tests aws credentials.
@@ -112,7 +111,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	ctx := S3Context{
 		Config:   *config,
 		Uploader: uploader,
-		Tags: make(map[string]*Tag),
+		Tags:     make(map[string]*Tag),
 	}
 
 	return &ctx, nil
