@@ -7,12 +7,15 @@ import (
 	"path/filepath"
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
+	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 )
 
 // perhaps safer not to send to s3.
 // will terminate all IR streams
 func GracefulExit(ctx *outctx.S3Context) error {
 	for _, tag := range ctx.Tags {
+
+		//maybe flip this
 
 		if ctx.Config.Store {
 			irFile, ok := tag.IrStore.(*os.File)
@@ -98,6 +101,8 @@ func RecoverOnStart(ctx *outctx.S3Context) error {
 			return fmt.Errorf("error opening ir file %s: %w",irPath, err)
 		}
 
+		irSize, err := irzstd.GetStoreSize(irStore)
+
 		zstdStore, err := os.Open(zstdPath)
 		if err != nil {
 			return fmt.Errorf("error opening ir file %s: %w",zstdPath, err)
@@ -105,17 +110,15 @@ func RecoverOnStart(ctx *outctx.S3Context) error {
 
 		tagKey := fileName
 
-		tag, err := newTag(tagKey,ctx.Config.TimeZone,int(irStoreSize),ctx.Config.Store, irStore, zstdStore)
+		tag, err := newTag(tagKey,ctx.Config.TimeZone,int(irStoreSize),ctx.Config.DiskStore, irStore, zstdStore)
 		if err != nil {
 			return  fmt.Errorf("error creating tag: %w", err)
 		}
 
-		ctx.Tags[tagKey] = tag
+		// Can avoid unnecesary Flush of IR store if it is empty. 
+		tag.Writer.IrTotalBytes = irSize
 
-		err = tag.Writer.FlushIrStore()
-		if err != nil {
-			return  fmt.Errorf("error flushing IR store: %w", err)
-		}
+		ctx.Tags[tagKey] = tag
 
 		err = FlushZstdToS3(tag,ctx)
 		if err != nil {

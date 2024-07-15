@@ -30,7 +30,7 @@ type S3Config struct {
 	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
 	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
-	Store           bool   `conf:"store"             validate:"-"`
+	DiskStore       bool   `conf:"disk_store"        validate:"-"`
 	StoreDir        string `conf:"store_dir"         validate:"dirpath"`
 	Timeout         time.Duration `conf:"timeout"    validate:"-"`
 	UploadSizeMb    int `conf:"upload_size_mb"       validate:"gt=2,lt=1000"`
@@ -61,7 +61,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		AllowMissingKey: true,
 		SingleKey:       "log",
 		TimeZone:        "America/Toronto",
-		Store:           false,
+		DiskStore:        false,
 		StoreDir:        "tmp/out_clp_s3/",
 		Timeout:         defaultTimeout,
 		UploadSizeMb:    16,
@@ -79,7 +79,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		"allow_missing_key": &config.AllowMissingKey,
 		"single_key":        &config.SingleKey,
 		"time_zone":         &config.TimeZone,
-		"store":   	         &config.Store,
+		"disk_store":   	 &config.DiskStore,
 		"store_dir":   	     &config.StoreDir,
 		"timeout":   	     &config.Timeout,
 		"upload_size_mb":    &config.UploadSizeMb,
