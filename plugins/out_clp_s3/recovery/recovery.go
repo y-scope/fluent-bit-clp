@@ -51,6 +51,7 @@ func GracefulExit(ctx *outctx.S3Context) error {
 //
 // Returns:
 //   - err: Error retrieving stores, error deleting empty stores, error creating tag,
+//
 // error sending to s3
 func FlushStores(ctx *outctx.S3Context) error {
 	if !ctx.Config.DiskStore {

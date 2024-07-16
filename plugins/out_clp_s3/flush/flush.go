@@ -151,6 +151,7 @@ func NewTag(
 //
 // Returns:
 //   - err: Error creating closing writer, error with type assertion, error uploading to s3,
+//
 // error resetting writer
 func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 	// Flush IR store if exists, and terminate IR/Zstd streams.

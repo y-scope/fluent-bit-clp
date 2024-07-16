@@ -31,7 +31,7 @@ const irSizeThreshold = 2 << 20
 // Logs events are not immediately converted to Zstd compressed IR, and instead compressed using
 // "trash compactor" design. Log events are converted to uncompressed IR and buffered into "bins".
 // Uncompressed IR represents uncompressed trash in "trash compactor". Once the bin is full, the
-// bin is "compacted" into its own seperate Zstd frame. The compressor is explicitly closed
+// bin is "compacted" into its own separate Zstd frame. The compressor is explicitly closed
 // after recieving input terminating the Zstd frame. Stacks of Zstd frames are then sent to S3.
 // For majority of runtime, log events are stored as a mixture uncompressed IR and compressed
 // Zstd frames. A simpler approach would be to send all the events for one S3 upload to the
@@ -255,6 +255,7 @@ func GetDiskStoreSize(store io.ReadWriter) (int, error) {
 //
 // Returns:
 //   - err: Error called with non-existant store, error compressing to Zstd, error resetting Zstd
+//
 // Writer, error with type assertion, error truncating file
 func (w *IrZstdWriter) flushIrStore() error {
 	// Assert stores exist.
