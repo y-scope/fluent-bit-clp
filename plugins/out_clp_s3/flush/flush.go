@@ -57,7 +57,6 @@ const (
 //   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (int, error) {
-
 	dec := decoder.New(data, size)
 	logEvents, err := decodeMsgpack(dec, ctx.Config)
 	if err != nil {
@@ -66,7 +65,8 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 
 	tag, ok := ctx.Tags[tagKey]
 
-	// If tag does not exist yet, create new stores and tag. If disk store is on, stores are created on disk
+	// If tag does not exist yet, create new stores and tag. If disk store is on, stores are created
+	// on disk
 	// and are used to buffer Fluent Bit chunks. If disk store is off, store is in memory and
 	// chunks are not buffered.
 	if !ok {
@@ -75,7 +75,14 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 			return output.FLB_RETRY, fmt.Errorf("error creating stores: %w", err)
 		}
 
-		tag, err = NewTag(tagKey, ctx.Config.TimeZone, size, ctx.Config.DiskStore, irStore, zstdStore)
+		tag, err = NewTag(
+			tagKey,
+			ctx.Config.TimeZone,
+			size,
+			ctx.Config.DiskStore,
+			irStore,
+			zstdStore,
+		)
 		if err != nil {
 			return output.FLB_RETRY, fmt.Errorf("error creating tag: %w", err)
 		}
@@ -102,7 +109,8 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 	return output.FLB_OK, nil
 }
 
-// Decodes Msgpack Fluent Bit chunk into slice of log events.  Decode of Msgpack based on [Fluent Bit reference].
+// Decodes Msgpack Fluent Bit chunk into slice of log events.  Decode of Msgpack based on [Fluent
+// Bit reference].
 //
 // Parameters:
 //   - decoder: Msgpack decoder
@@ -112,7 +120,8 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 //   - logEvents: Slice of log events
 //   - err: Error decoding Msgpack, error retrieving log message from decoded object
 //
-// [Fluent Bit reference]: https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
+// [Fluent Bit reference]:
+// https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
@@ -294,15 +303,22 @@ func uploadToS3(
 // Returns:
 //   - tag: Tag resources and metadata
 //   - err: Error creating new writer
-func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*outctx.Tag, error) {
+func NewTag(
+	tagKey string,
+	timezone string,
+	size int,
+	diskStore bool,
+	irStore io.ReadWriter,
+	zstdStore io.ReadWriter,
+) (*outctx.Tag, error) {
 	writer, err := irzstd.NewIrZstdWriter(timezone, size, diskStore, irStore, zstdStore)
 	if err != nil {
 		return nil, err
 	}
 
 	tag := outctx.Tag{
-		Key:        tagKey,
-		Writer:     writer,
+		Key:    tagKey,
+		Writer: writer,
 	}
 
 	return &tag, nil
@@ -330,7 +346,7 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 			return fmt.Errorf("error type assertion from store to file failed")
 		}
 		// Seek to start of Zstd store.
-		zstdFile.Seek(0,io.SeekStart)
+		zstdFile.Seek(0, io.SeekStart)
 	}
 
 	outputLocation, err := uploadToS3(
@@ -361,7 +377,8 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 }
 
 // Checks if criteria are met to upload to s3. If disk store is off, then chunk is always uploaded
-// and always returns true. If disk store is on, check if Zstd store size is greater than upload size.
+// and always returns true. If disk store is on, check if Zstd store size is greater than upload
+// size.
 //
 // Parameters:
 //   - tag: Tag resources and metadata
@@ -381,11 +398,16 @@ func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int) (boo
 		return false, fmt.Errorf("error could not get size of Zstd store: %w", err)
 	}
 
-	//UploadSize := uploadSizeMb << 20
+	// UploadSize := uploadSizeMb << 20
 	UploadSize := uploadSizeMb << 18
 
 	if storeSize >= UploadSize {
-		log.Printf("Zstd store size of %d for tag %s exceeded upload size %d", storeSize, tag.Key, UploadSize)
+		log.Printf(
+			"Zstd store size of %d for tag %s exceeded upload size %d",
+			storeSize,
+			tag.Key,
+			UploadSize,
+		)
 		return true, nil
 	}
 
@@ -406,7 +428,11 @@ func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int) (boo
 //   - irStore: Location to store IR
 //   - ZstdStore: Location to store Zstd compressed IR
 //   - err: Error creating file
-func newStores(diskStore bool, storeDir string, tagkey string) (io.ReadWriter, io.ReadWriter, error) {
+func newStores(
+	diskStore bool,
+	storeDir string,
+	tagkey string,
+) (io.ReadWriter, io.ReadWriter, error) {
 	var irStore io.ReadWriter
 	var zstdStore io.ReadWriter
 

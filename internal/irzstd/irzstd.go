@@ -1,4 +1,5 @@
-// Package implements writer with that converts log events to Zstd compressed IR. Effectively chains together [ir.Writer] and [zstd.Encoder] in series.
+// Package implements writer with that converts log events to Zstd compressed IR. Effectively chains
+// together [ir.Writer] and [zstd.Encoder] in series.
 
 package irzstd
 
@@ -6,8 +7,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"log"
+	"os"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -16,8 +17,7 @@ import (
 )
 
 // 2 MB threshold to buffer IR before compressing to Zstd when disk store is on.
-// const irSizeThreshold = 2 << 20
-const irSizeThreshold = 10000
+const irSizeThreshold = 2 << 20
 
 // Converts log events into Zstd compressed IR. Writer can be initialized with disk store on/off
 // depending on user configuration.
@@ -34,7 +34,8 @@ const irSizeThreshold = 10000
 // bin is "compacted" into its own seperate Zstd frame. The compressor is explicitly closed
 // after recieving input terminating the Zstd frame. Stacks of Zstd frames are then sent to S3.
 // For majority of runtime, log events are stored as a mixture uncompressed IR and compressed
-// Zstd frames. A simpler approach would be to send all the events for one S3 upload to the streaming
+// Zstd frames. A simpler approach would be to send all the events for one S3 upload to the
+// streaming
 // compressor and only close the stream when the upload size is reached. However, the streaming
 // compressor will keep frames/blocks open in between receipt of Fluent Bit chunks. Open
 // frames/blocks may not be recoverable after an abrupt crash. Closed frames on the other hand are
@@ -65,7 +66,13 @@ type IrZstdWriter struct {
 // Returns:
 //   - IrZstdWriter: Writer for Zstd compressed IR
 //   - err: Error opening Zstd Writer, error opening IR Writer
-func NewIrZstdWriter(timezone string, size int, diskStore bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*IrZstdWriter, error) {
+func NewIrZstdWriter(
+	timezone string,
+	size int,
+	diskStore bool,
+	irStore io.ReadWriter,
+	zstdStore io.ReadWriter,
+) (*IrZstdWriter, error) {
 	// Create Zstd writer with Zstd Store as its output.
 	zstdWriter, err := zstd.NewWriter(zstdStore)
 	if err != nil {
@@ -284,7 +291,7 @@ func (w *IrZstdWriter) FlushIrStore() error {
 	fmt.Println(w.IrTotalBytes)
 
 	file, _ := w.IrStore.(*os.File)
-	file.Seek(0,io.SeekStart)
+	file.Seek(0, io.SeekStart)
 
 	// Compressed IR to Zstd.
 	_, err := io.Copy(w.ZstdWriter, w.IrStore)
@@ -309,7 +316,7 @@ func (w *IrZstdWriter) FlushIrStore() error {
 		return fmt.Errorf("error type assertion from store to file failed")
 	}
 
-	file.Seek(0,io.SeekStart)
+	file.Seek(0, io.SeekStart)
 
 	// Reset IR Store.
 	err = irFile.Truncate(0)

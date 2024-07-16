@@ -128,9 +128,16 @@ func FlushStores(ctx *outctx.S3Context) error {
 		// Seek to end of Zstd store. Not using append flag since we need to seek later and docs
 		// provide a warning when seeking with append flag.
 		// https://pkg.go.dev/os#File.Seek
-		zstdStore.Seek(0,io.SeekEnd)
+		zstdStore.Seek(0, io.SeekEnd)
 
-		tag, err := flush.NewTag(tagKey, ctx.Config.TimeZone, int(irStoreSize), ctx.Config.DiskStore, irStore, zstdStore)
+		tag, err := flush.NewTag(
+			tagKey,
+			ctx.Config.TimeZone,
+			int(irStoreSize),
+			ctx.Config.DiskStore,
+			irStore,
+			zstdStore,
+		)
 		if err != nil {
 			return fmt.Errorf("error creating tag: %w", err)
 		}
@@ -162,8 +169,9 @@ func FlushStores(ctx *outctx.S3Context) error {
 //   - dir: Path of store directory
 //
 // Returns:
-//   - files: map with file names as keys and [fs.FileInfo] as values. If directory does not exist, map is nil.
-//   - err: Error reading directory, error retrieving FileInfo, error directory contains irregular files
+// - files: map with file names as keys and [fs.FileInfo] as values. If directory does not exist,
+// map is nil. - err: Error reading directory, error retrieving FileInfo, error directory contains
+// irregular files
 func getFiles(dir string) (map[string]os.FileInfo, error) {
 	dirEntry, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {

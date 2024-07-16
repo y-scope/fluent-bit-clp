@@ -2,7 +2,8 @@
 // See article/repo fo more information [Fluent Bit go], [Fluent Bit stdout example].
 //
 // [Fluent Bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// [Fluent Bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// [Fluent Bit stdout example]:
+// https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 package main
 
 // Note package name "main" is required by Fluent Bit which suppresses go docs. Do not remove
@@ -86,7 +87,13 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 	size := int(length)
 	tagKey := C.GoString(tag)
 
-	log.Printf("[%s] Flush called for id %s with tag %s and size %d", s3PluginName, outCtx.Config.Id, tagKey, size)
+	log.Printf(
+		"[%s] Flush called for id %s with tag %s and size %d",
+		s3PluginName,
+		outCtx.Config.Id,
+		tagKey,
+		size,
+	)
 
 	code, err := flush.ToS3(data, size, tagKey, outCtx)
 	if err != nil {

@@ -28,8 +28,9 @@ const (
 	bucketMissingCode = "NotFound"
 )
 
-// Holds objects accessible to plugin during flush. Fluent Bit uses a single thread for Go output plugin
-// so no need to consider synchronization issues. C plugins use "coroutines" which could cause synchronization
+// Holds objects accessible to plugin during flush. Fluent Bit uses a single thread for Go output
+// plugin so no need to consider synchronization issues. C plugins use "coroutines" which could
+// cause synchronization
 // issues for C plugins accordings to [docs] but "coroutines" are not used in Go plugins.
 // [docs]: https://github.com/fluent/fluent-bit/blob/master/DEVELOPER_GUIDE.md#concurrency
 type S3Context struct {

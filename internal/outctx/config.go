@@ -20,6 +20,8 @@ import (
 // snake case "use_single_key" vs. camel case "SingleKey" in validation error messages. The
 // "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
 // can be found in docs for [validator].
+//
+//nolint:revive
 type S3Config struct {
 	S3Region        string        `conf:"s3_region"         validate:"required"`
 	S3Bucket        string        `conf:"s3_bucket"         validate:"required"`

@@ -11,7 +11,8 @@
 // another decoder). Creating a new decoder to output strings instead of bytes is cleaner,
 // removes complex recursive functions, and likely more performant.
 //
-// [aws firehose plugin]: https://github.com/aws/amazon-kinesis-firehose-for-fluent-bit/blob/dcbe1a0191abd6242182af55547ccf99ee650ce9/plugins/plugins.go#L153
+// [aws firehose plugin]:
+// https://github.com/aws/amazon-kinesis-firehose-for-fluent-bit/blob/dcbe1a0191abd6242182af55547ccf99ee650ce9/plugins/plugins.go#L153
 package decoder
 
 import (
@@ -39,8 +40,10 @@ import (
 // Returns:
 //   - decoder: Msgpack decoder
 //
-// [timestamp format]: https://github.com/fluent/fluent-bit-docs/blob/master/development/msgpack-format.md#fluent-bit-usage
-// [timestamp encoding]: https://github.com/fluent/fluent-bit/blob/2138cee8f4878733956d42d82f6dcf95f0aa9339/src/flb_time.c#L237
+// [timestamp format]:
+// https://github.com/fluent/fluent-bit-docs/blob/master/development/msgpack-format.md#fluent-bit-usage
+// [timestamp encoding]:
+// https://github.com/fluent/fluent-bit/blob/2138cee8f4878733956d42d82f6dcf95f0aa9339/src/flb_time.c#L237
 // [Msgpack extension type]: https://github.com/msgpack/msgpack/blob/master/spec.md#extension-types
 func New(data unsafe.Pointer, length int) *codec.Decoder {
 	var b []byte
