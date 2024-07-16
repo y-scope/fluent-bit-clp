@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 	"unsafe"
 
 	"github.com/go-playground/validator/v10"
@@ -34,7 +33,6 @@ type S3Config struct {
 	TimeZone        string        `conf:"time_zone"         validate:"timezone"`
 	DiskStore       bool          `conf:"disk_store"        validate:"-"`
 	StoreDir        string        `conf:"store_dir"         validate:"omitempty,dirpath"`
-	Timeout         time.Duration `conf:"timeout"           validate:"-"`
 	UploadSizeMb    int           `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
 }
 
@@ -48,8 +46,6 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All validation errors in config wrapped, parse bool error
 func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
-	defaultTimeout, _ := time.ParseDuration("10m")
-
 	// Define default values for settings. Setting defaults before validation simplifies validation
 	// configuration, and ensures that default settings are also validated.
 	config := S3Config{
@@ -64,7 +60,6 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		TimeZone:        "America/Toronto",
 		DiskStore:       true,
 		StoreDir:        "tmp/out_clp_s3/",
-		Timeout:         defaultTimeout,
 		UploadSizeMb:    16,
 	}
 
@@ -82,7 +77,6 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		"time_zone":         &config.TimeZone,
 		"disk_store":        &config.DiskStore,
 		"store_dir":         &config.StoreDir,
-		"timeout":           &config.Timeout,
 		"upload_size_mb":    &config.UploadSizeMb,
 	}
 
@@ -108,12 +102,6 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 				return nil, fmt.Errorf("error could not parse input %v into bool", userInput)
 			}
 			*configField = boolInput
-		case *time.Duration:
-			durationInput, err := time.ParseDuration(userInput)
-			if err != nil {
-				return nil, fmt.Errorf("error could not parse input %v into duration", userInput)
-			}
-			*configField = durationInput
 		case *int:
 			intInput, err := strconv.Atoi(userInput)
 			if err != nil {

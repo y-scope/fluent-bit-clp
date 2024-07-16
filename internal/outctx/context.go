@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 	"unsafe"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,9 +28,9 @@ const (
 )
 
 // Holds objects accessible to plugin during flush. Fluent Bit uses a single thread for Go output
-// plugin so no need to consider synchronization issues. C plugins use "coroutines" which could
-// cause synchronization
-// issues for C plugins accordings to [docs] but "coroutines" are not used in Go plugins.
+// plugin instance so no need to consider synchronization issues. C plugins use "coroutines" which
+// could cause synchronization issues for C plugins accordings to [docs] but "coroutines" are not
+// used in Go plugins.
 // [docs]: https://github.com/fluent/fluent-bit/blob/master/DEVELOPER_GUIDE.md#concurrency
 type S3Context struct {
 	Config   S3Config
@@ -39,13 +38,10 @@ type S3Context struct {
 	Tags     map[string]*Tag
 }
 
-// Tag resources and metadata. Start is the time when first Fluent Bit is chunk recieved for each
-// upload. Start is used to track if logs are stale and is reset after each upload.
+// Tag resources and metadata.
 type Tag struct {
 	Key        string
 	Index      int
-	Start      time.Time
-	ResetStart bool
 	Writer     *irzstd.IrZstdWriter
 }
 

@@ -2,8 +2,7 @@
 // See article/repo fo more information [Fluent Bit go], [Fluent Bit stdout example].
 //
 // [Fluent Bit go]: https://docs.fluentbit.io/manual/development/golang-output-plugins
-// [Fluent Bit stdout example]:
-// https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
+// [Fluent Bit stdout example]: https://github.com/fluent/fluent-bit-go/tree/master/examples/out_multiinstance
 package main
 
 // Note package name "main" is required by Fluent Bit which suppresses go docs. Do not remove

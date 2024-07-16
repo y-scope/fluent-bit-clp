@@ -50,9 +50,8 @@ func GracefulExit(ctx *outctx.S3Context) error {
 //   - ctx: Plugin context
 //
 // Returns:
-//   - err: Error retrieving stores, error deleting empty stores, error getting size of IR store,
-//
-// error creating tag, error sending to s3
+//   - err: Error retrieving stores, error deleting empty stores, error creating tag,
+// error sending to s3
 func FlushStores(ctx *outctx.S3Context) error {
 	if !ctx.Config.DiskStore {
 		return nil
@@ -83,16 +82,16 @@ func FlushStores(ctx *outctx.S3Context) error {
 	}
 
 	// Check if keys match.
-	for fileName := range irFiles {
-		if _, ok := zstdFiles[fileName]; !ok {
+	for tagKey := range irFiles {
+		if _, ok := zstdFiles[tagKey]; !ok {
 			return fmt.Errorf("error files in IR and zstd store do not match")
 		}
 	}
 
-	// After assertions, irFiles and Zstdfiles are the same length and have the same keys.
+	// After assertions, irFiles and zstdfiles are the same length and have the same keys.
 	for tagKey, irFileInfo := range irFiles {
 
-		// Don't need to check _,ok return value since we already checked if key exists.
+		// Don't need to check ok return value since we already checked if key exists.
 		zstdFileInfo := zstdFiles[tagKey]
 
 		irPath := filepath.Join(irStoreDir, irFileInfo.Name())
@@ -126,7 +125,7 @@ func FlushStores(ctx *outctx.S3Context) error {
 		}
 
 		// Seek to end of Zstd store. Not using append flag since we need to seek later and docs
-		// provide a warning when seeking with append flag.
+		// provide a warning against seeking & opening with append flag.
 		// https://pkg.go.dev/os#File.Seek
 		zstdStore.Seek(0, io.SeekEnd)
 
@@ -162,16 +161,17 @@ func FlushStores(ctx *outctx.S3Context) error {
 	return nil
 }
 
-// Reads directory and returns a map containg file data. Returns nil map if directory does not
-// exist.
+// Reads directory and returns a map containg FileInfo structs. Returns nil map if directory does
+// not exist.
 //
 // Parameters:
 //   - dir: Path of store directory
 //
 // Returns:
-// - files: map with file names as keys and [fs.FileInfo] as values. If directory does not exist,
-// map is nil. - err: Error reading directory, error retrieving FileInfo, error directory contains
-// irregular files
+// - files: Map with file names as keys and [fs.FileInfo] as values. If directory does not exist,
+// map is nil.
+// - err: Error reading directory, error retrieving FileInfo, error directory contains irregular
+// files
 func getFiles(dir string) (map[string]os.FileInfo, error) {
 	dirEntry, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {

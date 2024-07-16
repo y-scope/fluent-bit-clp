@@ -65,10 +65,9 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 
 	tag, ok := ctx.Tags[tagKey]
 
-	// If tag does not exist yet, create new stores and tag. If disk store is on, stores are created
-	// on disk
-	// and are used to buffer Fluent Bit chunks. If disk store is off, store is in memory and
-	// chunks are not buffered.
+	// If tag does not exist yet, create new stores and tag. If disk store is on, stores are
+	// created on disk and are used to buffer Fluent Bit chunks. If disk store is off, store
+	// is in memory and chunks are not buffered.
 	if !ok {
 		irStore, zstdStore, err := newStores(ctx.Config.DiskStore, ctx.Config.StoreDir, tagKey)
 		if err != nil {
@@ -83,6 +82,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 			irStore,
 			zstdStore,
 		)
+
 		if err != nil {
 			return output.FLB_RETRY, fmt.Errorf("error creating tag: %w", err)
 		}
@@ -109,8 +109,95 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 	return output.FLB_OK, nil
 }
 
-// Decodes Msgpack Fluent Bit chunk into slice of log events.  Decode of Msgpack based on [Fluent
-// Bit reference].
+// Creates a new tag containing a new [irzstd.IrZstdWriter].
+//
+// Parameters:
+//   - tagKey: Fluent Bit tag
+//   - timezone: Time zone of the log source
+//   - size: Byte length
+//   - diskStore: On/off for disk store
+//   - irStore: Location to store IR
+//   - ZstdStore: Location to store Zstd compressed IR
+//
+// Returns:
+//   - tag: Tag resources and metadata
+//   - err: Error creating new writer
+func NewTag(
+	tagKey string,
+	timezone string,
+	size int,
+	diskStore bool,
+	irStore io.ReadWriter,
+	zstdStore io.ReadWriter,
+) (*outctx.Tag, error) {
+	writer, err := irzstd.NewIrZstdWriter(timezone, size, diskStore, irStore, zstdStore)
+	if err != nil {
+		return nil, err
+	}
+
+	tag := outctx.Tag{
+		Key:    tagKey,
+		Writer: writer,
+	}
+
+	return &tag, nil
+}
+
+// Sends Zstd store to s3 and reset writer and stores for future uploads. Prior to upload,
+// IR store is flushed and IR/Zstd streams are terminated.
+//
+// Parameters:
+//   - tag: Tag resources and metadata
+//   - ctx: Plugin context
+//
+// Returns:
+//   - err: Error creating closing writer, error with type assertion, error uploading to s3,
+// error resetting writer
+func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
+	// Flush IR store if exists, and terminate IR/Zstd streams.
+	err := tag.Writer.Close()
+	if err != nil {
+		return fmt.Errorf("error closing irzstd stream: %w", err)
+	}
+
+	if ctx.Config.DiskStore {
+		zstdFile, ok := tag.Writer.ZstdStore.(*os.File)
+		if !ok {
+			return fmt.Errorf("error type assertion from store to file failed")
+		}
+		// Seek to start of Zstd store.
+		zstdFile.Seek(0, io.SeekStart)
+	}
+
+	outputLocation, err := uploadToS3(
+		ctx.Config.S3Bucket,
+		ctx.Config.S3BucketPrefix,
+		tag.Writer.ZstdStore,
+		tag.Key,
+		tag.Index,
+		ctx.Config.Id,
+		ctx.Uploader,
+	)
+	if err != nil {
+		err = fmt.Errorf("failed to upload chunk to s3, %w", err)
+		return err
+	}
+
+	// Increment index
+	tag.Index += 1
+
+	log.Printf("chunk uploaded to %s", outputLocation)
+
+	err = tag.Writer.Reset()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Decodes Msgpack Fluent Bit chunk into slice of log events. Decode of Msgpack based on
+// [Fluent Bit reference].
 //
 // Parameters:
 //   - decoder: Msgpack decoder
@@ -184,7 +271,7 @@ func decodeTs(ts interface{}) time.Time {
 //
 // Parameters:
 //   - record: JSON record from Fluent Bit with variable amount of keys
-//   - config: plugin configuration
+//   - config: Plugin configuration
 //
 // Returns:
 //   - msg: Retrieved message
@@ -222,25 +309,6 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	return stringMsg, nil
 }
 
-// Writes log events to a IR Writer.
-//
-// Parameters:
-//   - irWriter: CLP IR writer to write each log event with
-//   - eventBuffer: A slice of log events to be encoded
-//
-// Returns:
-//   - err: error if an event could not be written
-func writeIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
-	for _, event := range eventBuffer {
-		_, err := irWriter.Write(event)
-		if err != nil {
-			err = fmt.Errorf("failed to encode event %v into ir: %w", event, err)
-			return err
-		}
-	}
-	return nil
-}
-
 // Uploads log events to s3.
 //
 // Parameters:
@@ -252,7 +320,7 @@ func writeIr(irWriter *ir.Writer, eventBuffer []ffi.LogEvent) error {
 //   - uploader: AWS s3 upload manager
 //
 // Returns:
-//   - err: error uploading, error unescaping string
+//   - err: Error uploading, error unescaping string
 func uploadToS3(
 	bucket string,
 	bucketPrefix string,
@@ -290,92 +358,6 @@ func uploadToS3(
 	return uploadLocation, nil
 }
 
-// Creates a new tag containing a new [irzstd.irZstdWriter].
-//
-// Parameters:
-//   - tagKey: Fluent Bit tag
-//   - timezone: Time zone of the log source
-//   - size: Byte length
-//   - diskStore: On/off for disk store
-//   - irStore: Location to store IR
-//   - ZstdStore: Location to store Zstd compressed IR
-//
-// Returns:
-//   - tag: Tag resources and metadata
-//   - err: Error creating new writer
-func NewTag(
-	tagKey string,
-	timezone string,
-	size int,
-	diskStore bool,
-	irStore io.ReadWriter,
-	zstdStore io.ReadWriter,
-) (*outctx.Tag, error) {
-	writer, err := irzstd.NewIrZstdWriter(timezone, size, diskStore, irStore, zstdStore)
-	if err != nil {
-		return nil, err
-	}
-
-	tag := outctx.Tag{
-		Key:    tagKey,
-		Writer: writer,
-	}
-
-	return &tag, nil
-}
-
-// Sends Zstd store to s3 and reset writer and stores for future uploads. Prior to upload,
-// IR store is flushed and IR/Zstd streams are terminated.
-//
-// Parameters:
-//   - tag: Tag resources and metadata
-//   - ctx: Plugin context
-//
-// Returns:
-//   - err: Error creating closing writer, error uploading to s3, error reseting writer
-func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
-	// Flush IR store if exists, and terminate IR/Zstd streams.
-	err := tag.Writer.Close()
-	if err != nil {
-		return fmt.Errorf("error closing irzstd stream: %w", err)
-	}
-
-	if ctx.Config.DiskStore {
-		zstdFile, ok := tag.Writer.ZstdStore.(*os.File)
-		if !ok {
-			return fmt.Errorf("error type assertion from store to file failed")
-		}
-		// Seek to start of Zstd store.
-		zstdFile.Seek(0, io.SeekStart)
-	}
-
-	outputLocation, err := uploadToS3(
-		ctx.Config.S3Bucket,
-		ctx.Config.S3BucketPrefix,
-		tag.Writer.ZstdStore,
-		tag.Key,
-		tag.Index,
-		ctx.Config.Id,
-		ctx.Uploader,
-	)
-	if err != nil {
-		err = fmt.Errorf("failed to upload chunk to s3, %w", err)
-		return err
-	}
-
-	// Increment index
-	tag.Index += 1
-
-	log.Printf("chunk uploaded to %s", outputLocation)
-
-	err = tag.Writer.Reset()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Checks if criteria are met to upload to s3. If disk store is off, then chunk is always uploaded
 // and always returns true. If disk store is on, check if Zstd store size is greater than upload
 // size.
@@ -398,8 +380,7 @@ func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int) (boo
 		return false, fmt.Errorf("error could not get size of Zstd store: %w", err)
 	}
 
-	// UploadSize := uploadSizeMb << 20
-	UploadSize := uploadSizeMb << 18
+	UploadSize := uploadSizeMb << 20
 
 	if storeSize >= UploadSize {
 		log.Printf(
@@ -421,7 +402,7 @@ func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int) (boo
 //
 // Parameters:
 //   - diskStore: On/off for disk store
-//   - storeDir: directory for disk store files
+//   - storeDir: Directory for disk store files
 //   - tagkey: Fluent Bit tag
 //
 // Returns:
@@ -466,12 +447,11 @@ func newStores(
 	return irStore, zstdStore, nil
 }
 
-// Creates a new file to output IR. A new file is created for every Fluent Bit chunk.
-// The system timestamp is added as a suffix.
+// Creates a new file.
 //
 // Parameters:
-//   - path: Directory path to create to write files inside
-//   - file: File name prefix
+//   - path: Directory path
+//   - file: File name
 //
 // Returns:
 //   - f: The created file
@@ -486,11 +466,10 @@ func createFile(path string, file string) (*os.File, error) {
 
 	fullFilePath := filepath.Join(path, file)
 
-	// Try to open the file exclusively. If it already exists something has gone wrong. Even if
-	// program crashed should have been deleted on startup.
+	// Try to open the file exclusively. If it already exists something has gone wrong.
 	f, err := os.OpenFile(fullFilePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o751)
 	if err != nil {
-		// Check if the error is due to the file already existing
+		// Check if the error is due to the file already existing.
 		if errors.Is(err, fs.ErrExist) {
 			return nil, fmt.Errorf("file %s already exists", fullFilePath)
 		}
