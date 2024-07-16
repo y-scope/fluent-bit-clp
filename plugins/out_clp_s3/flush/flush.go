@@ -39,8 +39,10 @@ import (
 const s3TagKey = "fluentBitTag"
 
 // Names of disk store directories.
-const IrDir = "ir"
-const ZstdDir = "zstd"
+const (
+	IrDir   = "ir"
+	ZstdDir = "zstd"
+)
 
 // Flushes data to s3 in IR format. Data may be buffered in stores depending on plugin
 // configuration.
@@ -55,7 +57,6 @@ const ZstdDir = "zstd"
 //   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
 func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context) (int, error) {
-
 	dec := decoder.New(data, length)
 	logEvents, err := decodeMsgpack(dec, ctx.Config)
 	if err != nil {
@@ -98,7 +99,7 @@ func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context)
 	}
 
 	if readyToUpload {
-		err := FlushZstdToS3(tag,ctx)
+		err := FlushZstdToS3(tag, ctx)
 		if err != nil {
 			return output.FLB_ERROR, fmt.Errorf("error flushing Zstd store to s3: %w", err)
 		}
@@ -137,7 +138,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		msg, err := getMessage(record, config)
 		if err != nil {
 			err = fmt.Errorf("failed to get message from record: %w", err)
-			return nil , err
+			return nil, err
 		}
 
 		event := ffi.LogEvent{
@@ -297,7 +298,7 @@ func uploadToS3(
 //   - ZstdStore: Location to store Zstd compressed IR
 //
 // Returns:
-//	 - tag: Tag resources and metadata
+//   - tag: Tag resources and metadata
 //   - err: Error creating new writer
 func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*outctx.Tag, error) {
 	writer, err := irzstd.NewIrZstdWriter(timezone, size, diskStore, irStore, zstdStore)
@@ -306,8 +307,8 @@ func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io
 	}
 
 	tag := outctx.Tag{
-		Key: tagKey,
-		Writer: writer,
+		Key:        tagKey,
+		Writer:     writer,
 		ResetStart: true,
 	}
 
@@ -323,41 +324,54 @@ func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io
 //
 // Returns:
 //   - err: Error creating closing writer, error uploading to s3, error reseting writer
-func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) (error) {
+func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
+	// Flush IR store if exists, and terminate IR/Zstd streams.
+	err := tag.Writer.Close()
+	if err != nil {
+		return fmt.Errorf("error closing irzstd stream: %w", err)
+	}
 
-		// Flush IR store if exists, and terminate IR/Zstd streams.
-		err := tag.Writer.Close()
-		if err != nil {
-			return fmt.Errorf("error closing irzstd stream: %w", err)
-		}
+	//tag.Writer.ZstdStore.
 
-		outputLocation, err := uploadToS3(
-			ctx.Config.S3Bucket,
-			ctx.Config.S3BucketPrefix,
-			tag.Writer.ZstdStore,
-			tag.Key,
-			tag.Index,
-			ctx.Config.Id,
-			ctx.Uploader,
-		)
+	file, _ := tag.Writer.ZstdStore.(*os.File)
 
-		if err != nil {
-			err = fmt.Errorf("failed to upload chunk to s3, %w", err)
-			return err
-		}
+	file.Seek(0,io.SeekStart)
 
-		// Increment index and set flag to reset timeout on next chunk
-		tag.Index += 1
-		tag.ResetStart = true
+    // Print the contents of the io.ReadWriter to stdout
+    //_, _ = io.Copy(os.Stdout, tag.Writer.ZstdStore)
 
-		log.Printf("chunk uploaded to %s", outputLocation)
+	//fmt.Println(tag.Writer.ZstdStore)
 
-		err = tag.Writer.Reset()
-		if err != nil {
-			return err
-		}
 
-		return nil
+	size,_:=irzstd.GetDiskStoreSize(tag.Writer.ZstdStore)
+	fmt.Println(size)
+
+	outputLocation, err := uploadToS3(
+		ctx.Config.S3Bucket,
+		ctx.Config.S3BucketPrefix,
+		tag.Writer.ZstdStore,
+		tag.Key,
+		tag.Index,
+		ctx.Config.Id,
+		ctx.Uploader,
+	)
+	if err != nil {
+		err = fmt.Errorf("failed to upload chunk to s3, %w", err)
+		return err
+	}
+
+	// Increment index and set flag to reset timeout on next chunk
+	tag.Index += 1
+	tag.ResetStart = true
+
+	log.Printf("chunk uploaded to %s", outputLocation)
+
+	err = tag.Writer.Reset()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Checks if criteria are met to upload to s3. If disk store is off, then chunk is always uploaded
@@ -375,7 +389,6 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) (error) {
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd store size
 func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int, timeout time.Duration) (bool, error) {
-
 	if !diskStore {
 		return true, nil
 	}
@@ -391,6 +404,7 @@ func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int, time
 	if (storeSize >= UploadSize) || time.Now().After(bestBefore) {
 		return true, nil
 	}
+	
 
 	return false, nil
 }
@@ -465,7 +479,7 @@ func createFile(path string, file string) (*os.File, error) {
 
 	// Try to open the file exclusively. If it already exists something has gone wrong. Even if
 	// program crashed should have been deleted on startup.
-	f, err := os.OpenFile(fullFilePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o751)
+	f, err := os.OpenFile(fullFilePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o751)
 	if err != nil {
 		// Check if the error is due to the file already existing
 		if errors.Is(err, fs.ErrExist) {

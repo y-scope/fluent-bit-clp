@@ -31,9 +31,9 @@ type S3Config struct {
 	SingleKey       string        `conf:"single_key"        validate:"required_if=use_single_key true"`
 	TimeZone        string        `conf:"time_zone"         validate:"timezone"`
 	DiskStore       bool          `conf:"disk_store"        validate:"-"`
-	StoreDir        string        `conf:"store_dir"         validate:"omitempty, dirpath"`
-	Timeout         time.Duration `conf:"timeout"    validate:"-"`
-	UploadSizeMb    int           `conf:"upload_size_mb"       validate:"omitempty,gt=2,lt=1000"`
+	StoreDir        string        `conf:"store_dir"         validate:"omitempty,dirpath"`
+	Timeout         time.Duration `conf:"timeout"           validate:"-"`
+	UploadSizeMb    int           `conf:"upload_size_mb"    validate:"omitempty,gt=2,lt=1000"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values

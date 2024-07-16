@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
@@ -24,7 +25,6 @@ import (
 // Returns:
 //   - err: Error closing file
 func GracefulExit(ctx *outctx.S3Context) error {
-
 	if !ctx.Config.DiskStore {
 		return nil
 	}
@@ -51,9 +51,9 @@ func GracefulExit(ctx *outctx.S3Context) error {
 //
 // Returns:
 //   - err: Error retrieving stores, error deleting empty stores, error getting size of IR store,
+//
 // error creating tag, error sending to s3
 func FlushStores(ctx *outctx.S3Context) error {
-
 	if !ctx.Config.DiskStore {
 		return nil
 	}
@@ -84,50 +84,56 @@ func FlushStores(ctx *outctx.S3Context) error {
 
 	// Check if keys match.
 	for fileName := range irFiles {
-		if _, ok := zstdFiles[fileName]; !ok  {
+		if _, ok := zstdFiles[fileName]; !ok {
 			return fmt.Errorf("error files in IR and zstd store do not match")
 		}
 	}
 
 	// After assertions, irFiles and Zstdfiles are the same length and have the same keys.
-	for fileName, fileInfo := range irFiles {
+	for tagKey, irFileInfo := range irFiles {
 
-		irPath := filepath.Join(irStoreDir, fileName)
-		zstdPath := filepath.Join(zstdStoreDir, fileName)
-
-		irStoreSize := fileInfo.Size()
 		// Don't need to check _,ok return value since we already checked if key exists.
-		zstdStoreSize := zstdFiles[fileName].Size()
+		zstdFileInfo := zstdFiles[tagKey]
+
+		irPath := filepath.Join(irStoreDir, irFileInfo.Name())
+		zstdPath := filepath.Join(zstdStoreDir, zstdFileInfo.Name())
+
+		irStoreSize := irFileInfo.Size()
+		zstdStoreSize := zstdFileInfo.Size()
 
 		if (irStoreSize == 0) && (zstdStoreSize == 0) {
 			err := os.Remove(irPath)
 			if err != nil {
-				return fmt.Errorf("error deleting file '%s': %w", fileName, err)
+				return fmt.Errorf("error deleting file '%s': %w", irFileInfo.Name(), err)
 			}
 			err = os.Remove(zstdPath)
 			if err != nil {
-				return fmt.Errorf("error deleting file '%s': %w", fileName, err)
+				return fmt.Errorf("error deleting file '%s': %w", zstdFileInfo.Name(), err)
 			}
 			// If both files are empty creating tag is wasteful. Also prevents accumulation of old
 			// tags no longer being sent by Fluent Bit.
 			continue
 		}
 
-		irStore, err := os.Open(irPath)
+		irStore, err := os.OpenFile(irPath, os.O_RDWR, 0o751)
 		if err != nil {
-			return fmt.Errorf("error opening ir file %s: %w",irPath, err)
+			return fmt.Errorf("error opening ir file %s: %w", irPath, err)
 		}
 
-		zstdStore, err := os.Open(zstdPath)
+		zstdStore, err := os.OpenFile(zstdPath, os.O_RDWR, 0o751)
 		if err != nil {
-			return fmt.Errorf("error opening ir file %s: %w",zstdPath, err)
+			return fmt.Errorf("error opening zstd file %s: %w", zstdPath, err)
 		}
 
-		tagKey := fileName
+		zstdStore.Seek(0,io.SeekEnd)
 
-		tag, err := flush.NewTag(tagKey,ctx.Config.TimeZone, int(irStoreSize),ctx.Config.DiskStore, irStore, zstdStore)
+		// Seek to end. Not using append flag since we need to seek later and docs provide a
+		// warning when seeking with append flag.
+		// https://pkg.go.dev/os#File.Seek
+
+		tag, err := flush.NewTag(tagKey, ctx.Config.TimeZone, int(irStoreSize), ctx.Config.DiskStore, irStore, zstdStore)
 		if err != nil {
-			return  fmt.Errorf("error creating tag: %w", err)
+			return fmt.Errorf("error creating tag: %w", err)
 		}
 
 		// Set size of IR store. Can avoid unnecessary flush of IR store if it is empty.
@@ -153,7 +159,6 @@ func FlushStores(ctx *outctx.S3Context) error {
 //   - files: map with file names as keys and [fs.FileInfo] as values. If directory does not exist, map is nil.
 //   - err: Error reading directory, error retrieving FileInfo, error directory contains irregular files
 func getFiles(dir string) (map[string]os.FileInfo, error) {
-
 	dirEntry, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		log.Printf("Recovered storage directory %s not found during startup", dir)
@@ -176,7 +181,9 @@ func getFiles(dir string) (map[string]os.FileInfo, error) {
 			return nil, fmt.Errorf("error %s is not a regular file: %w", fileName, err)
 		}
 
-		files[fileName] = fileInfo
+		tagKey := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+
+		files[tagKey] = fileInfo
 	}
 	return files, nil
 }
@@ -189,7 +196,6 @@ func getFiles(dir string) (map[string]os.FileInfo, error) {
 // Returns:
 //   - err: Error with type assertion, error closing file
 func closeStore(store io.ReadWriter) error {
-
 	file, ok := store.(*os.File)
 	if !ok {
 		return fmt.Errorf("error type assertion from store to file failed")

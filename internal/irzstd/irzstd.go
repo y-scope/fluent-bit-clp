@@ -64,7 +64,6 @@ type IrZstdWriter struct {
 //   - IrZstdWriter: Writer for Zstd compressed IR
 //   - err: Error opening Zstd Writer, error opening IR Writer
 func NewIrZstdWriter(timezone string, size int, diskStore bool, irStore io.ReadWriter, zstdStore io.ReadWriter) (*IrZstdWriter, error) {
-
 	// Create Zstd writer with Zstd Store as its output.
 	zstdWriter, err := zstd.NewWriter(zstdStore)
 	if err != nil {
@@ -91,7 +90,6 @@ func NewIrZstdWriter(timezone string, size int, diskStore bool, irStore io.ReadW
 	return &IrZstdWriter, nil
 }
 
-
 // Converts log events to Zstd compressed IR and outputs to Zstd Store. IR may be temporarily
 // stored in IR store until store surpasses [irSizeThreshold] with compression to Zstd pushed out to
 // a later call. See [IrZstdWriter] for more specific details on behaviour.
@@ -101,8 +99,7 @@ func NewIrZstdWriter(timezone string, size int, diskStore bool, irStore io.ReadW
 //
 // Returns:
 //   - err: Error writting IR/Zstd, error flushing stores
-func (w *IrZstdWriter) WriteIrZstd(logEvents []ffi.LogEvent) (error) {
-
+func (w *IrZstdWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
 	// Write log events to irWriter buffer.
 	err := writeIr(w.IrWriter, logEvents)
 	if err != nil {
@@ -148,14 +145,13 @@ func (w *IrZstdWriter) WriteIrZstd(logEvents []ffi.LogEvent) (error) {
 // Returns:
 //   - err: Error flushing or closing stores
 func (w *IrZstdWriter) Close() error {
-
 	// IR store may not be empty, so must be flushed prior to adding trailing EndOfStream byte.
 	// If not using disk store, irWriter buffer should always be empty since it is always
 	// flushed to Zstd Store on write.
 	if w.DiskStore {
 		err := w.FlushIrStore()
 		if err != nil {
-			return  fmt.Errorf("error flushing IR store: %w", err)
+			return fmt.Errorf("error flushing IR store: %w", err)
 		}
 	}
 
@@ -177,13 +173,12 @@ func (w *IrZstdWriter) Close() error {
 	return nil
 }
 
-// Reinitializes [IrZstdWriter] after calling close. Resets individal IR and Zstd writers and
+// Reinitializes [IrZstdWriter] after calling close. Resets individual IR and Zstd writers and
 // associated stores.
 //
 // Returns:
 //   - err: Error opening IR writer, error ir store not empty, error with type assertion
 func (w *IrZstdWriter) Reset() error {
-
 	// Make a new IR writer to get new preamble.
 	var err error
 	w.IrWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.Size, w.Timezone)
@@ -235,14 +230,12 @@ func (w *IrZstdWriter) Reset() error {
 //   - size: Size of input file
 //   - err: Error asserting type, error from stat
 func GetDiskStoreSize(store io.ReadWriter) (int, error) {
-
 	file, ok := store.(*os.File)
 	if !ok {
 		return 0, fmt.Errorf("error type assertion from store to file failed")
 	}
 
 	fileInfo, err := file.Stat()
-
 	if err != nil {
 		return 0, err
 	}
@@ -272,9 +265,9 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) error {
 //
 // Returns:
 //   - err: Error called with non-existant store, error compressing to Zstd, error resetting Zstd
+//
 // Writer, error truncating file
-func (w *IrZstdWriter) FlushIrStore() (error) {
-
+func (w *IrZstdWriter) FlushIrStore() error {
 	// Assert stores exist
 	if (w.IrStore == nil) || (w.ZstdStore == nil) {
 		return fmt.Errorf("error flush called with non-existant store")
@@ -285,6 +278,12 @@ func (w *IrZstdWriter) FlushIrStore() (error) {
 	if w.IrTotalBytes == 0 {
 		return nil
 	}
+
+	fmt.Println(w.IrTotalBytes)
+
+	file, _ := w.IrStore.(*os.File)
+
+	file.Seek(0,io.SeekStart)
 
 	// Compressed IR to Zstd.
 	_, err := io.Copy(w.ZstdWriter, w.IrStore)
