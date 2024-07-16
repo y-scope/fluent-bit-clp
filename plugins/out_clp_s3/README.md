@@ -94,7 +94,7 @@ More detailed information for specifying credentials from AWS can be found [here
 | single_key        | Value for single key                                                                                     | log             |
 | disk_store        | Buffer logs on disk prior to sending to S3.  See [disk store](#disk-store) for more info.                | TRUE            |
 | store_dir         | Directory for disk store                                                                                 | tmp/out_clp_s3/ |
-| upload_size_mb    | Set upload size when disk store is enabled. Size refers to the compressed size and not raw logs.         | 16              |
+| upload_size_mb    | Set upload size when disk store is enabled. Size refers to the compressed size.                          | 16              |
 | time_zone         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | America/Toronto |
 
 #### Use Single Key
@@ -107,11 +107,12 @@ will parse the record as JSON.
 
 #### Disk Store
 
-The output plugin recives raw logs from Fluent Bit in small chunks. Enabling disk store allows the
-output plugin to accumulate logs on disk until the upload size is reached. Buffering logs will
+The output plugin recieves raw logs from Fluent Bit in small chunks. With disk store on, the
+output plugin will accumulate logs on disk until the upload size is reached. Buffering logs will
 reduce the amount of S3 API requests and improve the compression ratio. However, the plugin will
-use disk space and have higher memory requirements. With disk store off, the plugin will
-immediately process each chunk and send it to S3.
+use disk space and have higher memory requirements. The amount of system resources will be
+proportional to the amount of Fluent Bit tags. With disk store off, the plugin will immediately
+process each chunk and send it to S3.
 
 Logs are stored on the disk as IR and Zstd compressed IR. If the plugin were to crash, stored logs
 will be sent to S3 when Fluent Bit restarts. The upload index restarts on recovery.
@@ -123,7 +124,7 @@ Each upload will have a unique key in the following format:
 <FLUENT_BIT_TAG>_<INDEX>_<UPLOAD_TIME_RFC3339>_<ID>.zst
 ```
 The index starts at 0 is incremented after each upload. The Fluent Bit tag is also attached to the
-object using the tag key `fluentBitTag`
+object using the tag key `fluentBitTag`.
 
 [1]: https://go.dev/doc/install
 [2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
