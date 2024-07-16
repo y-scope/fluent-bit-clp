@@ -94,7 +94,7 @@ More detailed information for specifying credentials from AWS can be found [here
 | single_key        | Value for single key                                                                                     | log             |
 | disk_store        | Buffer logs on disk prior to sending to S3.  See [disk store](#disk-store) for more info.                | TRUE            |
 | store_dir         | Directory for disk store                                                                                 | tmp/out_clp_s3/ |
-| upload_size_mb    | Set upload size when disk store is enabled. Size refers to the compressed size.                          | 16              |
+| upload_size_mb    | Set upload size in MB when disk store is enabled. Size refers to the compressed size.                    | 16              |
 | time_zone         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | America/Toronto |
 
 #### Use Single Key
