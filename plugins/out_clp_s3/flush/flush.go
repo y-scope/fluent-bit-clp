@@ -49,15 +49,16 @@ const (
 //
 // Parameters:
 //   - data: Msgpack data
-//   - length: Byte length
+//   - size: Byte length
 //   - tag: Fluent Bit tag
 //   - ctx: Plugin context
 //
 // Returns:
 //   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
-func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context) (int, error) {
-	dec := decoder.New(data, length)
+func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (int, error) {
+
+	dec := decoder.New(data, size)
 	logEvents, err := decodeMsgpack(dec, ctx.Config)
 	if err != nil {
 		return output.FLB_ERROR, err
@@ -74,18 +75,11 @@ func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context)
 			return output.FLB_RETRY, fmt.Errorf("error creating stores: %w", err)
 		}
 
-		tag, err = NewTag(tagKey, ctx.Config.TimeZone, length, ctx.Config.DiskStore, irStore, zstdStore)
+		tag, err = NewTag(tagKey, ctx.Config.TimeZone, size, ctx.Config.DiskStore, irStore, zstdStore)
 		if err != nil {
 			return output.FLB_RETRY, fmt.Errorf("error creating tag: %w", err)
 		}
 		ctx.Tags[tagKey] = tag
-	}
-
-	if tag.ResetStart && ctx.Config.DiskStore {
-		// Reset start time used to check if logs are stale. Stale logs should be uploaded to s3
-		// and not buffered.
-		tag.Start = time.Now()
-		tag.ResetStart = false
 	}
 
 	err = tag.Writer.WriteIrZstd(logEvents)
@@ -93,7 +87,7 @@ func ToS3(data unsafe.Pointer, length int, tagKey string, ctx *outctx.S3Context)
 		return output.FLB_ERROR, err
 	}
 
-	readyToUpload, err := checkUploadCriteria(tag, ctx.Config.DiskStore, ctx.Config.UploadSizeMb, ctx.Config.Timeout)
+	readyToUpload, err := checkUploadCriteria(tag, ctx.Config.DiskStore, ctx.Config.UploadSizeMb)
 	if err != nil {
 		return output.FLB_ERROR, fmt.Errorf("error checking upload criteria: %w", err)
 	}
@@ -309,7 +303,6 @@ func NewTag(tagKey string, timezone string, size int, diskStore bool, irStore io
 	tag := outctx.Tag{
 		Key:        tagKey,
 		Writer:     writer,
-		ResetStart: true,
 	}
 
 	return &tag, nil
@@ -331,20 +324,14 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 		return fmt.Errorf("error closing irzstd stream: %w", err)
 	}
 
-	//tag.Writer.ZstdStore.
-
-	file, _ := tag.Writer.ZstdStore.(*os.File)
-
-	file.Seek(0,io.SeekStart)
-
-    // Print the contents of the io.ReadWriter to stdout
-    //_, _ = io.Copy(os.Stdout, tag.Writer.ZstdStore)
-
-	//fmt.Println(tag.Writer.ZstdStore)
-
-
-	size,_:=irzstd.GetDiskStoreSize(tag.Writer.ZstdStore)
-	fmt.Println(size)
+	if ctx.Config.DiskStore {
+		zstdFile, ok := tag.Writer.ZstdStore.(*os.File)
+		if !ok {
+			return fmt.Errorf("error type assertion from store to file failed")
+		}
+		// Seek to start of Zstd store.
+		zstdFile.Seek(0,io.SeekStart)
+	}
 
 	outputLocation, err := uploadToS3(
 		ctx.Config.S3Bucket,
@@ -360,9 +347,8 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 		return err
 	}
 
-	// Increment index and set flag to reset timeout on next chunk
+	// Increment index
 	tag.Index += 1
-	tag.ResetStart = true
 
 	log.Printf("chunk uploaded to %s", outputLocation)
 
@@ -375,20 +361,17 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 }
 
 // Checks if criteria are met to upload to s3. If disk store is off, then chunk is always uploaded
-// and always returns true. If disk store is on, check if Zstd store size is greater than upload size
-// or if the logs are stale. Logs are stale if the current time is greater than the start time
-// (time of first recieved chunk) + configuration timeout.
+// and always returns true. If disk store is on, check if Zstd store size is greater than upload size.
 //
 // Parameters:
 //   - tag: Tag resources and metadata
 //   - diskStore: On/off for disk store
 //   - uploadSizeMb: S3 upload size in MB
-//   - timeout: Configuration timeout
 //
 // Returns:
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd store size
-func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int, timeout time.Duration) (bool, error) {
+func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int) (bool, error) {
 	if !diskStore {
 		return true, nil
 	}
@@ -398,13 +381,13 @@ func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int, time
 		return false, fmt.Errorf("error could not get size of Zstd store: %w", err)
 	}
 
-	UploadSize := uploadSizeMb << 20
-	bestBefore := tag.Start.Add(timeout)
+	//UploadSize := uploadSizeMb << 20
+	UploadSize := uploadSizeMb << 18
 
-	if (storeSize >= UploadSize) || time.Now().After(bestBefore) {
+	if storeSize >= UploadSize {
+		log.Printf("Zstd store size of %d for tag %s exceeded upload size %d", storeSize, tag.Key, UploadSize)
 		return true, nil
 	}
-	
 
 	return false, nil
 }

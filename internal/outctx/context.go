@@ -59,7 +59,7 @@ type Tag struct {
 func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration %w", err)
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// Load the aws credentials. [awsConfig.LoadDefaultConfig] will look for credentials in a

@@ -125,25 +125,31 @@ func FlushStores(ctx *outctx.S3Context) error {
 			return fmt.Errorf("error opening zstd file %s: %w", zstdPath, err)
 		}
 
-		zstdStore.Seek(0,io.SeekEnd)
-
-		// Seek to end. Not using append flag since we need to seek later and docs provide a
-		// warning when seeking with append flag.
+		// Seek to end of Zstd store. Not using append flag since we need to seek later and docs
+		// provide a warning when seeking with append flag.
 		// https://pkg.go.dev/os#File.Seek
+		zstdStore.Seek(0,io.SeekEnd)
 
 		tag, err := flush.NewTag(tagKey, ctx.Config.TimeZone, int(irStoreSize), ctx.Config.DiskStore, irStore, zstdStore)
 		if err != nil {
 			return fmt.Errorf("error creating tag: %w", err)
 		}
 
+		// Clear IR buffer to remove IR preamble. Existing stores will have their own preamble.
+		// Without Reset() extra preamble will be appended to the end of upload leading to decode
+		// issues.
+		tag.Writer.IrWriter.Reset()
+
 		// Set size of IR store. Can avoid unnecessary flush of IR store if it is empty.
 		tag.Writer.IrTotalBytes = int(irStoreSize)
 
 		ctx.Tags[tagKey] = tag
 
+		log.Printf("Recovered stores for tag %s", tagKey)
+
 		err = flush.FlushZstdToS3(tag, ctx)
 		if err != nil {
-			return fmt.Errorf("error flushing Zstd Store to s3: %w", err)
+			return fmt.Errorf("error flushing Zstd store to s3: %w", err)
 		}
 	}
 	return nil

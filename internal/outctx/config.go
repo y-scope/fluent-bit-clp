@@ -33,7 +33,7 @@ type S3Config struct {
 	DiskStore       bool          `conf:"disk_store"        validate:"-"`
 	StoreDir        string        `conf:"store_dir"         validate:"omitempty,dirpath"`
 	Timeout         time.Duration `conf:"timeout"           validate:"-"`
-	UploadSizeMb    int           `conf:"upload_size_mb"    validate:"omitempty,gt=2,lt=1000"`
+	UploadSizeMb    int           `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values
@@ -147,7 +147,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		valErr := err.(validator.ValidationErrors)
 		// ValidateStruct will provide an error for each field, so loop over all errors.
 		for _, err := range valErr {
-			err := fmt.Errorf("error validating option %s=%s, failed test %s",
+			err := fmt.Errorf("error validating option %s=%v, failed test %s",
 				err.Field(), err.Value(), err.Tag())
 			configErrors = append(configErrors, err)
 		}

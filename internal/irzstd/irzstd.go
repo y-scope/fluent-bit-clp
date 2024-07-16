@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"log"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -15,7 +16,8 @@ import (
 )
 
 // 2 MB threshold to buffer IR before compressing to Zstd when disk store is on.
-const irSizeThreshold = 2 << 20
+// const irSizeThreshold = 2 << 20
+const irSizeThreshold = 10000
 
 // Converts log events into Zstd compressed IR. Writer can be initialized with disk store on/off
 // depending on user configuration.
@@ -282,7 +284,6 @@ func (w *IrZstdWriter) FlushIrStore() error {
 	fmt.Println(w.IrTotalBytes)
 
 	file, _ := w.IrStore.(*os.File)
-
 	file.Seek(0,io.SeekStart)
 
 	// Compressed IR to Zstd.
@@ -290,6 +291,8 @@ func (w *IrZstdWriter) FlushIrStore() error {
 	if err != nil {
 		return err
 	}
+
+	log.Printf("flushed IR store %s", file.Name())
 
 	// Terminate Zstd frame.
 	err = w.ZstdWriter.Close()
@@ -305,6 +308,8 @@ func (w *IrZstdWriter) FlushIrStore() error {
 	if !ok {
 		return fmt.Errorf("error type assertion from store to file failed")
 	}
+
+	file.Seek(0,io.SeekStart)
 
 	// Reset IR Store.
 	err = irFile.Truncate(0)
