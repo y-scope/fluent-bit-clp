@@ -28,7 +28,6 @@ import (
 	"github.com/ugorji/go/codec"
 
 	"github.com/y-scope/clp-ffi-go/ffi"
-	"github.com/y-scope/clp-ffi-go/ir"
 
 	"github.com/y-scope/fluent-bit-clp/internal/decoder"
 	"github.com/y-scope/fluent-bit-clp/internal/irzstd"

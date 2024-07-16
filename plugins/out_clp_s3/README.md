@@ -42,6 +42,11 @@ Dummy logs will be written to your s3 bucket.
 
 Install [go][1] and [fluent-bit][2]
 
+Download go dependencies
+  ```shell
+  go mod download
+  ```
+
 Run task to build a binary in the plugin directory
   ```shell
   task build
@@ -78,15 +83,18 @@ More detailed information for specifying credentials from AWS can be found [here
 ### Plugin configuration
 
 | Key               | Description                                                                                              | Default         |
-| ----------------- | -------------------------------------------------------------------------------------------------------- | --------------- |
+|-------------------|----------------------------------------------------------------------------------------------------------|-----------------|
 | s3_region         | The AWS region of your S3 bucket                                                                         | us-east-1       |
 | s3_bucket         | S3 bucket name. Just the name, no aws prefix neccesary.                                                  | None            |
 | s3_bucket_prefix  | Bucket prefix path                                                                                       | logs/           |
 | role_arn          | ARN of an IAM role to assume                                                                             | None            |
-| id                | Name of output plugin                                                                                    | Random UUID     |
+| id                | Name of output plugin.                                                                                   | Random UUID     |
 | use_single_key    | Output single key from Fluent Bit record. See [use single key](#use-single-key) for more info.           | TRUE            |
 | allow_missing_key | Fallback to whole record if key is missing from log. If set to false, an error will be recorded instead. | TRUE            |
 | single_key        | Value for single key                                                                                     | log             |
+| disk_store        | Buffer logs on disk prior to sending to S3.  See [disk store](#disk-store) for more info.                | TRUE            |
+| store_dir         | Directory for disk store                                                                                 | tmp/out_clp_s3/ |
+| upload_size_mb    | Set upload size when disk store is enabled. Size refers to the compressed size and not raw logs.         | 16              |
 | time_zone         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | America/Toronto |
 
 #### Use Single Key
@@ -96,6 +104,26 @@ recommended to set this to true. A Fluent Bit record is a JSON-like object, and 
 can parse JSON into IR it is not recommended. Key is set with single_key and will typically
 be set to "log", the default Fluent Bit key for unparsed logs. If this is set to false, plugin
 will parse the record as JSON.
+
+#### Disk Store
+
+The output plugin recives raw logs from Fluent Bit in small chunks. Enabling disk store allows the
+output plugin to accumulate logs on disk until the upload size is reached. Buffering logs will
+reduce the amount of S3 API requests and improve the compression ratio. However, the plugin will
+use disk space and have higher memory requirements. With disk store off, the plugin will
+immediately process each chunk and send it to S3.
+
+Logs are stored on the disk as IR and Zstd compressed IR. If the plugin were to crash, stored logs
+will be sent to S3 when Fluent Bit restarts. The upload index restarts on recovery.
+
+### S3 Objects
+
+Each upload will have a unique key in the following format:
+```
+<FLUENT_BIT_TAG>_<INDEX>_<UPLOAD_TIME_RFC3339>_<ID>.zst
+```
+The index starts at 0 is incremented after each upload. The Fluent Bit tag is also attached to the
+object using the tag key `fluentBitTag`
 
 [1]: https://go.dev/doc/install
 [2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
