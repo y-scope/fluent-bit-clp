@@ -466,13 +466,10 @@ func createFile(path string, file string) (*os.File, error) {
 
 	fullFilePath := filepath.Join(path, file)
 
-	// Try to open the file exclusively. If it already exists something has gone wrong.
-	f, err := os.OpenFile(fullFilePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o751)
+	// TODO: Replace os.O_TRUNC with os.O_EXCL once recovery code add in. With recovery on,
+	// code should throw error if file exists.
+	f, err := os.OpenFile(fullFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o751)
 	if err != nil {
-		// Check if the error is due to the file already existing.
-		if errors.Is(err, fs.ErrExist) {
-			return nil, fmt.Errorf("file %s already exists", fullFilePath)
-		}
 		return nil, fmt.Errorf("failed to create file %s: %w", fullFilePath, err)
 	}
 	return f, nil
