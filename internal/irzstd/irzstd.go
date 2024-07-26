@@ -328,8 +328,8 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) error {
 	return nil
 }
 
-// Getter for Zstd buffer. Downgrades to reader to safety.
-func (w *IrZstdWriter) ZstdBuffer() io.Reader {
+// Getter for Zstd buffer. Downgrades from io.ReadWriter to io.Reader to safety.
+func (w *IrZstdWriter) GetZstdBuffer() io.Reader {
 	return w.zstdBuffer
 }
 
