@@ -214,7 +214,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 //
 // Returns:
 //   - timestamp: time.Time timestamp
-func decodeTs(ts interface{}) time.Time {
+func decodeTs(ts any) time.Time {
 	var timestamp time.Time
 	switch t := ts.(type) {
 	case decoder.FlbTime:
@@ -222,7 +222,7 @@ func decodeTs(ts interface{}) time.Time {
 	case uint64:
 		timestamp = time.Unix(int64(t), 0)
 	default:
-		fmt.Printf("time provided invalid, defaulting to now. Invalid type is %T", t)
+		log.Printf("time provided invalid, defaulting to now. Invalid type is %T", t)
 		timestamp = time.Now()
 	}
 	return timestamp
@@ -248,7 +248,7 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	}
 
 	// If use_single_key=true, then look for key in record, and set message to the key's value.
-	var record map[string]interface{}
+	var record map[string]any
 	err := json.Unmarshal(jsonRecord, &record)
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
@@ -260,10 +260,9 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 		// allowed, then return entire record.
 		if config.AllowMissingKey {
 			return string(jsonRecord), nil
-			// If key not found in record and allow_missing_key=false, then return an error.
-		} else {
-			return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
 		}
+		// If key not found in record and allow_missing_key=false, then return an error.
+		return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
 	}
 
 	stringMsg, ok := singleKeyMsg.(string)
@@ -296,13 +295,11 @@ func uploadToS3(
 	uploader *manager.Uploader,
 ) (string, error) {
 	currentTime := time.Now()
-	// Format the time as a string in RFC3339 format.
 	timeString := currentTime.Format(time.RFC3339)
 
 	fileName := fmt.Sprintf("%s_%d_%s_%s.zst", tagKey, index, timeString, id)
 	fullFilePath := filepath.Join(bucketPrefix, fileName)
 
-	// Upload the file to S3.
 	tag := fmt.Sprintf("%s=%s", s3TagKey, tagKey)
 	result, err := uploader.Upload(context.TODO(), &s3.PutObjectInput{
 		Bucket:  aws.String(bucket),
@@ -345,14 +342,14 @@ func checkUploadCriteria(tag *outctx.Tag, useDiskBuffer bool, uploadSizeMb int) 
 		return false, fmt.Errorf("error could not get size of Zstd buffer: %w", err)
 	}
 
-	UploadSize := uploadSizeMb << 20
+	uploadSize := uploadSizeMb << 20
 
-	if bufferSize >= UploadSize {
+	if bufferSize >= uploadSize {
 		log.Printf(
 			"Zstd buffer size of %d for tag %s exceeded upload size %d",
 			bufferSize,
 			tag.Key,
-			UploadSize,
+			uploadSize,
 		)
 		return true, nil
 	}
@@ -362,7 +359,7 @@ func checkUploadCriteria(tag *outctx.Tag, useDiskBuffer bool, uploadSizeMb int) 
 
 // Creates buffers to hold logs prior to sending to s3. If useDiskBuffer is true, creates files for
 // both IR and Zstd buffers. If useDiskBuffer is false, there is no IR buffer and Zstd buffer is in
-// memory. Buffer creation is seperate from tag creation, since during recovery file backed buffers
+// memory. Buffer creation is separate from tag creation, since during recovery file backed buffers
 // already exist.
 //
 // Parameters:

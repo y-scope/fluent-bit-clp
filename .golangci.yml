@@ -34,10 +34,19 @@ linters-settings:
     # Completely disallow naked returns
     max-func-lines: 0
   revive:
+    enable-all-rules: true
+    severity: "error"
     rules:
+      - name: "add-constant"
+        arguments:
+          - maxLitCount: "4"
+            allowStrs: '""'
+            allowInts: "0"
+            allowFloats: "0.0"
+      - name: "comment-spacings"
+        arguments:
+          - "export"
       - name: "line-length-limit"
-        severity: "warning"
-        disabled: false
         arguments: [100]
   staticcheck:
     checks:
