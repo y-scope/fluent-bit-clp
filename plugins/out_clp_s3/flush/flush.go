@@ -113,7 +113,7 @@ func newTag(
 	irBuffer io.ReadWriter,
 	zstdBuffer io.ReadWriter,
 ) (*outctx.Tag, error) {
-	writer, err := irzstd.NewWriter(timezone, size, useDiskBuffer, irBuffer, zstdBuffer)
+	writer, err := irzstd.NewWriter(timezone, size, tagKey, useDiskBuffer, irBuffer, zstdBuffer)
 	if err != nil {
 		return nil, err
 	}

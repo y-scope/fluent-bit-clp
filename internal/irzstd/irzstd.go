@@ -50,6 +50,7 @@ type Writer struct {
 	irWriter      *ir.Writer
 	size          int
 	timezone      string
+	tagKey        string
 	irTotalBytes  int
 	zstdWriter    *zstd.Encoder
 }
@@ -69,6 +70,7 @@ type Writer struct {
 func NewWriter(
 	timezone string,
 	size int,
+	tagKey string,
 	useDiskBuffer bool,
 	irBuffer io.ReadWriter,
 	zstdBuffer io.ReadWriter,
@@ -88,6 +90,7 @@ func NewWriter(
 	writer := Writer{
 		useDiskBuffer: useDiskBuffer,
 		size:          size,
+		tagKey:        tagKey,
 		timezone:      timezone,
 		irBuffer:      irBuffer,
 		zstdBuffer:    zstdBuffer,
@@ -167,13 +170,13 @@ func (w *Writer) Close() error {
 		return err
 	}
 
-	zstdFile, ok := w.zstdBuffer.(*os.File)
-	if !ok {
-		return fmt.Errorf("error type assertion from buffer to os.File failed")
+	if !w.useDiskBuffer {
+		return nil
 	}
 
-	if w.useDiskBuffer {
-		zstdFile.Seek(0, io.SeekStart)
+	err = diskBufferSeek(w.zstdBuffer, 0, io.SeekStart)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -260,16 +263,14 @@ func (w *Writer) flushIrBuffer() error {
 		return nil
 	}
 
-	irFile, ok := w.irBuffer.(*os.File)
-	if !ok {
-		return fmt.Errorf("error type assertion from buffer to os.File failed")
+	log.Printf("flushing IR buffer %s", w.tagKey)
+
+	err := diskBufferSeek(w.irBuffer, 0, io.SeekStart)
+	if err != nil {
+		return err
 	}
 
-	log.Printf("flushing IR buffer %s", irFile.Name())
-
-	irFile.Seek(0, io.SeekStart)
-
-	_, err := io.Copy(w.zstdWriter, w.irBuffer)
+	_, err = io.Copy(w.zstdWriter, w.irBuffer)
 	if err != nil {
 		return err
 	}
@@ -334,6 +335,29 @@ func truncateDiskBuffer(diskBuffer io.ReadWriter) error {
 	err := file.Truncate(0)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// Seek for disk buffer.
+//
+// Parameters:
+//   - diskBuffer: Buffer file
+//   - offset: Byte offset
+//   - whence: Seek whence values. Either io.SeekStart, io.SeekCurrent, and io.SeekEnd.
+//
+// Returns:
+//   - err: error with type assertion, error with truncate
+func diskBufferSeek(diskBuffer io.ReadWriter, offset int64, whence int) error {
+	file, ok := diskBuffer.(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from buffer to os.File failed")
+	}
+
+	_, err := file.Seek(offset, whence)
+	if err != nil {
+		return fmt.Errorf("error seeking disk buffer: %w", err)
 	}
 
 	return nil
