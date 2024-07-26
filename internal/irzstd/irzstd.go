@@ -44,14 +44,14 @@ const irSizeThreshold = 2 << 20
 // small, the compression ratio would deteriorate. "Trash compactor" design provides protection from
 // log loss during abrupt crashes and maintains a high compression ratio.
 type IrZstdWriter struct {
-	UseDiskBuffer    bool
+	UseDiskBuffer bool
 	IrBuffer      io.ReadWriter
 	ZstdBuffer    io.ReadWriter
-	IrWriter     *ir.Writer
-	Size         int
-	Timezone     string
-	IrTotalBytes int
-	ZstdWriter   *zstd.Encoder
+	IrWriter      *ir.Writer
+	Size          int
+	Timezone      string
+	IrTotalBytes  int
+	ZstdWriter    *zstd.Encoder
 }
 
 // Opens a new [IrZstdWriter].
@@ -87,13 +87,13 @@ func NewIrZstdWriter(
 	}
 
 	IrZstdWriter := IrZstdWriter{
-		UseDiskBuffer:  useDiskBuffer,
-		Size:       size,
-		Timezone:   timezone,
-		IrBuffer:    irBuffer,
-		ZstdBuffer:  zstdBuffer,
-		IrWriter:   irWriter,
-		ZstdWriter: zstdWriter,
+		UseDiskBuffer: useDiskBuffer,
+		Size:          size,
+		Timezone:      timezone,
+		IrBuffer:      irBuffer,
+		ZstdBuffer:    zstdBuffer,
+		IrWriter:      irWriter,
+		ZstdWriter:    zstdWriter,
 	}
 
 	return &IrZstdWriter, nil

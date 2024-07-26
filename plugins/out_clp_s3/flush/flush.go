@@ -66,7 +66,11 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 	// created on disk and are used to buffer Fluent Bit chunks. If UseDiskBuffer is off, buffer is
 	// in memory and chunks are not buffered.
 	if !ok {
-		irBuf, zstdBuf, err := newBuffers(ctx.Config.UseDiskBuffer, ctx.Config.DiskBufferPath, tagKey)
+		irBuf, zstdBuf, err := newBuffers(
+			ctx.Config.UseDiskBuffer,
+			ctx.Config.DiskBufferPath,
+			tagKey,
+		)
 		if err != nil {
 			return output.FLB_RETRY, fmt.Errorf("error creating buffers: %w", err)
 		}
@@ -91,7 +95,11 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 		return output.FLB_ERROR, err
 	}
 
-	readyToUpload, err := checkUploadCriteria(tag, ctx.Config.UseDiskBuffer, ctx.Config.UploadSizeMb)
+	readyToUpload, err := checkUploadCriteria(
+		tag,
+		ctx.Config.UseDiskBuffer,
+		ctx.Config.UploadSizeMb,
+	)
 	if err != nil {
 		return output.FLB_ERROR, fmt.Errorf("error checking upload criteria: %w", err)
 	}
