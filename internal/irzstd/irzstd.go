@@ -44,14 +44,14 @@ const irSizeThreshold = 2 << 20
 // small, the compression ratio would deteriorate. "Trash compactor" design provides protection from
 // log loss during abrupt crashes and maintains a high compression ratio.
 type IrZstdWriter struct {
-	UseDiskBuffer bool
-	IrBuffer      io.ReadWriter
-	ZstdBuffer    io.ReadWriter
-	IrWriter      *ir.Writer
-	Size          int
-	Timezone      string
-	IrTotalBytes  int
-	ZstdWriter    *zstd.Encoder
+	useDiskBuffer bool
+	irBuffer      io.ReadWriter
+	zstdBuffer    io.ReadWriter
+	irWriter      *ir.Writer
+	size          int
+	timezone      string
+	irTotalBytes  int
+	zstdWriter    *zstd.Encoder
 }
 
 // Opens a new [IrZstdWriter].
@@ -87,13 +87,13 @@ func NewIrZstdWriter(
 	}
 
 	IrZstdWriter := IrZstdWriter{
-		UseDiskBuffer: useDiskBuffer,
-		Size:          size,
-		Timezone:      timezone,
-		IrBuffer:      irBuffer,
-		ZstdBuffer:    zstdBuffer,
-		IrWriter:      irWriter,
-		ZstdWriter:    zstdWriter,
+		useDiskBuffer: useDiskBuffer,
+		size:          size,
+		timezone:      timezone,
+		irBuffer:      irBuffer,
+		zstdBuffer:    zstdBuffer,
+		irWriter:      irWriter,
+		zstdWriter:    zstdWriter,
 	}
 
 	return &IrZstdWriter, nil
@@ -110,30 +110,30 @@ func NewIrZstdWriter(
 //   - err: Error writting IR/Zstd, error flushing buffers
 func (w *IrZstdWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
 	// Write log events to IR writer buffer.
-	err := writeIr(w.IrWriter, logEvents)
+	err := writeIr(w.irWriter, logEvents)
 	if err != nil {
 		return err
 	}
 
 	// If disk buffering is off, write directly to the Zstd buffer (skiping the IR buffer).
-	if !w.UseDiskBuffer {
-		_, err := w.IrWriter.WriteTo(w.ZstdWriter)
+	if !w.useDiskBuffer {
+		_, err := w.irWriter.WriteTo(w.zstdWriter)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
 
-	numBytes, err := w.IrWriter.WriteTo(w.IrBuffer)
+	numBytes, err := w.irWriter.WriteTo(w.irBuffer)
 	if err != nil {
 		return err
 	}
 
-	w.IrTotalBytes += int(numBytes)
+	w.irTotalBytes += int(numBytes)
 
 	// If total bytes greater than IR size threshold, compress IR into Zstd frame. Else keep
 	// accumulating IR in the buffer until threshold is reached.
-	if (w.IrTotalBytes) >= irSizeThreshold {
+	if (w.irTotalBytes) >= irSizeThreshold {
 		err := w.flushIrBuffer()
 		if err != nil {
 			return fmt.Errorf("error flushing IR buffer: %w", err)
@@ -153,7 +153,7 @@ func (w *IrZstdWriter) Close() error {
 	// IR buffer may not be empty, so must be flushed prior to adding trailing EndOfStream byte. If
 	// not using disk buffering, IR writer buffer should always be empty since it is always flushed
 	// to Zstd buffer on write.
-	if w.UseDiskBuffer {
+	if w.useDiskBuffer {
 		err := w.flushIrBuffer()
 		if err != nil {
 			return fmt.Errorf("error flushing IR buffer: %w", err)
@@ -161,18 +161,28 @@ func (w *IrZstdWriter) Close() error {
 	}
 
 	// Add EndOfStream byte to IR and flush to Zstd writer.
-	_, err := w.IrWriter.CloseTo(w.ZstdWriter)
+	_, err := w.irWriter.CloseTo(w.zstdWriter)
 	if err != nil {
 		return err
 	}
 
 	// Setting to nil to prevent accidental use. Also, cannot reuse resource like Zstd writer.
-	w.IrWriter = nil
+	w.irWriter = nil
 
 	// Terminate Zstd frame.
-	err = w.ZstdWriter.Close()
+	err = w.zstdWriter.Close()
 	if err != nil {
 		return err
+	}
+
+
+	if w.useDiskBuffer {
+		zstdFile, ok := w.irBuffer.(*os.File)
+		if !ok {
+			return fmt.Errorf("error type assertion from buffer to os.File failed")
+		}
+		// Seek to start of Zstd file.
+		zstdFile.Seek(0, io.SeekStart)
 	}
 
 	return nil
@@ -186,13 +196,13 @@ func (w *IrZstdWriter) Close() error {
 func (w *IrZstdWriter) Reset() error {
 	// Make a new IR writer to get new preamble.
 	var err error
-	w.IrWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.Size, w.Timezone)
+	w.irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.size, w.timezone)
 	if err != nil {
 		return err
 	}
 
-	if !w.UseDiskBuffer {
-		buf, ok := w.ZstdBuffer.(*bytes.Buffer)
+	if !w.useDiskBuffer {
+		buf, ok := w.zstdBuffer.(*bytes.Buffer)
 		if !ok {
 			return fmt.Errorf("error type assertion from buffer to bytes.Buffer failed")
 		}
@@ -202,11 +212,11 @@ func (w *IrZstdWriter) Reset() error {
 		// Flush should be called prior to reset, so buffer should be emtpy. There may be a future
 		// use case to truncate a non-empty IR buffer; however, there is currently no use case
 		// so safer to throw an error.
-		if w.IrTotalBytes != 0 {
+		if w.irTotalBytes != 0 {
 			return fmt.Errorf("error IR buffer is not empty")
 		}
 
-		zstdFile, ok := w.ZstdBuffer.(*os.File)
+		zstdFile, ok := w.zstdBuffer.(*os.File)
 		if !ok {
 			return fmt.Errorf("error type assertion from buffer to os.File failed")
 		}
@@ -220,12 +230,12 @@ func (w *IrZstdWriter) Reset() error {
 	}
 
 	// Re-initialize Zstd writer to recieve more input.
-	w.ZstdWriter.Reset(w.ZstdBuffer)
+	w.zstdWriter.Reset(w.zstdBuffer)
 
 	return nil
 }
 
-// Gets the size of a disk buffer. [zstd] does not provide the amount of bytes written with
+// Gets the size of a Zstd disk buffer. [zstd] does not provide the amount of bytes written with
 // each write. Therefore, cannot keep track of size with variable as implemented for IR with
 // [IrTotalBytes]. Instead, call stat to get size.
 //
@@ -235,8 +245,8 @@ func (w *IrZstdWriter) Reset() error {
 // Returns:
 //   - size: Size of input file
 //   - err: Error asserting type, error from stat
-func GetDiskBufferSize(buffer io.ReadWriter) (int, error) {
-	file, ok := buffer.(*os.File)
+func (w *IrZstdWriter) GetZstdDiskBufferSize() (int, error) {
+	file, ok := w.zstdBuffer.(*os.File)
 	if !ok {
 		return 0, fmt.Errorf("error type assertion from buffer to os.File failed")
 	}
@@ -256,37 +266,37 @@ func GetDiskBufferSize(buffer io.ReadWriter) (int, error) {
 //
 // Writer, error with type assertion, error truncating file
 func (w *IrZstdWriter) flushIrBuffer() error {
-	if (w.IrBuffer == nil) || (w.ZstdBuffer == nil) {
+	if (w.irBuffer == nil) || (w.zstdBuffer == nil) {
 		return fmt.Errorf("error flush called with non-existant buffer")
 	}
 
 	// Flush is called during Close(), and possible that the IR buffer is empty.
-	if w.IrTotalBytes == 0 {
+	if w.irTotalBytes == 0 {
 		return nil
 	}
 
-	irFile, ok := w.IrBuffer.(*os.File)
+	irFile, ok := w.irBuffer.(*os.File)
 	if !ok {
-		return fmt.Errorf("error type assertion from buffer to file failed")
+		return fmt.Errorf("error type assertion from buffer to os.File failed")
 	}
 
 	log.Printf("flushing IR buffer %s", irFile.Name())
 
 	irFile.Seek(0, io.SeekStart)
 
-	_, err := io.Copy(w.ZstdWriter, w.IrBuffer)
+	_, err := io.Copy(w.zstdWriter, w.irBuffer)
 	if err != nil {
 		return err
 	}
 
-	err = w.ZstdWriter.Close()
+	err = w.zstdWriter.Close()
 	if err != nil {
 		return err
 	}
 
 	// Re-initialize Zstd writer to recieve more input.
 	// The Zstd buffer is not reset since it should keep accumulating frames until ready to upload.
-	w.ZstdWriter.Reset(w.ZstdBuffer)
+	w.zstdWriter.Reset(w.zstdBuffer)
 
 	irFile.Seek(0, io.SeekStart)
 	err = irFile.Truncate(0)
@@ -294,7 +304,7 @@ func (w *IrZstdWriter) flushIrBuffer() error {
 		return err
 	}
 
-	w.IrTotalBytes = 0
+	w.irTotalBytes = 0
 
 	return nil
 }

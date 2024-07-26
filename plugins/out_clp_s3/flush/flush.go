@@ -164,15 +164,6 @@ func flushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 		return fmt.Errorf("error closing irzstd stream: %w", err)
 	}
 
-	if ctx.Config.UseDiskBuffer {
-		zstdFile, ok := tag.Writer.ZstdBuffer.(*os.File)
-		if !ok {
-			return fmt.Errorf("error type assertion from buffer to file failed")
-		}
-		// Seek to start of Zstd file.
-		zstdFile.Seek(0, io.SeekStart)
-	}
-
 	outputLocation, err := uploadToS3(
 		ctx.Config.S3Bucket,
 		ctx.Config.S3BucketPrefix,
@@ -376,7 +367,7 @@ func checkUploadCriteria(tag *outctx.Tag, useDiskBuffer bool, uploadSizeMb int) 
 		return true, nil
 	}
 
-	bufferSize, err := irzstd.GetDiskBufferSize(tag.Writer.ZstdBuffer)
+	bufferSize, err := tag.Writer.GetZstdDiskBufferSize()
 	if err != nil {
 		return false, fmt.Errorf("error could not get size of Zstd buffer: %w", err)
 	}
