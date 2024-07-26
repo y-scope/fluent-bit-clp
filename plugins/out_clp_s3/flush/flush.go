@@ -127,7 +127,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 // Returns:
 //   - tag: Tag resources and metadata
 //   - err: Error creating new writer
-func NewTag(
+func newTag(
 	tagKey string,
 	timezone string,
 	size int,
@@ -158,9 +158,7 @@ func NewTag(
 //
 // Returns:
 //   - err: Error creating closing writer, error with type assertion, error uploading to s3,
-//
-// error resetting writer
-func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
+func flushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 	err := tag.Writer.Close()
 	if err != nil {
 		return fmt.Errorf("error closing irzstd stream: %w", err)
