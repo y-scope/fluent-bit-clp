@@ -114,7 +114,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 	return output.FLB_OK, nil
 }
 
-// Creates a new tag containing a new [irzstd.IrZstdWriter].
+// Creates a new tag containing a new [irzstd.Writer].
 //
 // Parameters:
 //   - tagKey: Fluent Bit tag
@@ -135,7 +135,7 @@ func newTag(
 	irBuffer io.ReadWriter,
 	zstdBuffer io.ReadWriter,
 ) (*outctx.Tag, error) {
-	writer, err := irzstd.NewIrZstdWriter(timezone, size, useDiskBuffer, irBuffer, zstdBuffer)
+	writer, err := irzstd.NewWriter(timezone, size, useDiskBuffer, irBuffer, zstdBuffer)
 	if err != nil {
 		return nil, err
 	}

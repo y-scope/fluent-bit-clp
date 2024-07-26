@@ -24,7 +24,7 @@ const irSizeThreshold = 2 << 20
 //
 // Behavior with use_disk_buffer off:
 // Log events provided to writer are immediately converted to Zstd compressed IR and stored in
-// [IrZstdWriter.ZstdBuffer]. With use_disk_buffer off, ZstdBuffer is a memory buffer. After the
+// [Writer.ZstdBuffer]. With use_disk_buffer off, ZstdBuffer is a memory buffer. After the
 // Zstd buffer recieves logs, they are immediately sent to s3. There is no IR buffer and it is set
 // to nil.
 //
@@ -43,7 +43,7 @@ const irSizeThreshold = 2 << 20
 // "bins" (i.e. Fluent Bit chunks could be directly "compacted"); however, if the chunks are
 // small, the compression ratio would deteriorate. "Trash compactor" design provides protection from
 // log loss during abrupt crashes and maintains a high compression ratio.
-type IrZstdWriter struct {
+type Writer struct {
 	useDiskBuffer bool
 	irBuffer      io.ReadWriter
 	zstdBuffer    io.ReadWriter
@@ -54,7 +54,7 @@ type IrZstdWriter struct {
 	zstdWriter    *zstd.Encoder
 }
 
-// Opens a new [IrZstdWriter].
+// Opens a new [Writer].
 //
 // Parameters:
 //   - timezone: Time zone of the log source
@@ -64,15 +64,15 @@ type IrZstdWriter struct {
 //   - ZstdBuffer: Buffer for Zstd compressed IR
 //
 // Returns:
-//   - IrZstdWriter: Writer for Zstd compressed IR
+//   - Writer: Writer for Zstd compressed IR
 //   - err: Error opening Zstd writer, error opening IR writer
-func NewIrZstdWriter(
+func NewWriter(
 	timezone string,
 	size int,
 	useDiskBuffer bool,
 	irBuffer io.ReadWriter,
 	zstdBuffer io.ReadWriter,
-) (*IrZstdWriter, error) {
+) (*Writer, error) {
 	// Create Zstd writer with Zstd buffer as its output.
 	zstdWriter, err := zstd.NewWriter(zstdBuffer)
 	if err != nil {
@@ -86,7 +86,7 @@ func NewIrZstdWriter(
 		return nil, fmt.Errorf("error opening IR writer: %w", err)
 	}
 
-	IrZstdWriter := IrZstdWriter{
+	writer := Writer{
 		useDiskBuffer: useDiskBuffer,
 		size:          size,
 		timezone:      timezone,
@@ -96,19 +96,19 @@ func NewIrZstdWriter(
 		zstdWriter:    zstdWriter,
 	}
 
-	return &IrZstdWriter, nil
+	return &writer, nil
 }
 
 // Converts log events to Zstd compressed IR and outputs to the Zstd buffer. IR may be temporarily
 // stored in the IR buffer until it surpasses [irSizeThreshold] with compression to Zstd pushed out
-// to a later call. See [IrZstdWriter] for more specific details on behaviour.
+// to a later call. See [Writer] for more specific details on behaviour.
 //
 // Parameters:
 //   - logEvents: A slice of log events to be encoded
 //
 // Returns:
 //   - err: Error writting IR/Zstd, error flushing buffers
-func (w *IrZstdWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
+func (w *Writer) WriteIrZstd(logEvents []ffi.LogEvent) error {
 	// Write log events to IR writer buffer.
 	err := writeIr(w.irWriter, logEvents)
 	if err != nil {
@@ -145,11 +145,11 @@ func (w *IrZstdWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
 
 // Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding. If
 // UseDiskBuffer is true, the IR buffer is also flushed before ending stream. After calling close,
-// [IrZstdWriter] must be reset prior to calling write.
+// [Writer] must be reset prior to calling write.
 //
 // Returns:
 //   - err: Error flushing/closing buffers
-func (w *IrZstdWriter) Close() error {
+func (w *Writer) Close() error {
 	// IR buffer may not be empty, so must be flushed prior to adding trailing EndOfStream byte. If
 	// not using disk buffering, IR writer buffer should always be empty since it is always flushed
 	// to Zstd buffer on write.
@@ -188,12 +188,12 @@ func (w *IrZstdWriter) Close() error {
 	return nil
 }
 
-// Reinitializes [IrZstdWriter] after calling close. Resets individual IR and Zstd writers and
+// Reinitializes [Writer] after calling close. Resets individual IR and Zstd writers and
 // associated buffers.
 //
 // Returns:
 //   - err: Error opening IR writer, error IR buffer not empty, error with type assertion
-func (w *IrZstdWriter) Reset() error {
+func (w *Writer) Reset() error {
 	// Make a new IR writer to get new preamble.
 	var err error
 	w.irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.size, w.timezone)
@@ -245,7 +245,7 @@ func (w *IrZstdWriter) Reset() error {
 // Returns:
 //   - size: Size of input file
 //   - err: Error asserting type, error from stat
-func (w *IrZstdWriter) GetZstdDiskBufferSize() (int, error) {
+func (w *Writer) GetZstdDiskBufferSize() (int, error) {
 	file, ok := w.zstdBuffer.(*os.File)
 	if !ok {
 		return 0, fmt.Errorf("error type assertion from buffer to os.File failed")
@@ -265,7 +265,7 @@ func (w *IrZstdWriter) GetZstdDiskBufferSize() (int, error) {
 //   - err: Error called with non-existant buffer, error compressing to Zstd, error resetting Zstd
 //
 // Writer, error with type assertion, error truncating file
-func (w *IrZstdWriter) flushIrBuffer() error {
+func (w *Writer) flushIrBuffer() error {
 	if (w.irBuffer == nil) || (w.zstdBuffer == nil) {
 		return fmt.Errorf("error flush called with non-existant buffer")
 	}
@@ -329,7 +329,7 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) error {
 }
 
 // Getter for Zstd buffer. Downgrades from io.ReadWriter to io.Reader to safety.
-func (w *IrZstdWriter) GetZstdBuffer() io.Reader {
+func (w *Writer) GetZstdBuffer() io.Reader {
 	return w.zstdBuffer
 }
 

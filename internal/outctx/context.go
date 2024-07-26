@@ -42,7 +42,7 @@ type S3Context struct {
 type Tag struct {
 	Key    string
 	Index  int
-	Writer *irzstd.IrZstdWriter
+	Writer *irzstd.Writer
 }
 
 // Creates a new context. Loads configuration from user. Loads and tests aws credentials.
