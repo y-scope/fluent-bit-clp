@@ -75,7 +75,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 			return output.FLB_RETRY, fmt.Errorf("error creating buffers: %w", err)
 		}
 
-		tag, err = NewTag(
+		tag, err = newTag(
 			tagKey,
 			ctx.Config.TimeZone,
 			size,
@@ -105,7 +105,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 	}
 
 	if readyToUpload {
-		err := FlushZstdToS3(tag, ctx)
+		err := flushZstdToS3(tag, ctx)
 		if err != nil {
 			return output.FLB_ERROR, fmt.Errorf("error flushing Zstd buffer to s3: %w", err)
 		}
