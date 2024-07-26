@@ -437,7 +437,7 @@ func createFile(path string, file string) (*os.File, error) {
 	return f, nil
 }
 
-// If tag exists, get the tag. // If tag does not exist yet, create new buffers and tag. If
+// If tag exists, get the tag. If tag does not exist yet, create new buffers and tag. If
 // UseDiskBuffer is set, buffers are created on disk and are used to buffer Fluent Bit chunks.
 // If UseDiskBuffer is off, buffer is in memory and chunks are not buffered.
 //
