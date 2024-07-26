@@ -110,18 +110,16 @@ func NewWriter(
 //   - err: Error writting IR/Zstd, error flushing buffers
 func (w *Writer) WriteIrZstd(logEvents []ffi.LogEvent) error {
 	// Write log events to IR writer buffer.
-	err := writeIr(w.irWriter, logEvents)
+	var err error
+	err = writeIr(w.irWriter, logEvents)
 	if err != nil {
 		return err
 	}
 
 	// If disk buffering is off, write directly to the Zstd buffer (skiping the IR buffer).
 	if !w.useDiskBuffer {
-		_, err := w.irWriter.WriteTo(w.zstdWriter)
-		if err != nil {
-			return err
-		}
-		return nil
+		_, err = w.irWriter.WriteTo(w.zstdWriter)
+		return err
 	}
 
 	numBytes, err := w.irWriter.WriteTo(w.irBuffer)
@@ -133,7 +131,7 @@ func (w *Writer) WriteIrZstd(logEvents []ffi.LogEvent) error {
 
 	// If total bytes greater than IR size threshold, compress IR into Zstd frame. Else keep
 	// accumulating IR in the buffer until threshold is reached.
-	if (w.irTotalBytes) >= irSizeThreshold {
+	if w.irTotalBytes >= irSizeThreshold {
 		err := w.flushIrBuffer()
 		if err != nil {
 			return fmt.Errorf("error flushing IR buffer: %w", err)
@@ -175,12 +173,12 @@ func (w *Writer) Close() error {
 		return err
 	}
 
+	zstdFile, ok := w.irBuffer.(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from buffer to os.File failed")
+	}
 
 	if w.useDiskBuffer {
-		zstdFile, ok := w.irBuffer.(*os.File)
-		if !ok {
-			return fmt.Errorf("error type assertion from buffer to os.File failed")
-		}
 		// Seek to start of Zstd file.
 		zstdFile.Seek(0, io.SeekStart)
 	}
@@ -207,26 +205,30 @@ func (w *Writer) Reset() error {
 			return fmt.Errorf("error type assertion from buffer to bytes.Buffer failed")
 		}
 		buf.Reset()
-	} else {
-		// Flush should be called prior to reset, so buffer should be emtpy. There may be a future
-		// use case to truncate a non-empty IR buffer; however, there is currently no use case
-		// so safer to throw an error.
-		if w.irTotalBytes != 0 {
-			return fmt.Errorf("error IR buffer is not empty")
-		}
-
-		zstdFile, ok := w.zstdBuffer.(*os.File)
-		if !ok {
-			return fmt.Errorf("error type assertion from buffer to os.File failed")
-		}
-
-		zstdFile.Seek(0, io.SeekStart)
-
-		err = zstdFile.Truncate(0)
-		if err != nil {
-			return err
-		}
+		// Re-initialize Zstd writer to recieve more input.
+		w.zstdWriter.Reset(w.zstdBuffer)
+		return nil
 	}
+
+	// Flush should be called prior to reset, so buffer should be emtpy. There may be a future
+	// use case to truncate a non-empty IR buffer; however, there is currently no use case
+	// so safer to throw an error.
+	if w.irTotalBytes != 0 {
+		return fmt.Errorf("error IR buffer is not empty")
+	}
+
+	zstdFile, ok := w.zstdBuffer.(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from buffer to os.File failed")
+	}
+
+	zstdFile.Seek(0, io.SeekStart)
+
+	err = zstdFile.Truncate(0)
+	if err != nil {
+		return err
+	}
+
 
 	// Re-initialize Zstd writer to recieve more input.
 	w.zstdWriter.Reset(w.zstdBuffer)

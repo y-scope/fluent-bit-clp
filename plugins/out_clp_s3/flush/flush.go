@@ -56,38 +56,13 @@ const (
 func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (int, error) {
 	dec := decoder.New(data, size)
 	logEvents, err := decodeMsgpack(dec, ctx.Config)
-	if err != nil {
+	if err != io.EOF {
 		return output.FLB_ERROR, err
 	}
 
-	tag, ok := ctx.Tags[tagKey]
-
-	// If tag does not exist yet, create new buffers and tag. If UseDiskBuffer is set, buffers are
-	// created on disk and are used to buffer Fluent Bit chunks. If UseDiskBuffer is off, buffer is
-	// in memory and chunks are not buffered.
-	if !ok {
-		irBuf, zstdBuf, err := newBuffers(
-			ctx.Config.UseDiskBuffer,
-			ctx.Config.DiskBufferPath,
-			tagKey,
-		)
-		if err != nil {
-			return output.FLB_RETRY, fmt.Errorf("error creating buffers: %w", err)
-		}
-
-		tag, err = newTag(
-			tagKey,
-			ctx.Config.TimeZone,
-			size,
-			ctx.Config.UseDiskBuffer,
-			irBuf,
-			zstdBuf,
-		)
-
-		if err != nil {
-			return output.FLB_RETRY, fmt.Errorf("error creating tag: %w", err)
-		}
-		ctx.Tags[tagKey] = tag
+	tag, err := getTag(ctx, tagKey, size)
+	if err != nil {
+		return output.FLB_RETRY, fmt.Errorf("error creating new tag: %w", err)
 	}
 
 	err = tag.Writer.WriteIrZstd(logEvents)
@@ -100,15 +75,18 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 		ctx.Config.UseDiskBuffer,
 		ctx.Config.UploadSizeMb,
 	)
+
 	if err != nil {
 		return output.FLB_ERROR, fmt.Errorf("error checking upload criteria: %w", err)
 	}
 
-	if readyToUpload {
-		err := flushZstdToS3(tag, ctx)
-		if err != nil {
-			return output.FLB_ERROR, fmt.Errorf("error flushing Zstd buffer to s3: %w", err)
-		}
+	if !readyToUpload {
+		return output.FLB_OK, nil
+	}
+
+	err = flushZstdToS3(tag, ctx)
+	if err != nil {
+		return output.FLB_ERROR, fmt.Errorf("error flushing Zstd buffer to s3: %w", err)
 	}
 
 	return output.FLB_OK, nil
@@ -205,15 +183,12 @@ func flushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 // https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
-
 	for {
 		ts, record, err := decoder.GetRecord(dec)
-		if err == io.EOF {
-			// Chunk decoding finished. Break out of loop and send log events to output.
-			break
-		} else if err != nil {
-			err = fmt.Errorf("error decoding data from stream: %w", err)
-			return nil, err
+
+		//Exits if chunk finished and err is io.EOF
+		if err != nil {
+			return logEvents, err
 		}
 
 		timestamp := decodeTs(ts)
@@ -229,8 +204,6 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		}
 		logEvents = append(logEvents, event)
 	}
-
-	return logEvents, nil
 }
 
 // Decodes timestamp provided by Fluent Bit engine into time.Time. If timestamp cannot be
@@ -463,3 +436,62 @@ func createFile(path string, file string) (*os.File, error) {
 	}
 	return f, nil
 }
+
+
+// If tag exists, get the tag. // If tag does not exist yet, create new buffers and tag. If
+// UseDiskBuffer is set, buffers are created on disk and are used to buffer Fluent Bit chunks.
+// If UseDiskBuffer is off, buffer is in memory and chunks are not buffered.
+//
+// Parameters:
+//   - ctx: Plugin context
+//   - tagKey: Fluent Bit tag
+//   - size: Byte length
+//
+// Returns:
+//   - err: Could not create buffers or tag
+func getTag(ctx *outctx.S3Context, tagKey string, size int) (*outctx.Tag, error) {
+	tag, ok := ctx.Tags[tagKey]
+
+	if !ok {
+		irBuf, zstdBuf, err := newBuffers(
+			ctx.Config.UseDiskBuffer,
+			ctx.Config.DiskBufferPath,
+			tagKey,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		tag, err = newTag(
+			tagKey,
+			ctx.Config.TimeZone,
+			size,
+			ctx.Config.UseDiskBuffer,
+			irBuf,
+			zstdBuf,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+		ctx.Tags[tagKey] = tag
+	}
+	return tag, nil
+}
+
+// Create a new log event and append to slice.
+//
+// Parameters:
+//   - logEvents: Slice of log events
+//   - msg: Retrieved message
+//   - timestamp: Fluent Bit timestamp
+func appendLogEvent(logEvents []ffi.LogEvent, msg string, timestamp time.Time) () {
+	event := ffi.LogEvent{
+		LogMessage: msg,
+		Timestamp:  ffi.EpochTimeMs(timestamp.UnixMilli()),
+	}
+	_ = append(logEvents, event)
+}
+
+
+
