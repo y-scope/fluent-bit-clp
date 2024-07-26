@@ -186,7 +186,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 	for {
 		ts, record, err := decoder.GetRecord(dec)
 
-		//If chunk finished will exit loop and err is io.EOF
+		// If chunk finished will exit loop and err is io.EOF
 		if err != nil {
 			return logEvents, err
 		}
@@ -436,7 +436,6 @@ func createFile(path string, file string) (*os.File, error) {
 	}
 	return f, nil
 }
-
 
 // If tag exists, get the tag. // If tag does not exist yet, create new buffers and tag. If
 // UseDiskBuffer is set, buffers are created on disk and are used to buffer Fluent Bit chunks.
