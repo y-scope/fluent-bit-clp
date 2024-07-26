@@ -207,7 +207,6 @@ func (w *Writer) Reset() error {
 			return fmt.Errorf("error type assertion from buffer to bytes.Buffer failed")
 		}
 		buf.Reset()
-		return nil
 	} else {
 		// Flush should be called prior to reset, so buffer should be emtpy. There may be a future
 		// use case to truncate a non-empty IR buffer; however, there is currently no use case

@@ -62,7 +62,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	// Load the aws credentials. [awsConfig.LoadDefaultConfig] will look for credentials in a
 	// specfic hierarchy.
 	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
-	awsConfig, err := awsConfig.LoadDefaultConfig(context.TODO(),
+	awsCfg, err := awsConfig.LoadDefaultConfig(context.TODO(),
 		awsConfig.WithRegion(config.S3Region),
 	)
 	if err != nil {
@@ -73,12 +73,12 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	// In many cases, the EC2 instance will already have permission for the s3 bucket;
 	// however, if it dosen't, this option allows the plugin to assume role with bucket access.
 	if config.RoleArn != "" {
-		stsClient := sts.NewFromConfig(awsConfig)
+		stsClient := sts.NewFromConfig(awsCfg)
 		creds := stscreds.NewAssumeRoleProvider(stsClient, config.RoleArn)
-		awsConfig.Credentials = aws.NewCredentialsCache(creds)
+		awsCfg.Credentials = aws.NewCredentialsCache(creds)
 	}
 
-	s3Client := s3.NewFromConfig(awsConfig)
+	s3Client := s3.NewFromConfig(awsCfg)
 
 	// Confirm bucket exists and test aws credentials.
 	_, err = s3Client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
