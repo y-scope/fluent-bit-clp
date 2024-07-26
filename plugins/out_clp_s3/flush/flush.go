@@ -167,7 +167,7 @@ func flushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 	outputLocation, err := uploadToS3(
 		ctx.Config.S3Bucket,
 		ctx.Config.S3BucketPrefix,
-		tag.Writer.ZstdBuffer,
+		tag.Writer.ZstdBuffer(),
 		tag.Key,
 		tag.Index,
 		ctx.Config.Id,
@@ -316,7 +316,7 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 func uploadToS3(
 	bucket string,
 	bucketPrefix string,
-	io io.ReadWriter,
+	io io.Reader,
 	tagKey string,
 	index int,
 	id string,
