@@ -30,8 +30,8 @@ type S3Config struct {
 	UseSingleKey    bool   `conf:"use_single_key"    validate:"-"`
 	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
 	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
-	DiskStore       bool   `conf:"disk_store"        validate:"-"`
-	StoreDir        string `conf:"store_dir"         validate:"omitempty,dirpath"`
+	UseDiskBuffer   bool   `conf:"use_disk_buffer"   validate:"-"`
+	DiskBufferPath  string `conf:"disk_buffer_path"  validate:"omitempty,dirpath"`
 	UploadSizeMb    int    `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
 }
@@ -57,8 +57,8 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		UseSingleKey:    true,
 		AllowMissingKey: true,
 		SingleKey:       "log",
-		DiskStore:       true,
-		StoreDir:        "tmp/out_clp_s3/",
+		UseDiskBuffer:   true,
+		DiskBufferPath:  "tmp/out_clp_s3/",
 		UploadSizeMb:    16,
 		TimeZone:        "America/Toronto",
 	}
@@ -74,8 +74,8 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		"use_single_key":    &config.UseSingleKey,
 		"allow_missing_key": &config.AllowMissingKey,
 		"single_key":        &config.SingleKey,
-		"disk_store":        &config.DiskStore,
-		"store_dir":         &config.StoreDir,
+		"use_disk_buffer":   &config.UseDiskBuffer,
+		"disk_buffer_path":  &config.DiskBufferPath,
 		"upload_size_mb":    &config.UploadSizeMb,
 		"time_zone":         &config.TimeZone,
 	}

@@ -35,13 +35,13 @@ import (
 // Tag key when tagging s3 objects with Fluent Bit tag.
 const s3TagKey = "fluentBitTag"
 
-// Names of disk store directories.
+// Names of disk buffering directories.
 const (
 	IrDir   = "ir"
 	ZstdDir = "zstd"
 )
 
-// Flushes data to s3 in IR format. Data may be buffered in stores depending on plugin
+// Flushes data to s3 in IR format. Data may be buffered on disk or in memory depending on plugin
 // configuration.
 //
 // Parameters:
@@ -62,22 +62,22 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 
 	tag, ok := ctx.Tags[tagKey]
 
-	// If tag does not exist yet, create new stores and tag. If disk store is on, stores are
-	// created on disk and are used to buffer Fluent Bit chunks. If disk store is off, store
-	// is in memory and chunks are not buffered.
+	// If tag does not exist yet, create new buffers and tag. If UseDiskBuffer is set, buffers are
+	// created on disk and are used to buffer Fluent Bit chunks. If UseDiskBuffer is off, buffer is
+	// in memory and chunks are not buffered.
 	if !ok {
-		irStore, zstdStore, err := newStores(ctx.Config.DiskStore, ctx.Config.StoreDir, tagKey)
+		irBuf, zstdBuf, err := newBuffers(ctx.Config.UseDiskBuffer, ctx.Config.DiskBufferPath, tagKey)
 		if err != nil {
-			return output.FLB_RETRY, fmt.Errorf("error creating stores: %w", err)
+			return output.FLB_RETRY, fmt.Errorf("error creating buffers: %w", err)
 		}
 
 		tag, err = NewTag(
 			tagKey,
 			ctx.Config.TimeZone,
 			size,
-			ctx.Config.DiskStore,
-			irStore,
-			zstdStore,
+			ctx.Config.UseDiskBuffer,
+			irBuf,
+			zstdBuf,
 		)
 
 		if err != nil {
@@ -91,7 +91,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 		return output.FLB_ERROR, err
 	}
 
-	readyToUpload, err := checkUploadCriteria(tag, ctx.Config.DiskStore, ctx.Config.UploadSizeMb)
+	readyToUpload, err := checkUploadCriteria(tag, ctx.Config.UseDiskBuffer, ctx.Config.UploadSizeMb)
 	if err != nil {
 		return output.FLB_ERROR, fmt.Errorf("error checking upload criteria: %w", err)
 	}
@@ -99,7 +99,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 	if readyToUpload {
 		err := FlushZstdToS3(tag, ctx)
 		if err != nil {
-			return output.FLB_ERROR, fmt.Errorf("error flushing Zstd store to s3: %w", err)
+			return output.FLB_ERROR, fmt.Errorf("error flushing Zstd buffer to s3: %w", err)
 		}
 	}
 
@@ -112,9 +112,9 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 //   - tagKey: Fluent Bit tag
 //   - timezone: Time zone of the log source
 //   - size: Byte length
-//   - diskStore: On/off for disk store
-//   - irStore: Location to store IR
-//   - ZstdStore: Location to store Zstd compressed IR
+//   - useDiskBuffer: On/off for disk buffering
+//   - irBuffer: Buffer for IR
+//   - ZstdBuffer: Buffer for Zstd compressed IR
 //
 // Returns:
 //   - tag: Tag resources and metadata
@@ -123,11 +123,11 @@ func NewTag(
 	tagKey string,
 	timezone string,
 	size int,
-	diskStore bool,
-	irStore io.ReadWriter,
-	zstdStore io.ReadWriter,
+	useDiskBuffer bool,
+	irBuffer io.ReadWriter,
+	zstdBuffer io.ReadWriter,
 ) (*outctx.Tag, error) {
-	writer, err := irzstd.NewIrZstdWriter(timezone, size, diskStore, irStore, zstdStore)
+	writer, err := irzstd.NewIrZstdWriter(timezone, size, useDiskBuffer, irBuffer, zstdBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -140,8 +140,9 @@ func NewTag(
 	return &tag, nil
 }
 
-// Sends Zstd store to s3 and reset writer and stores for future uploads. Prior to upload,
-// IR store is flushed and IR/Zstd streams are terminated.
+// Sends Zstd buffer to s3 and reset writer and buffers for future uploads. Prior to upload,
+// IR buffer is flushed and IR/Zstd streams are terminated. The tags index is incremented on
+// successful upload.
 //
 // Parameters:
 //   - tag: Tag resources and metadata
@@ -152,25 +153,24 @@ func NewTag(
 //
 // error resetting writer
 func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
-	// Flush IR store if exists, and terminate IR/Zstd streams.
 	err := tag.Writer.Close()
 	if err != nil {
 		return fmt.Errorf("error closing irzstd stream: %w", err)
 	}
 
-	if ctx.Config.DiskStore {
-		zstdFile, ok := tag.Writer.ZstdStore.(*os.File)
+	if ctx.Config.UseDiskBuffer {
+		zstdFile, ok := tag.Writer.ZstdBuffer.(*os.File)
 		if !ok {
-			return fmt.Errorf("error type assertion from store to file failed")
+			return fmt.Errorf("error type assertion from buffer to file failed")
 		}
-		// Seek to start of Zstd store.
+		// Seek to start of Zstd file.
 		zstdFile.Seek(0, io.SeekStart)
 	}
 
 	outputLocation, err := uploadToS3(
 		ctx.Config.S3Bucket,
 		ctx.Config.S3BucketPrefix,
-		tag.Writer.ZstdStore,
+		tag.Writer.ZstdBuffer,
 		tag.Key,
 		tag.Index,
 		ctx.Config.Id,
@@ -181,7 +181,6 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 		return err
 	}
 
-	// Increment index
 	tag.Index += 1
 
 	log.Printf("chunk uploaded to %s", outputLocation)
@@ -208,10 +207,8 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 // [Fluent Bit reference]:
 // https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
-	// Buffer to store events from Fluent Bit chunk.
 	var logEvents []ffi.LogEvent
 
-	// Loop through all records in Fluent Bit chunk.
 	for {
 		ts, record, err := decoder.GetRecord(dec)
 		if err == io.EOF {
@@ -356,34 +353,34 @@ func uploadToS3(
 	return uploadLocation, nil
 }
 
-// Checks if criteria are met to upload to s3. If disk store is off, then chunk is always uploaded
-// and always returns true. If disk store is on, check if Zstd store size is greater than upload
-// size.
+// Checks if criteria are met to upload to s3. If useDiskBuffer is false, then the chunk is always
+// uploaded so always returns true. If useDiskBuffer is true, check if Zstd buffer size is greater
+// than upload size.
 //
 // Parameters:
 //   - tag: Tag resources and metadata
-//   - diskStore: On/off for disk store
+//   - useDiskBuffer: On/off for disk buffering
 //   - uploadSizeMb: S3 upload size in MB
 //
 // Returns:
 //   - readyToUpload: Boolean if upload criteria met or not
-//   - err: Error getting Zstd store size
-func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int) (bool, error) {
-	if !diskStore {
+//   - err: Error getting Zstd buffer size
+func checkUploadCriteria(tag *outctx.Tag, useDiskBuffer bool, uploadSizeMb int) (bool, error) {
+	if !useDiskBuffer {
 		return true, nil
 	}
 
-	storeSize, err := irzstd.GetDiskStoreSize(tag.Writer.ZstdStore)
+	bufferSize, err := irzstd.GetDiskBufferSize(tag.Writer.ZstdBuffer)
 	if err != nil {
-		return false, fmt.Errorf("error could not get size of Zstd store: %w", err)
+		return false, fmt.Errorf("error could not get size of Zstd buffer: %w", err)
 	}
 
 	UploadSize := uploadSizeMb << 20
 
-	if storeSize >= UploadSize {
+	if bufferSize >= UploadSize {
 		log.Printf(
-			"Zstd store size of %d for tag %s exceeded upload size %d",
-			storeSize,
+			"Zstd buffer size of %d for tag %s exceeded upload size %d",
+			bufferSize,
 			tag.Key,
 			UploadSize,
 		)
@@ -393,56 +390,54 @@ func checkUploadCriteria(tag *outctx.Tag, diskStore bool, uploadSizeMb int) (boo
 	return false, nil
 }
 
-// Creates stores to hold logs prior to sending to s3. If disk store is on, creates files for both
-// IR and Zstd stores. If disk store is off, there is no IR store and Zstd store is a memory
-// buffer. Store creation is seperate from tag creation, since during recovery the stores
+// Creates buffers to hold logs prior to sending to s3. If useDiskBuffer is true, creates files for
+// both IR and Zstd buffers. If useDiskBuffer is false, there is no IR buffer and Zstd buffer is in
+// memory. Buffer creation is seperate from tag creation, since during recovery file backed buffers
 // already exist.
 //
 // Parameters:
-//   - diskStore: On/off for disk store
-//   - storeDir: Directory for disk store files
+//   - useDiskBuffer: On/off for disk buffering
+//   - diskBufferPath: Path of directory for disk buffer files
 //   - tagkey: Fluent Bit tag
 //
 // Returns:
-//   - irStore: Location to store IR
-//   - ZstdStore: Location to store Zstd compressed IR
+//   - irBuffer: Buffer for IR
+//   - ZstdBuffer: Buffer for Zstd compressed IR
 //   - err: Error creating file
-func newStores(
-	diskStore bool,
-	storeDir string,
-	tagkey string,
+func newBuffers(
+	useDiskBuffer bool,
+	diskBufferPath string,
+	tagKey string,
 ) (io.ReadWriter, io.ReadWriter, error) {
-	var irStore io.ReadWriter
-	var zstdStore io.ReadWriter
+	var irBuffer io.ReadWriter
+	var zstdBuffer io.ReadWriter
 
-	if !diskStore {
-		// Store Zstd directly in memory. No IR Store needed since IR is immediately compressed.
+	if !useDiskBuffer {
+		// Buffer Zstd directly in memory. No IR buffer needed since IR is immediately compressed.
 		var membuf bytes.Buffer
-		zstdStore = &membuf
-		return nil, zstdStore, nil
+		zstdBuffer = &membuf
+		return nil, zstdBuffer, nil
 	}
 
-	// Create file for IR.
-	irFileName := fmt.Sprintf("%s.ir", tagkey)
-	irStoreDir := filepath.Join(storeDir, IrDir)
-	irFile, err := createFile(irStoreDir, irFileName)
+	irFileName := fmt.Sprintf("%s.ir", tagKey)
+	irBufferDir := filepath.Join(diskBufferPath, IrDir)
+	irFile, err := createFile(irBufferDir, irFileName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating file: %w", err)
 	}
 	log.Printf("created file %s", irFile.Name())
-	irStore = irFile
+	irBuffer = irFile
 
-	// Create file for Zstd.
-	zstdFileName := fmt.Sprintf("%s.zst", tagkey)
-	zstdStoreDir := filepath.Join(storeDir, ZstdDir)
-	zstdFile, err := createFile(zstdStoreDir, zstdFileName)
+	zstdFileName := fmt.Sprintf("%s.zst", tagKey)
+	zstdBufferDir := filepath.Join(diskBufferPath, ZstdDir)
+	zstdFile, err := createFile(zstdBufferDir, zstdFileName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating file: %w", err)
 	}
 	log.Printf("created file %s", zstdFile.Name())
-	zstdStore = zstdFile
+	zstdBuffer = zstdFile
 
-	return irStore, zstdStore, nil
+	return irBuffer, zstdBuffer, nil
 }
 
 // Creates a new file.
@@ -455,7 +450,6 @@ func newStores(
 //   - f: The created file
 //   - err: Could not create directory, could not create file
 func createFile(path string, file string) (*os.File, error) {
-	// Make directory if does not exist.
 	err := os.MkdirAll(path, 0o751)
 	if err != nil {
 		err = fmt.Errorf("failed to create directory %s: %w", path, err)
