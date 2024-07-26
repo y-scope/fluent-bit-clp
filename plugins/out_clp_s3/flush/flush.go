@@ -185,8 +185,6 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 	var logEvents []ffi.LogEvent
 	for {
 		ts, record, err := decoder.GetRecord(dec)
-
-		// If chunk finished will exit loop and err is io.EOF
 		if err != nil {
 			return logEvents, err
 		}
@@ -242,12 +240,10 @@ func decodeTs(ts any) time.Time {
 //   - msg: Retrieved message
 //   - err: Key not found, json.Unmarshal error, string type assertion error
 func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
-	// If use_single_key=false, return the entire record.
 	if !config.UseSingleKey {
 		return string(jsonRecord), nil
 	}
 
-	// If use_single_key=true, then look for key in record, and set message to the key's value.
 	var record map[string]any
 	err := json.Unmarshal(jsonRecord, &record)
 	if err != nil {
@@ -261,7 +257,6 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 		if config.AllowMissingKey {
 			return string(jsonRecord), nil
 		}
-		// If key not found in record and allow_missing_key=false, then return an error.
 		return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
 	}
 

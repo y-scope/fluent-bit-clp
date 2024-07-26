@@ -188,7 +188,6 @@ func (w *Writer) Close() error {
 // Returns:
 //   - err: Error opening IR writer, error IR buffer not empty, error with type assertion
 func (w *Writer) Reset() error {
-	// Make a new IR writer to get new preamble.
 	var err error
 	w.irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.size, w.timezone)
 	if err != nil {
@@ -217,7 +216,6 @@ func (w *Writer) Reset() error {
 		return err
 	}
 
-	// Re-initialize Zstd writer to receive more input.
 	w.zstdWriter.Reset(w.zstdBuffer)
 
 	return nil
