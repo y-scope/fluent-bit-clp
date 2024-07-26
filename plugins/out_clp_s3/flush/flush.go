@@ -186,7 +186,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 	for {
 		ts, record, err := decoder.GetRecord(dec)
 
-		//Exits if chunk finished and err is io.EOF
+		//If chunk finished will exit loop and err is io.EOF
 		if err != nil {
 			return logEvents, err
 		}
@@ -289,7 +289,7 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 func uploadToS3(
 	bucket string,
 	bucketPrefix string,
-	io io.Reader,
+	body io.Reader,
 	tagKey string,
 	index int,
 	id string,
@@ -307,7 +307,7 @@ func uploadToS3(
 	result, err := uploader.Upload(context.TODO(), &s3.PutObjectInput{
 		Bucket:  aws.String(bucket),
 		Key:     aws.String(fullFilePath),
-		Body:    io,
+		Body:    body,
 		Tagging: &tag,
 	})
 	if err != nil {
@@ -478,20 +478,3 @@ func getTag(ctx *outctx.S3Context, tagKey string, size int) (*outctx.Tag, error)
 	}
 	return tag, nil
 }
-
-// Create a new log event and append to slice.
-//
-// Parameters:
-//   - logEvents: Slice of log events
-//   - msg: Retrieved message
-//   - timestamp: Fluent Bit timestamp
-func appendLogEvent(logEvents []ffi.LogEvent, msg string, timestamp time.Time) () {
-	event := ffi.LogEvent{
-		LogMessage: msg,
-		Timestamp:  ffi.EpochTimeMs(timestamp.UnixMilli()),
-	}
-	_ = append(logEvents, event)
-}
-
-
-

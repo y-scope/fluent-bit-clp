@@ -110,8 +110,7 @@ func NewWriter(
 //   - err: Error writting IR/Zstd, error flushing buffers
 func (w *Writer) WriteIrZstd(logEvents []ffi.LogEvent) error {
 	// Write log events to IR writer buffer.
-	var err error
-	err = writeIr(w.irWriter, logEvents)
+	err := writeIr(w.irWriter, logEvents)
 	if err != nil {
 		return err
 	}
@@ -173,7 +172,7 @@ func (w *Writer) Close() error {
 		return err
 	}
 
-	zstdFile, ok := w.irBuffer.(*os.File)
+	zstdFile, ok := w.zstdBuffer.(*os.File)
 	if !ok {
 		return fmt.Errorf("error type assertion from buffer to os.File failed")
 	}
@@ -217,18 +216,10 @@ func (w *Writer) Reset() error {
 		return fmt.Errorf("error IR buffer is not empty")
 	}
 
-	zstdFile, ok := w.zstdBuffer.(*os.File)
-	if !ok {
-		return fmt.Errorf("error type assertion from buffer to os.File failed")
-	}
-
-	zstdFile.Seek(0, io.SeekStart)
-
-	err = zstdFile.Truncate(0)
+	err = truncateDiskBuffer(w.zstdBuffer)
 	if err != nil {
 		return err
 	}
-
 
 	// Re-initialize Zstd writer to recieve more input.
 	w.zstdWriter.Reset(w.zstdBuffer)
@@ -299,8 +290,7 @@ func (w *Writer) flushIrBuffer() error {
 	// The Zstd buffer is not reset since it should keep accumulating frames until ready to upload.
 	w.zstdWriter.Reset(w.zstdBuffer)
 
-	irFile.Seek(0, io.SeekStart)
-	err = irFile.Truncate(0)
+	err = truncateDiskBuffer(w.irBuffer)
 	if err != nil {
 		return err
 	}
@@ -329,8 +319,30 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) error {
 	return nil
 }
 
-// Getter for Zstd buffer. Downgrades from io.ReadWriter to io.Reader to safety.
+// Getter for Zstd buffer. Downgrades from io.ReadWriter to io.Reader for safety.
 func (w *Writer) GetZstdBuffer() io.Reader {
 	return w.zstdBuffer
 }
 
+// Truncates contents of disk buffer.
+//
+// Parameters:
+//   - diskBuffer: Buffer file
+//
+// Returns:
+//   - err: error with type assertion, error with truncate
+func truncateDiskBuffer(diskBuffer io.ReadWriter) error {
+	file, ok := diskBuffer.(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from buffer to os.File failed")
+	}
+
+	file.Seek(0, io.SeekStart)
+
+	err := file.Truncate(0)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
