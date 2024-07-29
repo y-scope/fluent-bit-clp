@@ -348,7 +348,7 @@ func truncateDiskBuffer(diskBuffer io.ReadWriter) error {
 //   - whence: Seek whence values. Either io.SeekStart, io.SeekCurrent, and io.SeekEnd.
 //
 // Returns:
-//   - err: error with type assertion, error with truncate
+//   - err: error with type assertion, error with seek
 func diskBufferSeek(diskBuffer io.ReadWriter, offset int64, whence int) error {
 	file, ok := diskBuffer.(*os.File)
 	if !ok {
