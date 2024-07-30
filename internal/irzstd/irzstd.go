@@ -399,7 +399,7 @@ func diskBufferSeek(diskBuffer io.ReadWriter, offset int64, whence int) error {
 // Resets buffer in IR writer. Helpful to remove preamble from IR writer.
 //
 // Returns:
-//   - err: Error with type assertion, error closing file
+//   - err: Error no IR writer.
 func (w *Writer) ResetIrWriter() error{
 
 	if w.irWriter == nil {
