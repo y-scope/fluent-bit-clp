@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
 )
@@ -31,7 +32,7 @@ func GracefulExit(ctx *outctx.S3Context) error {
 	}
 
 	for _, tag := range ctx.Tags {
-		err := tag.Writer.CloseFiles()
+		err := closeBufferFiles(tag.Writer)
 		if err != nil {
 			return err
 		}
@@ -70,9 +71,8 @@ func InitDiskBuffers(ctx *outctx.S3Context) error {
 	return nil
 }
 
-// Retrieves files in IR and Zstd disk buffer directories. For both IR and Zstd directories,
-// returns map with FluentBit tag as keys and FileInfo as values. If directory does not exist, map
-// is nil.
+// Retrieves IR and Zstd disk buffer file data. For both IR and Zstd directories,
+// returns map with FluentBit tag as keys and FileInfo as values.
 //
 // Parameters:
 //   - ctx: Plugin context
@@ -104,11 +104,8 @@ func getBufferFiles(
 //   - dir: Path of disk buffer directory
 //
 // Returns:
-//   - files: Map with Fluent Bit tag as keys and FileInfo as values. If directory does not exist,
-//
-// map is nil.
+//   - files: Map with Fluent Bit tag as keys and FileInfo as values
 //   - err: Error reading directory, error retrieving FileInfo, error directory contains irregular
-//
 // files
 func readDirectory(dir string) (map[string]os.FileInfo, error) {
 	files := make(map[string]os.FileInfo)
@@ -180,12 +177,12 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 
 // Flushes existing disk buffer to s3 on startup. Prior to sending, opens disk buffer files and
 // creates new [outctx.Tag] with existing buffer files. Removes IR preamble for new [outctx.Tag],
-// as existing stores should have already there own IR preamble.
+// as existing stores should already have there own IR preamble.
 //
 // Parameters:
 //   - tagKey: Fluent Bit tag
-//   - irFileInfo:  FileInfo for IR disk buffer file.
-//   - zstdFiles:  Map with Fluent Bit tag as keys and Zstd Buffer FileInfo as values.
+//   - irFileInfo: FileInfo for IR disk buffer file.
+//   - zstdFiles: Map with Fluent Bit tag as keys and Zstd Buffer FileInfo as values.
 //   - ctx: Plugin context
 //
 // Returns:
@@ -231,9 +228,6 @@ func flushExistingBuffer(
 		return fmt.Errorf("error creating tag: %w", err)
 	}
 
-	// Clear IR writer buffer to remove IR preamble. Existing stores will have their own
-	// preamble. Without ResetIrWriter() extra preamble will be appended to the end of upload
-	// leading to decode issues.
 	err = tag.Writer.ResetIrWriter()
 	if err != nil {
 		return fmt.Errorf("error removing IR preamble: %w", err)
@@ -313,4 +307,33 @@ func getBufferPaths(ctx *outctx.S3Context) (string, string) {
 	irBufferPath := filepath.Join(ctx.Config.DiskBufferPath, flush.IrDir)
 	zstdBufferPath := filepath.Join(ctx.Config.DiskBufferPath, flush.ZstdDir)
 	return irBufferPath, zstdBufferPath
+}
+
+// Closes IR and Zstd disk buffer files.
+//
+// Returns:
+//   - err: Error with type assertion, error closing file
+func closeBufferFiles(writer *irzstd.Writer) error {
+	irFile, ok := writer.GetIrBuffer().(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from store to file failed")
+	}
+
+	irFileName := irFile.Name()
+	err := irFile.Close()
+	if err != nil {
+		return fmt.Errorf("error could not close file %s: %w", irFileName, err)
+	}
+
+	zstdFile, ok := writer.GetZstdBuffer().(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from store to file failed")
+	}
+
+	zstdFileName := zstdFile.Name()
+	err = zstdFile.Close()
+	if err != nil {
+		return fmt.Errorf("error could not close file %s: %w", zstdFileName, err)
+	}
+	return nil
 }
