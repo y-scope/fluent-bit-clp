@@ -105,8 +105,10 @@ func getBufferFiles(
 //
 // Returns:
 //   - files: Map with Fluent Bit tag as keys and FileInfo as values. If directory does not exist,
+//
 // map is nil.
 //   - err: Error reading directory, error retrieving FileInfo, error directory contains irregular
+//
 // files
 func readDirectory(dir string) (map[string]os.FileInfo, error) {
 	files := make(map[string]os.FileInfo)
@@ -312,4 +314,3 @@ func getBufferPaths(ctx *outctx.S3Context) (string, string) {
 	zstdBufferPath := filepath.Join(ctx.Config.DiskBufferPath, flush.ZstdDir)
 	return irBufferPath, zstdBufferPath
 }
-
