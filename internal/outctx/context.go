@@ -17,6 +17,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
+
+	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 )
 
 // AWS error codes.
@@ -25,10 +27,22 @@ const (
 	bucketMissingCode = "NotFound"
 )
 
-// Holds objects accessible to plugin during flush.
+// Holds objects accessible to plugin during flush. Fluent Bit uses a single thread for Go output
+// plugin instance so no need to consider synchronization issues. C plugins use "coroutines" which
+// could cause synchronization issues for C plugins accordings to [docs] but "coroutines" are not
+// used in Go plugins.
+// [docs]: https://github.com/fluent/fluent-bit/blob/master/DEVELOPER_GUIDE.md#concurrency
 type S3Context struct {
 	Config   S3Config
 	Uploader *manager.Uploader
+	Tags     map[string]*Tag
+}
+
+// Tag resources and metadata.
+type Tag struct {
+	Key    string
+	Index  int
+	Writer *irzstd.Writer
 }
 
 // Creates a new context. Loads configuration from user. Loads and tests aws credentials.
@@ -42,13 +56,13 @@ type S3Context struct {
 func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration %w", err)
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// Load the aws credentials. [awsConfig.LoadDefaultConfig] will look for credentials in a
 	// specfic hierarchy.
 	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
-	awsConfig, err := awsConfig.LoadDefaultConfig(context.TODO(),
+	awsCfg, err := awsConfig.LoadDefaultConfig(context.TODO(),
 		awsConfig.WithRegion(config.S3Region),
 	)
 	if err != nil {
@@ -59,12 +73,12 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	// In many cases, the EC2 instance will already have permission for the s3 bucket;
 	// however, if it dosen't, this option allows the plugin to assume role with bucket access.
 	if config.RoleArn != "" {
-		stsClient := sts.NewFromConfig(awsConfig)
+		stsClient := sts.NewFromConfig(awsCfg)
 		creds := stscreds.NewAssumeRoleProvider(stsClient, config.RoleArn)
-		awsConfig.Credentials = aws.NewCredentialsCache(creds)
+		awsCfg.Credentials = aws.NewCredentialsCache(creds)
 	}
 
-	s3Client := s3.NewFromConfig(awsConfig)
+	s3Client := s3.NewFromConfig(awsCfg)
 
 	// Confirm bucket exists and test aws credentials.
 	_, err = s3Client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
@@ -94,6 +108,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	ctx := S3Context{
 		Config:   *config,
 		Uploader: uploader,
+		Tags:     make(map[string]*Tag),
 	}
 
 	return &ctx, nil

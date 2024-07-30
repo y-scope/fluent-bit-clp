@@ -77,9 +77,18 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Flush called for id: %s", s3PluginName, outCtx.Config.Id)
+	size := int(length)
+	tagKey := C.GoString(tag)
 
-	code, err := flush.ToS3(data, int(length), C.GoString(tag), outCtx)
+	log.Printf(
+		"[%s] Flush called for id %s with tag %s and size %d",
+		s3PluginName,
+		outCtx.Config.Id,
+		tagKey,
+		size,
+	)
+
+	code, err := flush.ToS3(data, size, tagKey, outCtx)
 	if err != nil {
 		log.Printf("error flushing data: %s", err)
 		// RETRY or ERROR
@@ -108,12 +117,13 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	p := output.FLBPluginGetContext(ctx)
 	// Type assert context back into the original type for the Go variable.
 
-	config, ok := p.(*outctx.S3Config)
+	outCtx, ok := p.(*outctx.S3Context)
 	if !ok {
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Exit called for id: %s", s3PluginName, config.Id)
+	log.Printf("[%s] Exit called for id: %s", s3PluginName, outCtx.Config.Id)
+
 	return output.FLB_OK
 }
 

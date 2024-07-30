@@ -19,6 +19,8 @@ import (
 // snake case "use_single_key" vs. camel case "SingleKey" in validation error messages. The
 // "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
 // can be found in docs for [validator].
+//
+//nolint:revive
 type S3Config struct {
 	S3Region        string `conf:"s3_region"         validate:"required"`
 	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
@@ -28,6 +30,9 @@ type S3Config struct {
 	UseSingleKey    bool   `conf:"use_single_key"    validate:"-"`
 	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
 	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
+	UseDiskBuffer   bool   `conf:"use_disk_buffer"   validate:"-"`
+	DiskBufferPath  string `conf:"disk_buffer_path"  validate:"omitempty,dirpath"`
+	UploadSizeMb    int    `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
 }
 
@@ -52,6 +57,9 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		UseSingleKey:    true,
 		AllowMissingKey: true,
 		SingleKey:       "log",
+		UseDiskBuffer:   true,
+		DiskBufferPath:  "tmp/out_clp_s3/",
+		UploadSizeMb:    16,
 		TimeZone:        "America/Toronto",
 	}
 
@@ -66,6 +74,9 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		"use_single_key":    &config.UseSingleKey,
 		"allow_missing_key": &config.AllowMissingKey,
 		"single_key":        &config.SingleKey,
+		"use_disk_buffer":   &config.UseDiskBuffer,
+		"disk_buffer_path":  &config.DiskBufferPath,
+		"upload_size_mb":    &config.UploadSizeMb,
 		"time_zone":         &config.TimeZone,
 	}
 
@@ -91,10 +102,15 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 				return nil, fmt.Errorf("error could not parse input %v into bool", userInput)
 			}
 			*configField = boolInput
+		case *int:
+			intInput, err := strconv.Atoi(userInput)
+			if err != nil {
+				return nil, fmt.Errorf("error could not parse input %v into int", userInput)
+			}
+			*configField = intInput
 		default:
 			return nil, fmt.Errorf("unable to parse type %T", untypedField)
 		}
-
 	}
 
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -121,7 +137,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		valErr := err.(validator.ValidationErrors)
 		// ValidateStruct will provide an error for each field, so loop over all errors.
 		for _, err := range valErr {
-			err := fmt.Errorf("error validating option %s=%s, failed test %s",
+			err := fmt.Errorf("error validating option %s=%v, failed test %s",
 				err.Field(), err.Value(), err.Tag())
 			configErrors = append(configErrors, err)
 		}
