@@ -400,7 +400,7 @@ func diskBufferSeek(diskBuffer io.ReadWriter, offset int64, whence int) error {
 //
 // Returns:
 //   - err: Error no IR writer.
-func (w *Writer) ResetIrWriter() error{
+func (w *Writer) ResetIrWriter() error {
 
 	if w.irWriter == nil {
 		return fmt.Errorf("IR writer does not exist")
@@ -409,6 +409,3 @@ func (w *Writer) ResetIrWriter() error{
 
 	return nil
 }
-
-
-
