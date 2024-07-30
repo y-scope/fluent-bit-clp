@@ -105,8 +105,7 @@ func getBufferFiles(
 //
 // Returns:
 //   - files: Map with Fluent Bit tag as keys and FileInfo as values
-//   - err: Error reading directory, error retrieving FileInfo, error directory contains irregular
-// files
+//   - err: Error reading directory, error retrieving FileInfo, error directory has irregular files
 func readDirectory(dir string) (map[string]os.FileInfo, error) {
 	files := make(map[string]os.FileInfo)
 
