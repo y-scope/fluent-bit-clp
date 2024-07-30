@@ -98,6 +98,17 @@ func NewWriter(
 		zstdWriter:    zstdWriter,
 	}
 
+	if irBuffer == nil {
+		return &writer, nil
+	}
+
+	irSize, err := writer.GetIRDiskBufferSize()
+	if err != nil {
+		return nil, fmt.Errorf("error getting size of disk IR buffer: %w", err)
+	}
+
+	// During recovery, IR buffer may not be empty, so the size must be set.
+	writer.irTotalBytes = irSize
 	return &writer, nil
 }
 
@@ -244,6 +255,27 @@ func (w *Writer) GetZstdDiskBufferSize() (int, error) {
 	return int(fileInfo.Size()), nil
 }
 
+// Gets the size of a IR disk buffer. Normally can reference [IrTotalBytes]; however, this
+// cannot be used when creating a new writer as nothing has been written yet. The disk buffer may
+// not be empty if it is recovered.
+//
+//
+// Returns:
+//   - size: Size of input file
+//   - err: Error asserting type, error from stat
+func (w *Writer) GetIRDiskBufferSize() (int, error) {
+	file, ok := w.irBuffer.(*os.File)
+	if !ok {
+		return 0, fmt.Errorf("error type assertion from buffer to os.File failed")
+	}
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return 0, err
+	}
+	return int(fileInfo.Size()), nil
+}
+
 // Compresses contents of the IR buffer and outputs it to the Zstd buffer. The IR buffer is then
 // reset.
 //
@@ -360,3 +392,49 @@ func diskBufferSeek(diskBuffer io.ReadWriter, offset int64, whence int) error {
 
 	return nil
 }
+
+// Closes IR and Zstd disk buffer files. Should only called when exiting Fluent Bit.
+//
+// Returns:
+//   - err: Error with type assertion, error closing file
+func (w *Writer) CloseFiles() error {
+	irFile, ok := w.irBuffer.(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from store to file failed")
+	}
+
+	irFileName := irFile.Name()
+	err := irFile.Close()
+	if err != nil {
+		return fmt.Errorf("error could not close file %s: %w", irFileName, err)
+	}
+
+	zstdFile, ok := w.zstdBuffer.(*os.File)
+	if !ok {
+		return fmt.Errorf("error type assertion from store to file failed")
+	}
+
+	zstdFileName := zstdFile.Name()
+	err = zstdFile.Close()
+	if err != nil {
+		return fmt.Errorf("error could not close file %s: %w", zstdFileName, err)
+	}
+	return nil
+}
+
+// Resets buffer in IR writer.
+//
+// Returns:
+//   - err: Error with type assertion, error closing file
+func (w *Writer) ResetIrWriter() error{
+
+	if w.irWriter == nil {
+		return fmt.Errorf("IR writer does not exist")
+	}
+	w.irWriter.Reset()
+
+	return nil
+}
+
+
+

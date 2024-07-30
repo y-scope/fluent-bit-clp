@@ -84,7 +84,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 		return output.FLB_OK, nil
 	}
 
-	err = flushZstdToS3(tag, ctx)
+	err = FlushZstdToS3(tag, ctx)
 	if err != nil {
 		return output.FLB_ERROR, fmt.Errorf("error flushing Zstd buffer to s3: %w", err)
 	}
@@ -105,7 +105,7 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 // Returns:
 //   - tag: Tag resources and metadata
 //   - err: Error creating new writer
-func newTag(
+func NewTag(
 	tagKey string,
 	timezone string,
 	size int,
@@ -136,7 +136,7 @@ func newTag(
 //
 // Returns:
 //   - err: Error creating closing writer, error with type assertion, error uploading to s3,
-func flushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
+func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 	err := tag.Writer.Close()
 	if err != nil {
 		return fmt.Errorf("error closing irzstd stream: %w", err)
@@ -420,9 +420,7 @@ func createFile(path string, file string) (*os.File, error) {
 
 	fullFilePath := filepath.Join(path, file)
 
-	// TODO: Replace os.O_TRUNC with os.O_EXCL once recovery code add in. With recovery on,
-	// code should throw error if file exists.
-	f, err := os.OpenFile(fullFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o751)
+	f, err := os.OpenFile(fullFilePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o751)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file %s: %w", fullFilePath, err)
 	}
@@ -453,7 +451,7 @@ func getTag(ctx *outctx.S3Context, tagKey string, size int) (*outctx.Tag, error)
 			return nil, err
 		}
 
-		tag, err = newTag(
+		tag, err = NewTag(
 			tagKey,
 			ctx.Config.TimeZone,
 			size,

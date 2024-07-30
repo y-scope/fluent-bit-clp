@@ -17,6 +17,7 @@ import (
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
+	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/recovery"
 )
 
 const s3PluginName = "out_clp_s3"
@@ -51,6 +52,13 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	}
 
 	log.Printf("[%s] Init called for id: %s", s3PluginName, outCtx.Config.Id)
+
+	if outCtx.Config.UseDiskBuffer {
+		err = recovery.InitDiskBuffers(outCtx)
+		if err != nil {
+			log.Fatalf("Failed to recover logs stored on disk: %s", err)
+		}
+	}
 
 	// Set the context for this instance so that params can be retrieved during flush.
 	output.FLBPluginSetContext(plugin, outCtx)
@@ -123,6 +131,11 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	}
 
 	log.Printf("[%s] Exit called for id: %s", s3PluginName, outCtx.Config.Id)
+
+	err := recovery.GracefulExit(outCtx)
+	if err != nil {
+		log.Printf("Failed to exit gracefully")
+	}
 
 	return output.FLB_OK
 }
