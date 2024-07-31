@@ -45,8 +45,9 @@ const irSizeThreshold = 2 << 20
 // log loss during abrupt crashes and maintains a high compression ratio.
 type Writer struct {
 	useDiskBuffer bool
-	irBuffer      io.ReadWriter
-	zstdBuffer    io.ReadWriter
+	irFile        *os.File
+	zstdFile      *os.File
+	zstdMemBuf    *bytes.Buffer
 	irWriter      *ir.Writer
 	size          int
 	timezone      string
@@ -61,21 +62,32 @@ type Writer struct {
 //   - timezone: Time zone of the log source
 //   - size: Byte length
 //   - useDiskBuffer: On/off for disk buffering
-//   - irBuffer: Buffer for IR
-//   - ZstdBuffer: Buffer for Zstd compressed IR
+//   - irFile: IR file for disk buffer
+//   - zstdFile: Zstd file for disk buffer
+//   - zstdMemBuf: Memory buffer when disk buffer off
 //
 // Returns:
 //   - Writer: Writer for Zstd compressed IR
-//   - err: Error opening Zstd writer, error opening IR writer
+//   - err: Error opening Zstd writer, error opening IR writer, error getting size of disk buffer
 func NewWriter(
 	timezone string,
 	size int,
 	tagKey string,
 	useDiskBuffer bool,
-	irBuffer io.ReadWriter,
-	zstdBuffer io.ReadWriter,
+	irFile *os.File,
+	zstdFile *os.File,
+	zstdMemBuf *bytes.Buffer,
 ) (*Writer, error) {
-	zstdWriter, err := zstd.NewWriter(zstdBuffer)
+
+	var zstdOuput io.Writer
+
+	if useDiskBuffer {
+		zstdOuput = zstdFile
+	} else {
+		zstdOuput = zstdMemBuf
+	}
+
+	zstdWriter, err := zstd.NewWriter(zstdOuput)
 	if err != nil {
 		return nil, fmt.Errorf("error opening zstd writer: %w", err)
 	}
@@ -92,23 +104,28 @@ func NewWriter(
 		size:          size,
 		tagKey:        tagKey,
 		timezone:      timezone,
-		irBuffer:      irBuffer,
-		zstdBuffer:    zstdBuffer,
+		irFile:        irFile,
+		zstdFile:      zstdFile,
 		irWriter:      irWriter,
 		zstdWriter:    zstdWriter,
 	}
 
-	if irBuffer == nil {
+	if !useDiskBuffer {
 		return &writer, nil
 	}
 
-	irDiskBufferSize, err := writer.GetIrDiskBufferSize()
+	irFileSize, zstdFileSize, err := writer.GetFileSizes()
 	if err != nil {
-		return nil, fmt.Errorf("error getting size of disk IR buffer: %w", err)
+		return nil, fmt.Errorf("error getting size of disk buffer: %w", err)
 	}
 
-	// During recovery, IR buffer may not be empty, so the size must be set.
-	writer.irTotalBytes = irDiskBufferSize
+	if (irFileSize > 0) || (zstdFileSize > 0) {
+		// During recovery, IR buffer may not be empty, so the size must be set. In addition,
+		// the non-empty disk buffers already have existing preamble so remove it.
+		writer.irTotalBytes = irFileSize
+		irWriter.Reset()
+	}
+
 	return &writer, nil
 }
 
@@ -134,7 +151,7 @@ func (w *Writer) WriteIrZstd(logEvents []ffi.LogEvent) error {
 		return err
 	}
 
-	numBytes, err := w.irWriter.WriteTo(w.irBuffer)
+	numBytes, err := w.irWriter.WriteTo(w.irFile)
 	if err != nil {
 		return err
 	}
@@ -174,6 +191,7 @@ func (w *Writer) Close() error {
 	if err != nil {
 		return err
 	}
+
 	w.irWriter = nil
 
 	err = w.zstdWriter.Close()
@@ -185,7 +203,7 @@ func (w *Writer) Close() error {
 		return nil
 	}
 
-	err = diskBufferSeek(w.zstdBuffer, 0, io.SeekStart)
+	_ , err = w.zstdFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -206,12 +224,8 @@ func (w *Writer) Reset() error {
 	}
 
 	if !w.useDiskBuffer {
-		buf, ok := w.zstdBuffer.(*bytes.Buffer)
-		if !ok {
-			return fmt.Errorf("error type assertion from buffer to bytes.Buffer failed")
-		}
-		buf.Reset()
-		w.zstdWriter.Reset(w.zstdBuffer)
+		w.zstdMemBuf.Reset()
+		w.zstdWriter.Reset(w.zstdMemBuf)
 		return nil
 	}
 
@@ -222,56 +236,19 @@ func (w *Writer) Reset() error {
 		return fmt.Errorf("error IR buffer is not empty")
 	}
 
-	err = truncateDiskBuffer(w.zstdBuffer)
+	_ , err = w.zstdFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
 
-	w.zstdWriter.Reset(w.zstdBuffer)
+	err = w.zstdFile.Truncate(0)
+	if err != nil {
+		return err
+	}
+
+	w.zstdWriter.Reset(w.zstdFile)
 
 	return nil
-}
-
-// Gets the size of a Zstd disk buffer. [zstd] does not provide the amount of bytes written with
-// each write. Therefore, cannot keep track of size with variable as implemented for IR with
-// [IrTotalBytes]. Instead, call stat to get size.
-//
-// Parameters:
-//   - buffer: Disk buffer
-//
-// Returns:
-//   - size: Size of input file
-//   - err: Error asserting type, error from stat
-func (w *Writer) GetZstdDiskBufferSize() (int, error) {
-	file, ok := w.zstdBuffer.(*os.File)
-	if !ok {
-		return 0, fmt.Errorf("error type assertion from buffer to os.File failed")
-	}
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return 0, err
-	}
-	return int(fileInfo.Size()), nil
-}
-
-// Gets the size of a IR disk buffer. Normally can reference [IrTotalBytes]; however, this
-// cannot be used when creating a new writer with existing store.
-//
-// Returns:
-//   - size: Size of input file
-//   - err: Error asserting type, error from stat
-func (w *Writer) GetIrDiskBufferSize() (int, error) {
-	file, ok := w.irBuffer.(*os.File)
-	if !ok {
-		return 0, fmt.Errorf("error type assertion from buffer to os.File failed")
-	}
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return 0, err
-	}
-	return int(fileInfo.Size()), nil
 }
 
 // Compresses contents of the IR buffer and outputs it to the Zstd buffer. The IR buffer is then
@@ -282,7 +259,7 @@ func (w *Writer) GetIrDiskBufferSize() (int, error) {
 //
 // Writer, error with type assertion, error truncating file
 func (w *Writer) flushIrBuffer() error {
-	if (w.irBuffer == nil) || (w.zstdBuffer == nil) {
+	if (w.irFile == nil) || (w.zstdFile == nil) {
 		return fmt.Errorf("error flush called with non-existent buffer")
 	}
 
@@ -293,12 +270,12 @@ func (w *Writer) flushIrBuffer() error {
 
 	log.Printf("flushing IR buffer %s", w.tagKey)
 
-	err := diskBufferSeek(w.irBuffer, 0, io.SeekStart)
+	_ , err := w.irFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
 
-	_, err = io.Copy(w.zstdWriter, w.irBuffer)
+	_, err = io.Copy(w.zstdWriter, w.irFile)
 	if err != nil {
 		return err
 	}
@@ -308,10 +285,16 @@ func (w *Writer) flushIrBuffer() error {
 		return err
 	}
 
-	// The Zstd buffer is not reset since it should keep accumulating frames until ready to upload.
-	w.zstdWriter.Reset(w.zstdBuffer)
+	// The Zstd file is not truncated since it should keep accumulating frames until ready to
+	// upload.
+	w.zstdWriter.Reset(w.zstdFile)
 
-	err = truncateDiskBuffer(w.irBuffer)
+	_ , err = w.irFile.Seek(0, io.SeekStart)
+	if err != nil {
+		return err
+	}
+
+	err = w.irFile.Truncate(0)
 	if err != nil {
 		return err
 	}
@@ -340,72 +323,53 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) error {
 	return nil
 }
 
-// Getter for Zstd buffer. Downgrades from io.ReadWriter to io.Reader for safety.
-func (w *Writer) GetZstdBuffer() io.Reader {
-	return w.zstdBuffer
+// Getter for IR File.
+func (w *Writer) GetIrFile() *os.File {
+	return w.irFile
 }
 
-// Getter for IR buffer. Downgrades from io.ReadWriter to io.Reader for safety.
-func (w *Writer) GetIrBuffer() io.Reader {
-	return w.irBuffer
+// Getter for Zstd File.
+func (w *Writer) GetZstdFile() *os.File {
+	return w.zstdFile
 }
 
-// Truncates contents of disk buffer.
-//
-// Parameters:
-//   - diskBuffer: Buffer file
+// Getter for Zstd Output.
+func (w *Writer) GetZstdOutput() io.Reader {
+	if !w.useDiskBuffer {
+		return w.zstdMemBuf
+	}
+	return w.zstdFile
+}
+
+// Get size of IR and Zstd files. In general, can use [irTotalBytes] to track size of IR file;
+// however, [irTotalBytes] will only track writes by current process and will not have info for
+// recovered stores. For recovered stores, must use stat to get size. [zstd] does not provide the
+// amount of bytes written with each write. Therefore, cannot keep track of size with variable as
+// implemented for IR with [IrTotalBytes]. Instead, must always use stat.
 //
 // Returns:
-//   - err: error with type assertion, error with truncate
-func truncateDiskBuffer(diskBuffer io.ReadWriter) error {
-	file, ok := diskBuffer.(*os.File)
-	if !ok {
-		return fmt.Errorf("error type assertion from buffer to os.File failed")
+//   - err: Error called with useDiskBuffer off, error calling stat
+//
+func (w *Writer) GetFileSizes() (int, int, error) {
+
+	if !w.useDiskBuffer {
+		return 0, 0, fmt.Errorf("error cannot get file sizes when useDiskBuffer is off")
 	}
 
-	file.Seek(0, io.SeekStart)
-
-	err := file.Truncate(0)
+	irFileInfo, err := w.irFile.Stat()
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 
-	return nil
-}
+	irFileSize := int(irFileInfo.Size())
 
-// Seek for disk buffer.
-//
-// Parameters:
-//   - diskBuffer: Buffer file
-//   - offset: Byte offset
-//   - whence: Seek whence values. Either io.SeekStart, io.SeekCurrent, and io.SeekEnd.
-//
-// Returns:
-//   - err: error with type assertion, error with seek
-func diskBufferSeek(diskBuffer io.ReadWriter, offset int64, whence int) error {
-	file, ok := diskBuffer.(*os.File)
-	if !ok {
-		return fmt.Errorf("error type assertion from buffer to os.File failed")
-	}
-
-	_, err := file.Seek(offset, whence)
+	zstdFileInfo, err := w.zstdFile.Stat()
 	if err != nil {
-		return fmt.Errorf("error seeking disk buffer: %w", err)
+		return 0, 0, err
 	}
 
-	return nil
+	zstdFileSize := int(zstdFileInfo.Size())
+
+	return irFileSize, zstdFileSize, err
 }
 
-// Resets buffer in IR writer. Helpful to remove preamble from IR writer.
-//
-// Returns:
-//   - err: Error no IR writer.
-func (w *Writer) ResetIrWriter() error {
-
-	if w.irWriter == nil {
-		return fmt.Errorf("IR writer does not exist")
-	}
-	w.irWriter.Reset()
-
-	return nil
-}

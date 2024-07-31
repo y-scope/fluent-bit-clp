@@ -226,14 +226,10 @@ func flushExistingBuffer(
 		ctx.Config.UseDiskBuffer,
 		irFile,
 		zstdFile,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("error creating tag: %w", err)
-	}
-
-	err = tag.Writer.ResetIrWriter()
-	if err != nil {
-		return fmt.Errorf("error removing IR preamble: %w", err)
 	}
 
 	ctx.Tags[tagKey] = tag
@@ -318,12 +314,9 @@ func getBufferPaths(ctx *outctx.S3Context) (string, string) {
 //   - writer: IR Zstd Writer
 //
 // Returns:
-//   - err: Error with type assertion, error closing file
+//   - err: error closing file
 func closeBufferFiles(writer *irzstd.Writer) error {
-	irFile, ok := writer.GetIrBuffer().(*os.File)
-	if !ok {
-		return fmt.Errorf("error type assertion from store to file failed")
-	}
+	irFile := writer.GetIrFile()
 
 	irFileName := irFile.Name()
 	err := irFile.Close()
@@ -331,10 +324,7 @@ func closeBufferFiles(writer *irzstd.Writer) error {
 		return fmt.Errorf("error could not close file %s: %w", irFileName, err)
 	}
 
-	zstdFile, ok := writer.GetZstdBuffer().(*os.File)
-	if !ok {
-		return fmt.Errorf("error type assertion from store to file failed")
-	}
+	zstdFile := writer.GetZstdFile()
 
 	zstdFileName := zstdFile.Name()
 	err = zstdFile.Close()

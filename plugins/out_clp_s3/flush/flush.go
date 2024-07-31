@@ -99,8 +99,9 @@ func ToS3(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (
 //   - timezone: Time zone of the log source
 //   - size: Byte length
 //   - useDiskBuffer: On/off for disk buffering
-//   - irBuffer: Buffer for IR
-//   - ZstdBuffer: Buffer for Zstd compressed IR
+//   - irFile: IR file for disk buffer
+//   - zstdFile: Zstd file for disk buffer
+//   - zstdMemBuf: Memory buffer when disk buffer off
 //
 // Returns:
 //   - tag: Tag resources and metadata
@@ -110,10 +111,11 @@ func NewTag(
 	timezone string,
 	size int,
 	useDiskBuffer bool,
-	irBuffer io.ReadWriter,
-	zstdBuffer io.ReadWriter,
+	irFile *os.File,
+	zstdFile *os.File,
+	zstdMemBuf *bytes.Buffer,
 ) (*outctx.Tag, error) {
-	writer, err := irzstd.NewWriter(timezone, size, tagKey, useDiskBuffer, irBuffer, zstdBuffer)
+	writer, err := irzstd.NewWriter(timezone, size, tagKey, useDiskBuffer, irFile, zstdFile, zstdMemBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +147,7 @@ func FlushZstdToS3(tag *outctx.Tag, ctx *outctx.S3Context) error {
 	outputLocation, err := uploadToS3(
 		ctx.Config.S3Bucket,
 		ctx.Config.S3BucketPrefix,
-		tag.Writer.GetZstdBuffer(),
+		tag.Writer.GetZstdOutput(),
 		tag.Key,
 		tag.Index,
 		ctx.Config.Id,
@@ -332,9 +334,9 @@ func checkUploadCriteria(tag *outctx.Tag, useDiskBuffer bool, uploadSizeMb int) 
 		return true, nil
 	}
 
-	bufferSize, err := tag.Writer.GetZstdDiskBufferSize()
+	_, bufferSize, err := tag.Writer.GetFileSizes()
 	if err != nil {
-		return false, fmt.Errorf("error could not get size of Zstd buffer: %w", err)
+		return false, fmt.Errorf("error could not get size of buffer: %w", err)
 	}
 
 	uploadSize := uploadSizeMb << 20
@@ -370,36 +372,30 @@ func newBuffers(
 	useDiskBuffer bool,
 	diskBufferPath string,
 	tagKey string,
-) (io.ReadWriter, io.ReadWriter, error) {
-	var irBuffer io.ReadWriter
-	var zstdBuffer io.ReadWriter
-
+) (*os.File, *os.File, *bytes.Buffer, error) {
 	if !useDiskBuffer {
 		// Buffer Zstd directly in memory. No IR buffer needed since IR is immediately compressed.
 		var membuf bytes.Buffer
-		zstdBuffer = &membuf
-		return nil, zstdBuffer, nil
+		return nil, nil, &membuf, nil
 	}
 
 	irFileName := fmt.Sprintf("%s.ir", tagKey)
 	irBufferDir := filepath.Join(diskBufferPath, IrDir)
 	irFile, err := createFile(irBufferDir, irFileName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating file: %w", err)
+		return nil, nil, nil, fmt.Errorf("error creating file: %w", err)
 	}
 	log.Printf("created file %s", irFile.Name())
-	irBuffer = irFile
 
 	zstdFileName := fmt.Sprintf("%s.zst", tagKey)
 	zstdBufferDir := filepath.Join(diskBufferPath, ZstdDir)
 	zstdFile, err := createFile(zstdBufferDir, zstdFileName)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating file: %w", err)
+		return nil, nil, nil, fmt.Errorf("error creating file: %w", err)
 	}
 	log.Printf("created file %s", zstdFile.Name())
-	zstdBuffer = zstdFile
 
-	return irBuffer, zstdBuffer, nil
+	return irFile, zstdFile, nil, nil
 }
 
 // Creates a new file.
@@ -442,7 +438,7 @@ func getTag(ctx *outctx.S3Context, tagKey string, size int) (*outctx.Tag, error)
 	tag, ok := ctx.Tags[tagKey]
 
 	if !ok {
-		irBuf, zstdBuf, err := newBuffers(
+		irFile, zstdFile, zstdMemBuf, err := newBuffers(
 			ctx.Config.UseDiskBuffer,
 			ctx.Config.DiskBufferPath,
 			tagKey,
@@ -456,8 +452,9 @@ func getTag(ctx *outctx.S3Context, tagKey string, size int) (*outctx.Tag, error)
 			ctx.Config.TimeZone,
 			size,
 			ctx.Config.UseDiskBuffer,
-			irBuf,
-			zstdBuf,
+			irFile,
+			zstdFile,
+			zstdMemBuf,
 		)
 
 		if err != nil {
