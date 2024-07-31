@@ -156,7 +156,8 @@ func getFileInfo(dirEntry fs.DirEntry) (os.FileInfo, error) {
 //
 // Parameters:
 //   - irFiles: Map with FileInfo for all files in IR buffer directory. Fluent Bit tag is map key.
-//   - zstdFiles:  Map with FileInfo for all files in Zstd buffer directory. Fluent Bit tag is map key.
+//   - zstdFiles: Map with FileInfo for all files in Zstd buffer directory. Fluent Bit tag is map
+//     key.
 //
 // Returns:
 //   - err: Error files do not match
@@ -181,11 +182,13 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 // Parameters:
 //   - tagKey: Fluent Bit tag
 //   - irFileInfo: FileInfo for IR disk buffer file.
-//   - zstdFiles: Map with FileInfo for all files in Zstd buffer directory. Fluent Bit tag is map key.
+//   - zstdFiles: Map with FileInfo for all files in Zstd buffer directory. Fluent Bit tag is map
+//     key.
 //   - ctx: Plugin context
 //
 // Returns:
 //   - err: error removing/open files, error creating tag, error removing preamble, error flushing
+//
 // to s3
 func flushExistingBuffer(
 	tagKey string,
