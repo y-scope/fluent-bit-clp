@@ -48,8 +48,7 @@ func GracefulExit(ctx *outctx.S3Context) error {
 //
 // Returns:
 //   - err: Error retrieving files, error files not valid, error flushing existing buffer
-//
-// error sending to s3
+//   error sending to s3
 func InitDiskBuffers(ctx *outctx.S3Context) error {
 	irFiles, zstdFiles, err := getBufferFiles(ctx)
 	if err != nil {
@@ -188,8 +187,7 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 //
 // Returns:
 //   - err: error removing/open files, error creating tag, error removing preamble, error flushing
-//
-// to s3
+//   to s3
 func flushExistingBuffer(
 	tagKey string,
 	irFileInfo fs.FileInfo,
