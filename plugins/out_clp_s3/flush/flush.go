@@ -115,7 +115,15 @@ func NewTag(
 	zstdFile *os.File,
 	zstdMemBuf *bytes.Buffer,
 ) (*outctx.Tag, error) {
-	writer, err := irzstd.NewWriter(timezone, size, tagKey, useDiskBuffer, irFile, zstdFile, zstdMemBuf)
+	writer, err := irzstd.NewWriter(
+		timezone,
+		size,
+		tagKey,
+		useDiskBuffer,
+		irFile,
+		zstdFile,
+		zstdMemBuf,
+	)
 	if err != nil {
 		return nil, err
 	}

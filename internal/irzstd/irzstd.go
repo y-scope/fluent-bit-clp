@@ -203,7 +203,7 @@ func (w *Writer) Close() error {
 		return nil
 	}
 
-	_ , err = w.zstdFile.Seek(0, io.SeekStart)
+	_, err = w.zstdFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (w *Writer) Reset() error {
 		return fmt.Errorf("error IR buffer is not empty")
 	}
 
-	_ , err = w.zstdFile.Seek(0, io.SeekStart)
+	_, err = w.zstdFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func (w *Writer) flushIrBuffer() error {
 
 	log.Printf("flushing IR buffer %s", w.tagKey)
 
-	_ , err := w.irFile.Seek(0, io.SeekStart)
+	_, err := w.irFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -289,7 +289,7 @@ func (w *Writer) flushIrBuffer() error {
 	// upload.
 	w.zstdWriter.Reset(w.zstdFile)
 
-	_ , err = w.irFile.Seek(0, io.SeekStart)
+	_, err = w.irFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -349,7 +349,6 @@ func (w *Writer) GetZstdOutput() io.Reader {
 //
 // Returns:
 //   - err: Error called with useDiskBuffer off, error calling stat
-//
 func (w *Writer) GetFileSizes() (int, int, error) {
 
 	if !w.useDiskBuffer {
@@ -372,4 +371,3 @@ func (w *Writer) GetFileSizes() (int, int, error) {
 
 	return irFileSize, zstdFileSize, err
 }
-
