@@ -1,4 +1,4 @@
-// Package provides ability to recover disk stores on startup and send to s3.
+// Package provides ability to recover disk buffer on startup and send to s3.
 
 package recovery
 
@@ -71,8 +71,8 @@ func InitDiskBuffers(ctx *outctx.S3Context) error {
 	return nil
 }
 
-// Retrieves IR and Zstd disk buffer file data. For both IR and Zstd directories,
-// returns map with FluentBit tag as keys and FileInfo as values.
+// Retrieves fileInfo for every file in IR and Zstd disk buffer directories. For both IR and Zstd
+// directories, returns map with FluentBit tag as keys and FileInfo as values.
 //
 // Parameters:
 //   - ctx: Plugin context
@@ -104,8 +104,8 @@ func getBufferFiles(
 //   - dir: Path of disk buffer directory
 //
 // Returns:
-//   - files: Map with Fluent Bit tag as keys and FileInfo as values
-//   - err: Error reading directory, error retrieving FileInfo, error directory has irregular files
+//   - files: Map with FileInfo for all files in buffer directory. Fluent Bit tag is map key.
+//   - err: Error reading directory, error retrieving FileInfo
 func readDirectory(dir string) (map[string]os.FileInfo, error) {
 	files := make(map[string]os.FileInfo)
 
@@ -155,8 +155,8 @@ func getFileInfo(dirEntry fs.DirEntry) (os.FileInfo, error) {
 // length and have the same keys.
 //
 // Parameters:
-//   - irFiles: Map with Fluent Bit tag as keys and IR Buffer FileInfo as values.
-//   - zstdFiles:  Map with Fluent Bit tag as keys and Zstd Buffer FileInfo as values.
+//   - irFiles: Map with FileInfo for all files in IR buffer directory. Fluent Bit tag is map key.
+//   - zstdFiles:  Map with FileInfo for all files in Zstd buffer directory. Fluent Bit tag is map key.
 //
 // Returns:
 //   - err: Error files do not match
@@ -175,17 +175,18 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 }
 
 // Flushes existing disk buffer to s3 on startup. Prior to sending, opens disk buffer files and
-// creates new [outctx.Tag] with existing buffer files. Removes IR preamble for new [outctx.Tag],
-// as existing stores should already have there own IR preamble.
+// creates new [outctx.Tag] using existing buffer files. Removes IR preamble for new [outctx.Tag],
+// as existing stores should already have their own IR preamble.
 //
 // Parameters:
 //   - tagKey: Fluent Bit tag
 //   - irFileInfo: FileInfo for IR disk buffer file.
-//   - zstdFiles: Map with Fluent Bit tag as keys and Zstd Buffer FileInfo as values.
+//   - zstdFiles: Map with FileInfo for all files in Zstd buffer directory. Fluent Bit tag is map key.
 //   - ctx: Plugin context
 //
 // Returns:
-//   - err: error files do not match
+//   - err: error removing/open files, error creating tag, error removing preamble, error flushing
+// to s3
 func flushExistingBuffer(
 	tagKey string,
 	irFileInfo fs.FileInfo,
@@ -248,10 +249,10 @@ func flushExistingBuffer(
 //
 // Parameters:
 //   - irPath: Path to IR disk buffer file
-//   - zstdPath:Path to Zstd disk buffer file
+//   - zstdPath: Path to Zstd disk buffer file
 //
 // Returns:
-//   - err: error files do not match
+//   - err: error removing files
 func removeBufferFiles(irPath string, zstdPath string) error {
 	err := os.Remove(irPath)
 	if err != nil {
@@ -271,7 +272,7 @@ func removeBufferFiles(irPath string, zstdPath string) error {
 //   - zstdPath: Path to Zstd disk buffer file
 //
 // Returns:
-//   - err: error files do not match
+//   - err: error opening files
 func openBufferFiles(irPath string, zstdPath string) (*os.File, *os.File, error) {
 	irFile, err := os.OpenFile(irPath, os.O_RDWR, 0o751)
 	if err != nil {
@@ -309,6 +310,9 @@ func getBufferPaths(ctx *outctx.S3Context) (string, string) {
 }
 
 // Closes IR and Zstd disk buffer files.
+//
+// Parameters:
+//   - writer: IR Zstd Writer
 //
 // Returns:
 //   - err: Error with type assertion, error closing file
