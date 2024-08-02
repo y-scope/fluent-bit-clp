@@ -60,7 +60,9 @@ func InitDiskBuffers(ctx *outctx.S3Context) error {
 	}
 
 	for tagKey, irFileInfo := range irFiles {
-		err := flushExistingBuffer(tagKey, irFileInfo, zstdFiles, ctx)
+		// Don't need to check ok return value since we already checked if key exists.
+		zstdFileInfo := zstdFiles[tagKey]
+		err := flushExistingBuffer(tagKey, irFileInfo, zstdFileInfo, ctx)
 		if err != nil {
 			return fmt.Errorf("error flushing existing buffer '%s': %w", tagKey, err)
 		}
@@ -179,9 +181,8 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 //
 // Parameters:
 //   - tagKey: Fluent Bit tag
-//   - irFileInfo: FileInfo for IR disk buffer file.
-//   - zstdFiles: Map with FileInfo for all files in Zstd buffer directory. Fluent Bit tag is map
-//     key.
+//   - irFileInfo: FileInfo for IR disk buffer file
+//   - zstdFileInfo: FileInfo for Zstd disk buffer file
 //   - ctx: Plugin context
 //
 // Returns:
@@ -189,11 +190,9 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 func flushExistingBuffer(
 	tagKey string,
 	irFileInfo fs.FileInfo,
-	zstdFiles map[string]fs.FileInfo,
+	zstdFileInfo fs.FileInfo,
 	ctx *outctx.S3Context,
 ) error {
-	// Don't need to check ok return value since we already checked if key exists.
-	zstdFileInfo := zstdFiles[tagKey]
 
 	irBufferPath, zstdBufferPath := getBufferPaths(ctx)
 	irPath := filepath.Join(irBufferPath, irFileInfo.Name())
