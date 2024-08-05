@@ -137,7 +137,7 @@ func NewTag(
 }
 
 // Sends Zstd buffer to s3 and reset writer and buffers for future uploads. Prior to upload,
-// IR buffer is flushed and IR/Zstd streams are terminated. The tags index is incremented on
+// IR buffer is flushed and IR/Zstd streams are terminated. The tag's index is incremented on
 // successful upload.
 //
 // Parameters:
