@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -18,6 +19,12 @@ import (
 
 // 2 MB threshold to buffer IR before compressing to Zstd when use_disk_buffer is on.
 const irSizeThreshold = 2 << 20
+
+// Names of disk buffering directories.
+const (
+	IrDir   = "ir"
+	ZstdDir = "zstd"
+)
 
 // Converts log events into Zstd compressed IR. Writer can be initialized with use_disk_buffer
 // on/off depending on user configuration.
@@ -56,51 +63,66 @@ type Writer struct {
 	zstdWriter    *zstd.Encoder
 }
 
-// Opens a new [Writer].
+// Opens a new [Writer] with a memory buffer for Zstd Output. For use when use_disk_store is off.
+// Writer does not use IR buffer.
 //
 // Parameters:
 //   - timezone: Time zone of the log source
 //   - size: Byte length
-//   - useDiskBuffer: On/off for disk buffering
-//   - irFile: IR file for disk buffer
-//   - zstdFile: Zstd file for disk buffer
-//   - zstdMemBuf: Memory buffer when disk buffer off
+//   - tagKey: Fluent Bit tag
 //
 // Returns:
 //   - Writer: Writer for Zstd compressed IR
-//   - err: Error opening Zstd writer, error opening IR writer, error getting size of disk buffer
-func NewWriter(
-	timezone string,
-	size int,
-	tagKey string,
-	useDiskBuffer bool,
-	irFile *os.File,
-	zstdFile *os.File,
-	zstdMemBuf *bytes.Buffer,
-) (*Writer, error) {
-
-	var zstdOuput io.Writer
-
-	if useDiskBuffer {
-		zstdOuput = zstdFile
-	} else {
-		zstdOuput = zstdMemBuf
-	}
-
-	zstdWriter, err := zstd.NewWriter(zstdOuput)
+//   - err: Error opening Zstd/IR writers
+func NewMemWriter(timezone string, size int, tagKey string) (*Writer, error) {
+	var membuf bytes.Buffer
+	irWriter, zstdWriter, err := newIrZstdWriters(&membuf, timezone, size)
 	if err != nil {
-		return nil, fmt.Errorf("error opening zstd writer: %w", err)
-	}
-
-	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
-	// FourByteEncoding as default encoding.
-	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](size, timezone)
-	if err != nil {
-		return nil, fmt.Errorf("error opening IR writer: %w", err)
+		return nil, err
 	}
 
 	writer := Writer{
-		useDiskBuffer: useDiskBuffer,
+		size:       size,
+		tagKey:     tagKey,
+		timezone:   timezone,
+		irWriter:   irWriter,
+		zstdWriter: zstdWriter,
+		zstdMemBuf: &membuf,
+	}
+
+	return &writer, nil
+}
+
+// Opens a new [Writer] using disk files for IR and Zstd buffers. For use when use_disk_store
+// is on.
+//
+// Parameters:
+//   - timezone: Time zone of the log source
+//   - size: Byte length
+//   - tagKey: Fluent Bit tag
+//   - diskBufferPath: Path of disk buffer directory
+//
+// Returns:
+//   - Writer: Writer for Zstd compressed IR
+//   - err: Error creating new buffers, error opening Zstd/IR writers
+func NewDiskWriter(
+	timezone string,
+	size int,
+	tagKey string,
+	diskBufferPath string,
+) (*Writer, error) {
+	irFile, zstdFile, err := newFileBuffers(diskBufferPath, tagKey)
+	if err != nil {
+		return nil, err
+	}
+
+	irWriter, zstdWriter, err := newIrZstdWriters(zstdFile, timezone, size)
+	if err != nil {
+		return nil, err
+	}
+
+	writer := Writer{
+		useDiskBuffer: true,
 		size:          size,
 		tagKey:        tagKey,
 		timezone:      timezone,
@@ -110,21 +132,58 @@ func NewWriter(
 		zstdWriter:    zstdWriter,
 	}
 
-	if !useDiskBuffer {
-		return &writer, nil
+	return &writer, nil
+}
+
+// Recovers a [writer] opening buffer files from a previous execution of output plugin.
+// Recovery of files necessitates that use_disk_store is on.
+//
+// Parameters:
+//   - timezone: Time zone of the log source
+//   - size: Byte length
+//   - tagKey: Fluent Bit tag
+//   - diskBufferPath: Path of disk buffer directory
+//
+// Returns:
+//   - Writer: Writer for Zstd compressed IR
+//   - err: Error opening buffers, error opening Zstd/IR writers, error getting file sizes
+func RecoverWriter(
+	timezone string,
+	size int,
+	tagKey string,
+	diskBufferPath string,
+) (*Writer, error) {
+	irFile, zstdFile, err := openBufferFiles(diskBufferPath, tagKey)
+	if err != nil {
+		return nil, fmt.Errorf("error opening files: %w", err)
 	}
 
-	irFileSize, zstdFileSize, err := writer.GetFileSizes()
+	irWriter, zstdWriter, err := newIrZstdWriters(zstdFile, timezone, size)
+	if err != nil {
+		return nil, err
+	}
+
+	writer := Writer{
+		useDiskBuffer: true,
+		size:          size,
+		tagKey:        tagKey,
+		timezone:      timezone,
+		irFile:        irFile,
+		zstdFile:      zstdFile,
+		irWriter:      irWriter,
+		zstdWriter:    zstdWriter,
+	}
+
+	irFileSize, _, err := writer.GetFileSizes()
 	if err != nil {
 		return nil, fmt.Errorf("error getting size of disk buffer: %w", err)
 	}
 
-	if (irFileSize > 0) || (zstdFileSize > 0) {
-		// During recovery, IR buffer may not be empty, so the size must be set. In addition,
-		// the non-empty disk buffers already have existing preamble so remove it.
-		writer.irTotalBytes = irFileSize
-		irWriter.Reset()
-	}
+	// During recovery, IR buffer may not be empty, so the size must be set. In addition,
+	// the non-empty disk buffers already have existing preamble so remove it. Disk buffer
+	// must have non-zero size or else would be deleted in recover.
+	writer.irTotalBytes = irFileSize
+	irWriter.Reset()
 
 	return &writer, nil
 }
@@ -176,7 +235,7 @@ func (w *Writer) WriteIrZstd(logEvents []ffi.LogEvent) error {
 //
 // Returns:
 //   - err: Error flushing/closing buffers
-func (w *Writer) Close() error {
+func (w *Writer) CloseStreams() error {
 	// IR buffer may not be empty, so must be flushed prior to adding trailing EndOfStream byte. If
 	// not using disk buffering, IR writer buffer should always be empty since it is always flushed
 	// to Zstd buffer on write.
@@ -211,7 +270,7 @@ func (w *Writer) Close() error {
 	return nil
 }
 
-// Reinitializes [Writer] after calling close. Resets individual IR and Zstd writers and
+// Reinitialize [Writer] after calling [CloseStreams]. Resets individual IR and Zstd writers and
 // associated buffers.
 //
 // Returns:
@@ -323,17 +382,9 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) error {
 	return nil
 }
 
-// Getter for IR File.
-func (w *Writer) GetIrFile() *os.File {
-	return w.irFile
-}
-
-// Getter for Zstd File.
-func (w *Writer) GetZstdFile() *os.File {
-	return w.zstdFile
-}
-
 // Getter for Zstd Output.
+// Returns:
+//   - zstdOutput: Reader for writer Zstd output
 func (w *Writer) GetZstdOutput() io.Reader {
 	if !w.useDiskBuffer {
 		return w.zstdMemBuf
@@ -350,7 +401,6 @@ func (w *Writer) GetZstdOutput() io.Reader {
 // Returns:
 //   - err: Error called with useDiskBuffer off, error calling stat
 func (w *Writer) GetFileSizes() (int, int, error) {
-
 	if !w.useDiskBuffer {
 		return 0, 0, fmt.Errorf("error cannot get file sizes when useDiskBuffer is off")
 	}
@@ -370,4 +420,175 @@ func (w *Writer) GetFileSizes() (int, int, error) {
 	zstdFileSize := int(zstdFileInfo.Size())
 
 	return irFileSize, zstdFileSize, err
+}
+
+// Creates file buffers to hold logs prior to sending to s3.
+//
+// Parameters:
+//   - diskBufferPath: Path of disk buffer directory
+//   - tagKey: Fluent Bit tag
+//
+// Returns:
+//   - irFile: File for IR
+//   - zstdFile: File for Zstd
+//   - err: Error creating file
+func newFileBuffers(
+	diskBufferPath string,
+	tagKey string,
+) (*os.File, *os.File, error) {
+	irPath, zstdPath := getBufferFilePaths(diskBufferPath, tagKey)
+	irFile, err := createFile(irPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating file %s: %w", irPath, err)
+	}
+	log.Printf("created file %s", irPath)
+
+	zstdFile, err := createFile(zstdPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating file %s: %w", zstdPath, err)
+	}
+	log.Printf("created file %s", zstdPath)
+
+	return irFile, zstdFile, nil
+}
+
+// Creates a new file.
+//
+// Parameters:
+//   - path: Path to file
+//
+// Returns:
+//   - f: The created file
+//   - err: Could not create directory, could not create file
+func createFile(path string) (*os.File, error) {
+	// Make directory if does not exist.
+	dir := filepath.Dir(path)
+	err := os.MkdirAll(dir, 0o751)
+	if err != nil {
+		err = fmt.Errorf("failed to create directory %s: %w", dir, err)
+		return nil, err
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o751)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file %s: %w", path, err)
+	}
+	return f, nil
+}
+
+// Opens a new [ir.Writer] and [zstd.Encoder].
+//
+// Parameters:
+//   - zstdOutput: Output location for Zstd
+//   - timezone: Time zone of the log source
+//   - size: Byte length
+//
+// Returns:
+//   - irWriter: Writer for CLP IR
+//   - ZstdWriter: Writer for Zstd
+//   - err: Error opening IR/Zstd writer
+func newIrZstdWriters(
+	zstdOutput io.Writer,
+	timezone string,
+	size int,
+) (*ir.Writer, *zstd.Encoder, error) {
+	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
+	// FourByteEncoding as default encoding.
+	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](size, timezone)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening IR writer: %w", err)
+	}
+
+	zstdWriter, err := zstd.NewWriter(zstdOutput)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening Zstd writer: %w", err)
+	}
+	return irWriter, zstdWriter, err
+}
+
+// Opens IR and Zstd disk buffer files. Zstd file whence is [io.SeekEnd].
+//
+// Parameters:
+//   - diskBufferPath: Path of disk buffer directory
+//   - tagKey: Fluent Bit tag
+//
+// Returns:
+//   - err: error opening files
+func openBufferFiles(diskBufferPath string, tagKey string) (*os.File, *os.File, error) {
+	irPath, zstdPath := getBufferFilePaths(diskBufferPath, tagKey)
+
+	irFile, err := os.OpenFile(irPath, os.O_RDWR, 0o751)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening ir file %s: %w", irPath, err)
+	}
+
+	zstdFile, err := os.OpenFile(zstdPath, os.O_RDWR, 0o751)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening zstd file %s: %w", zstdPath, err)
+	}
+
+	// Seek to end of Zstd disk buffer. Not using append flag since we need to seek later and
+	// docs provide a warning against seeking & opening with append flag.
+	// https://pkg.go.dev/os#File.Seek
+	_, err = zstdFile.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error seeking zstd file %s: %w", zstdPath, err)
+	}
+
+	return irFile, zstdFile, nil
+}
+
+// Retrieves paths for IR and Zstd disk buffer files.
+//
+// Parameters:
+//   - diskBufferPath: Path of disk buffer directory
+//   - tagKey: Fluent Bit tag
+//
+// Returns:
+//   - irPath: Path to IR disk buffer file
+//   - zstdPath: Path to Zstd disk buffer file
+func getBufferFilePaths(
+	diskBufferPath string,
+	tagKey string,
+) (string, string) {
+	irFileName := fmt.Sprintf("%s.ir", tagKey)
+	irPath := filepath.Join(diskBufferPath, IrDir, irFileName)
+
+	zstdFileName := fmt.Sprintf("%s.zst", tagKey)
+	zstdPath := filepath.Join(diskBufferPath, ZstdDir, zstdFileName)
+
+	return irPath, zstdPath
+}
+
+// Closes [Writer]. Currently used during recovery only, and advise caution using elsewhere.
+// Using [ir.Writer.Serializer.Close] instead of [ir.Writer.Close] so EndofStream byte is not
+// added. It is preferable to add postamble on recovery so that IR is in the same state
+// (i.e. not terminated) for an abrupt crash and a graceful exit. Function does not call
+// [zstd.Encoder.Close] as it does not explicitly free memory and may add undesirable null frame.
+//
+// Returns:
+//   - err: Error closing irWriter, error closing files
+func (w *Writer) Close() error {
+	if !w.useDiskBuffer {
+		return nil
+	}
+
+	if w.irWriter != nil {
+		err := w.irWriter.Serializer.Close()
+		if err != nil {
+			return fmt.Errorf("error could not close irWriter: %w", err)
+		}
+	}
+
+	err := w.irFile.Close()
+	if err != nil {
+		return fmt.Errorf("error could not close IR file %s: %w", w.tagKey, err)
+	}
+
+	err = w.zstdFile.Close()
+	if err != nil {
+		return fmt.Errorf("error could not close Zstd file %s: %w", w.tagKey, err)
+	}
+
+	return nil
 }
