@@ -569,15 +569,15 @@ func getBufferFilePaths(
 // Returns:
 //   - err: Error closing irWriter, error closing files
 func (w *Writer) Close() error {
-	if !w.useDiskBuffer {
-		return nil
-	}
-
 	if w.irWriter != nil {
 		err := w.irWriter.Serializer.Close()
 		if err != nil {
 			return fmt.Errorf("error could not close irWriter: %w", err)
 		}
+	}
+
+	if !w.useDiskBuffer {
+		return nil
 	}
 
 	err := w.irFile.Close()
