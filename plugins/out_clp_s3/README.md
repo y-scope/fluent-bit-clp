@@ -93,7 +93,7 @@ More detailed information for specifying credentials from AWS can be found [here
 | `allow_missing_key` | Fallback to whole record if key is missing from log. If set to false, an error will be recorded instead. | `TRUE`            |
 | `single_key`        | Value for single key                                                                                     | `log`             |
 | `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.         | `TRUE`            |
-| `disk_buffer_path`  | Directory for disk buffer                                                                                | `tmp\out_clp_s3\` |
+| `disk_buffer_path`  | Directory for disk buffer                                                                                | `tmp/out_clp_s3/` |
 | `upload_size_mb`    | Set upload size in MB when disk store is enabled. Size refers to the compressed size.                    | `16`              |
 | `time_zone`         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | `America/Toronto` |
 
