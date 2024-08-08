@@ -204,8 +204,8 @@ func flushExistingBuffer(
 	if (irFileSize == 0) && (zstdFileSize == 0) {
 		err := removeBufferFiles(irPath, zstdPath)
 		// If both files are empty, and there is no error, it will skip tag. Creating unnecessary
-		// event manager is wasteful. Also prevents accumulation of event mangers with tags no longer
-		// being sent by Fluent Bit.
+		// event manager is wasteful. Also prevents accumulation of event mangers with tags no
+		// longer being sent by Fluent Bit.
 		return err
 	}
 

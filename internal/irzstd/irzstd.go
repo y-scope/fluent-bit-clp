@@ -387,7 +387,7 @@ func (w *Writer) GetUseDiskBuffer() bool {
 // reset.
 //
 // Returns:
-// 	- err: Error nil buffer, error from Zstd Encoder, error from operations on file
+//   - err: Error nil buffer, error from Zstd Encoder, error from operations on file
 func (w *Writer) flushIrBuffer() error {
 	if (w.irFile == nil) || (w.zstdFile == nil) {
 		return fmt.Errorf("error flush called with non-existent buffer")
