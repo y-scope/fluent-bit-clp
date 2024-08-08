@@ -123,11 +123,10 @@ func readDirectory(dir string) (map[string]os.FileInfo, error) {
 		}
 		tagKey := strings.TrimSuffix(fileInfo.Name(), filepath.Ext(fileInfo.Name()))
 
-		if _, exists := files[tagKey]; !exists {
-			files[tagKey] = fileInfo
-		} else {
+		if _, exists := files[tagKey]; exists {
 			return nil, fmt.Errorf("error duplicate tag %s", tagKey)
 		}
+		files[tagKey] = fileInfo
 	}
 
 	return files, nil
