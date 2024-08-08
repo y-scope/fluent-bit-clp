@@ -15,7 +15,7 @@ import (
 
 // If useDiskBuffer is set, close all files prior to exit. Graceful exit will only be called
 // if Fluent Bit receives a kill signal and not during an abrupt crash. Plugin is only
-// given a limited time to clean up resources, so stores are not sent to s3. Instead
+// given a limited time to clean up resources, so output is not sent to s3. Instead
 // they are sent during startup.
 //
 // Parameters:
@@ -69,7 +69,7 @@ func RecoverBufferFiles(ctx *outctx.S3Context) error {
 	return nil
 }
 
-// Retrieves fileInfo for every file in IR and Zstd disk buffer directories. For both IR and Zstd
+// Retrieves FileInfo for every file in IR and Zstd disk buffer directories. For both IR and Zstd
 // directories, returns map with FluentBit tag as keys and FileInfo as values.
 //
 // Parameters:
@@ -165,12 +165,12 @@ func getFileInfo(dirEntry fs.DirEntry) (os.FileInfo, error) {
 //   - err: Error files do not match
 func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.FileInfo) error {
 	if len(irFiles) != len(zstdFiles) {
-		return fmt.Errorf("error files in IR and Zstd store do not match")
+		return fmt.Errorf("error files in IR and Zstd buffer directory do not match")
 	}
 
 	for tag := range irFiles {
 		if _, ok := zstdFiles[tag]; !ok {
-			return fmt.Errorf("error files in IR and zstd store do not match")
+			return fmt.Errorf("error files in IR and Zstd buffer directory do not match")
 		}
 	}
 
@@ -198,10 +198,10 @@ func flushExistingBuffer(
 	irPath := filepath.Join(irBufferPath, irFileInfo.Name())
 	zstdPath := filepath.Join(zstdBufferPath, zstdFileInfo.Name())
 
-	irStoreSize := irFileInfo.Size()
-	zstdStoreSize := zstdFileInfo.Size()
+	irFileSize := irFileInfo.Size()
+	zstdFileSize := zstdFileInfo.Size()
 
-	if (irStoreSize == 0) && (zstdStoreSize == 0) {
+	if (irFileSize == 0) && (zstdFileSize == 0) {
 		err := removeBufferFiles(irPath, zstdPath)
 		// If both files are empty, and there is no error, it will skip tag. Creating unnecessary
 		// event manager is wasteful. Also prevents accumulation of event mangers with tags no longer
@@ -211,17 +211,17 @@ func flushExistingBuffer(
 
 	eventManager, err := ctx.RecoverEventManager(
 		tag,
-		int(irStoreSize),
+		int(irFileSize),
 	)
 	if err != nil {
 		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
 
-	log.Printf("Recovered stores for event manager with tag %s", tag)
+	log.Printf("Recovered disk buffers with tag %s", tag)
 
 	err = eventManager.ToS3(ctx.Config, ctx.Uploader)
 	if err != nil {
-		return fmt.Errorf("error flushing Zstd store to s3: %w", err)
+		return fmt.Errorf("error flushing Zstd to s3: %w", err)
 	}
 
 	return nil

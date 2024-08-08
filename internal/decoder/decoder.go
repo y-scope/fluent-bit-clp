@@ -105,7 +105,7 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 //   - record: JSON record from Fluent Bit with variable amount of keys
 //   - err: decode error, error retrieving timestamp, error marshalling record
 func GetRecord(decoder *codec.Decoder) (interface{}, []byte, error) {
-	// Expect array of length 2 for timestamp and data. Also intialize expected types for
+	// Expect array of length 2 for timestamp and data. Also initialize expected types for
 	// timestamp and record
 	m := [2]interface{}{nil, make(map[string]interface{})}
 

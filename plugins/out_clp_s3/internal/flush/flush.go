@@ -20,8 +20,8 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// Ingests new data from Fluent Bit chunk, then sends to s3 in IR format. Data may be buffered on
-// disk or in memory depending on plugin configuration.
+// Ingests Fluent Bit chunk, then sends to s3 in IR format. Data may be buffered on disk or in
+// memory depending on plugin configuration.
 //
 // Parameters:
 //   - data: Msgpack data
@@ -195,7 +195,7 @@ func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int)
 
 	if bufferSize >= uploadSize {
 		log.Printf(
-			"Zstd buffer size of %d for manager with tag %s exceeded upload size %d",
+			"Zstd buffer size of %d for tag %s exceeded upload size %d",
 			bufferSize,
 			eventManager.Tag,
 			uploadSize,

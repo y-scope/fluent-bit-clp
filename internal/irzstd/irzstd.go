@@ -127,9 +127,9 @@ func NewDiskWriter(
 	return &writer, nil
 }
 
-// Recovers a [writer] opening buffer files from a previous execution of output plugin.
+// Recovers a [Writer] opening buffer files from a previous execution of output plugin.
 // Recovery of files necessitates that use_disk_store is on. IR preamble is removed for
-// recovered store.
+// recovered store. Avoid use with empty disk stores as there will be no preamble.
 //
 // Parameters:
 //   - timezone: Time zone of the log source
@@ -387,9 +387,7 @@ func (w *Writer) GetUseDiskBuffer() bool {
 // reset.
 //
 // Returns:
-//   - err: Error called with non-existent buffer, error compressing to Zstd, error resetting Zstd
-//
-// Writer, error with type assertion, error truncating file
+// 	- err: Error nil buffer, error from Zstd Encoder, error from operations on file
 func (w *Writer) flushIrBuffer() error {
 	if (w.irFile == nil) || (w.zstdFile == nil) {
 		return fmt.Errorf("error flush called with non-existent buffer")
