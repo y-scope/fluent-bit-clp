@@ -16,7 +16,8 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
-	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/flush"
+	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/flush"
+	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/recovery"
 )
 
 const s3PluginName = "out_clp_s3"
@@ -52,6 +53,13 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 
 	log.Printf("[%s] Init called for id: %s", s3PluginName, outCtx.Config.Id)
 
+	if outCtx.Config.UseDiskBuffer {
+		err = recovery.RecoverBufferFiles(outCtx)
+		if err != nil {
+			log.Fatalf("Failed to recover logs stored on disk: %s", err)
+		}
+	}
+
 	// Set the context for this instance so that params can be retrieved during flush.
 	output.FLBPluginSetContext(plugin, outCtx)
 	return output.FLB_OK
@@ -78,17 +86,17 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 	}
 
 	size := int(length)
-	tagKey := C.GoString(tag)
+	stringTag := C.GoString(tag)
 
 	log.Printf(
 		"[%s] Flush called for id %s with tag %s and size %d",
 		s3PluginName,
 		outCtx.Config.Id,
-		tagKey,
+		stringTag,
 		size,
 	)
 
-	code, err := flush.ToS3(data, size, tagKey, outCtx)
+	code, err := flush.Ingest(data, size, stringTag, outCtx)
 	if err != nil {
 		log.Printf("error flushing data: %s", err)
 		// RETRY or ERROR
@@ -123,6 +131,11 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	}
 
 	log.Printf("[%s] Exit called for id: %s", s3PluginName, outCtx.Config.Id)
+
+	err := recovery.GracefulExit(outCtx)
+	if err != nil {
+		log.Printf("Failed to exit gracefully")
+	}
 
 	return output.FLB_OK
 }

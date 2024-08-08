@@ -88,12 +88,12 @@ More detailed information for specifying credentials from AWS can be found [here
 | `s3_bucket`         | S3 bucket name. Just the name, no aws prefix neccesary.                                                  | `None`            |
 | `s3_bucket_prefix`  | Bucket prefix path                                                                                       | `logs/`           |
 | `role_arn`          | ARN of an IAM role to assume                                                                             | `None`            |
-| `id`                | Name of output plugin.                                                                                   |  Random UUID      |
+| `id`                | Name of output plugin                                                                                    |  Random UUID      |
 | `use_single_key`    | Output single key from Fluent Bit record. See [Use Single Key](#use-single-key) for more info.           | `TRUE`            |
 | `allow_missing_key` | Fallback to whole record if key is missing from log. If set to false, an error will be recorded instead. | `TRUE`            |
 | `single_key`        | Value for single key                                                                                     | `log`             |
 | `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.         | `TRUE`            |
-| `store_dir`         | Directory for disk store                                                                                 | `tmp/out_clp_s3/` |
+| `disk_buffer_path`  | Directory for disk buffer                                                                                | `tmp/out_clp_s3/` |
 | `upload_size_mb`    | Set upload size in MB when disk store is enabled. Size refers to the compressed size.                    | `16`              |
 | `time_zone`         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | `America/Toronto` |
 
@@ -113,6 +113,9 @@ reduce the amount of S3 API requests and improve the compression ratio. However,
 disk space and have higher memory requirements. The amount of system resources will be proportional
 to the amount of Fluent Bit tags. With `use_disk_buffer` off, the plugin will immediately process
 each chunk and send it to S3.
+
+Logs are stored on the disk as IR and Zstd compressed IR. If the plugin were to crash, stored logs
+will be sent to S3 when Fluent Bit restarts. The upload index restarts on recovery.
 
 ### S3 Objects
 
