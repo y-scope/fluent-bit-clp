@@ -18,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
+
+	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 )
 
 // Names of disk buffering directories.
