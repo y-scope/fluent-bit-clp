@@ -18,8 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
-
-	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 )
 
 // Names of disk buffering directories.
@@ -27,13 +25,6 @@ const (
 	IrDir   = "ir"
 	ZstdDir = "zstd"
 )
-
-// Resources and metadata to process Fluent Bit events with the same tag.
-type EventManager struct {
-	Tag    string
-	Index  int
-	Writer *irzstd.Writer
-}
 
 // AWS error codes.
 const (
