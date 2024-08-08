@@ -28,6 +28,13 @@ const (
 	ZstdDir = "zstd"
 )
 
+// Resources and metadata to process Fluent Bit events with the same tag.
+type EventManager struct {
+	Tag    string
+	Index  int
+	Writer *irzstd.Writer
+}
+
 // AWS error codes.
 const (
 	invalidCredsCode  = "InvalidClientTokenId"
