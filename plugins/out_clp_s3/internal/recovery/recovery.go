@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
@@ -29,12 +28,12 @@ func GracefulExit(ctx *outctx.S3Context) error {
 		return nil
 	}
 
-	for _, tag := range ctx.Tags {
-		err := tag.Writer.Close()
+	for _, eventManager := range ctx.EventManagers {
+		err := eventManager.Writer.Close()
 		if err != nil {
 			return err
 		}
-		tag.Writer = nil
+		eventManager.Writer = nil
 	}
 
 	return nil
@@ -58,12 +57,12 @@ func RecoverBufferFiles(ctx *outctx.S3Context) error {
 		return err
 	}
 
-	for tagKey, irFileInfo := range irFiles {
+	for tag, irFileInfo := range irFiles {
 		// Don't need to check ok return value since we already checked if key exists.
-		zstdFileInfo := zstdFiles[tagKey]
-		err := flushExistingBuffer(tagKey, irFileInfo, zstdFileInfo, ctx)
+		zstdFileInfo := zstdFiles[tag]
+		err := flushExistingBuffer(tag, irFileInfo, zstdFileInfo, ctx)
 		if err != nil {
-			return fmt.Errorf("error flushing existing buffer '%s': %w", tagKey, err)
+			return fmt.Errorf("error flushing existing buffer '%s': %w", tag, err)
 		}
 	}
 
@@ -121,12 +120,12 @@ func readDirectory(dir string) (map[string]os.FileInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		tagKey := strings.TrimSuffix(fileInfo.Name(), filepath.Ext(fileInfo.Name()))
+		tag := strings.TrimSuffix(fileInfo.Name(), filepath.Ext(fileInfo.Name()))
 
-		if _, exists := files[tagKey]; exists {
-			return nil, fmt.Errorf("error duplicate tag %s", tagKey)
+		if _, exists := files[tag]; exists {
+			return nil, fmt.Errorf("error duplicate tag %s", tag)
 		}
-		files[tagKey] = fileInfo
+		files[tag] = fileInfo
 	}
 
 	return files, nil
@@ -169,8 +168,8 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 		return fmt.Errorf("error files in IR and Zstd store do not match")
 	}
 
-	for tagKey := range irFiles {
-		if _, ok := zstdFiles[tagKey]; !ok {
+	for tag := range irFiles {
+		if _, ok := zstdFiles[tag]; !ok {
 			return fmt.Errorf("error files in IR and zstd store do not match")
 		}
 	}
@@ -179,11 +178,11 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 }
 
 // Flushes existing disk buffer to s3 on startup. Prior to sending, opens disk buffer files and
-// creates new [outctx.Tag] using existing buffer files. Removes IR preamble for new [outctx.Tag],
-// as existing stores should already have their own IR preamble.
+// creates new [outctx.EventManager] using existing buffer files. Removes IR preamble for new
+// [outctx.EventManager.Writer], as existing stores should already have their own IR preamble.
 //
 // Parameters:
-//   - tagKey: Fluent Bit tag
+//   - tag: Fluent Bit tag
 //   - irFileInfo: FileInfo for IR disk buffer file
 //   - zstdFileInfo: FileInfo for Zstd disk buffer file
 //   - ctx: Plugin context
@@ -191,7 +190,7 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 // Returns:
 //   - err: error removing/open files, error creating tag, error flushing to s3
 func flushExistingBuffer(
-	tagKey string,
+	tag string,
 	irFileInfo fs.FileInfo,
 	zstdFileInfo fs.FileInfo,
 	ctx *outctx.S3Context,
@@ -206,22 +205,22 @@ func flushExistingBuffer(
 	if (irStoreSize == 0) && (zstdStoreSize == 0) {
 		err := removeBufferFiles(irPath, zstdPath)
 		// If both files are empty, and there is no error, it will skip tag. Creating unnecessary
-		// tag is wasteful. Also prevents accumulation of old tags no longer being sent by Fluent
-		// Bit.
+		// event manager is wasteful. Also prevents accumulation of old tags no longer being sent
+		// by Fluent Bit.
 		return err
 	}
 
-	tag, err := ctx.RecoverTag(
-		tagKey,
+	eventManager, err := ctx.RecoverEventManager(
+		tag,
 		int(irStoreSize),
 	)
 	if err != nil {
-		return fmt.Errorf("error recovering tag: %w", err)
+		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
 
-	log.Printf("Recovered stores for tag %s", tagKey)
+	log.Printf("Recovered stores for event manager with tag %s", tag)
 
-	err = tag.ToS3(ctx.Config, ctx.Uploader)
+	err = eventManager.ToS3(ctx.Config, ctx.Uploader)
 	if err != nil {
 		return fmt.Errorf("error flushing Zstd store to s3: %w", err)
 	}
@@ -258,7 +257,7 @@ func removeBufferFiles(irPath string, zstdPath string) error {
 //   - irBufferPath: Path of IR disk buffer directory
 //   - zstdBufferPath: Path of Zstd disk buffer directory
 func getBufferPaths(config outctx.S3Config) (string, string) {
-	irBufferPath := filepath.Join(config.DiskBufferPath, irzstd.IrDir)
-	zstdBufferPath := filepath.Join(config.DiskBufferPath, irzstd.ZstdDir)
+	irBufferPath := filepath.Join(config.DiskBufferPath, outctx.IrDir)
+	zstdBufferPath := filepath.Join(config.DiskBufferPath, outctx.ZstdDir)
 	return irBufferPath, zstdBufferPath
 }

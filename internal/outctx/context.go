@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"unsafe"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,6 +22,12 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 )
 
+// Names of disk buffering directories.
+const (
+	IrDir   = "ir"
+	ZstdDir = "zstd"
+)
+
 // AWS error codes.
 const (
 	invalidCredsCode  = "InvalidClientTokenId"
@@ -29,20 +36,13 @@ const (
 
 // Holds objects accessible to plugin during flush. Fluent Bit uses a single thread for Go output
 // plugin instance so no need to consider synchronization issues. C plugins use "coroutines" which
-// could cause synchronization issues for C plugins accordings to [docs] but "coroutines" are not
+// could cause synchronization issues for C plugins according to [docs] but "coroutines" are not
 // used in Go plugins.
 // [docs]: https://github.com/fluent/fluent-bit/blob/master/DEVELOPER_GUIDE.md#concurrency
 type S3Context struct {
-	Config   S3Config
-	Uploader *manager.Uploader
-	Tags     map[string]*Tag
-}
-
-// Tag resources and metadata.
-type Tag struct {
-	Key    string
-	Index  int
-	Writer *irzstd.Writer
+	Config        S3Config
+	Uploader      *manager.Uploader
+	EventManagers map[string]*EventManager
 }
 
 // Creates a new context. Loads configuration from user. Loads and tests aws credentials.
@@ -60,7 +60,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	}
 
 	// Load the aws credentials. [awsConfig.LoadDefaultConfig] will look for credentials in a
-	// specfic hierarchy.
+	// specific hierarchy.
 	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
 	awsCfg, err := awsConfig.LoadDefaultConfig(context.TODO(),
 		awsConfig.WithRegion(config.S3Region),
@@ -71,7 +71,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 
 	// Allows user to assume a provided role. Fluent Bit s3 plugin provides this feature.
 	// In many cases, the EC2 instance will already have permission for the s3 bucket;
-	// however, if it dosen't, this option allows the plugin to assume role with bucket access.
+	// however, if it doesn't, this option allows the plugin to assume role with bucket access.
 	if config.RoleArn != "" {
 		stsClient := sts.NewFromConfig(awsCfg)
 		creds := stscreds.NewAssumeRoleProvider(stsClient, config.RoleArn)
@@ -106,10 +106,133 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	uploader := manager.NewUploader(s3Client)
 
 	ctx := S3Context{
-		Config:   *config,
-		Uploader: uploader,
-		Tags:     make(map[string]*Tag),
+		Config:        *config,
+		Uploader:      uploader,
+		EventManagers: make(map[string]*EventManager),
 	}
 
 	return &ctx, nil
+}
+
+// If the event manager for the tag has been initialized, get the corresponding event manager. If
+// not, create new one.
+//
+// Parameters:
+//   - tag: Fluent Bit tag
+//   - size: Byte length
+//
+// Returns:
+//   - err: Could not create buffers or tag
+func (ctx *S3Context) GetEventManager(tag string, size int) (*EventManager, error) {
+	var err error
+	eventManager, ok := ctx.EventManagers[tag]
+
+	if !ok {
+		eventManager, err = ctx.newEventManager(tag, size)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return eventManager, nil
+}
+
+// Recovers [EventManager] from previous execution using existing disk buffers.
+//
+// Parameters:
+//   - tag: Fluent Bit tag
+//   - size: Byte length
+//
+// Returns:
+//   - eventManager: Manager for Fluent Bit events with the same tag
+//   - err: Error creating new writer
+func (ctx *S3Context) RecoverEventManager(
+	tag string,
+	size int,
+) (*EventManager, error) {
+	irPath, zstdPath := getBufferFilePaths(ctx.Config.DiskBufferPath, tag)
+	writer, err := irzstd.RecoverWriter(
+		ctx.Config.TimeZone,
+		size,
+		irPath,
+		zstdPath,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	eventManager := EventManager{
+		Tag:    tag,
+		Writer: writer,
+	}
+
+	ctx.EventManagers[tag] = &eventManager
+
+	return &eventManager, nil
+}
+
+// Creates a new [EventManager] with a new [irzstd.Writer]. If UseDiskBuffer is set, buffers are
+// created on disk and are used to buffer Fluent Bit chunks. If UseDiskBuffer is off, buffer is
+// in memory and chunks are not buffered.
+//
+// Parameters:
+//   - tag: Fluent Bit tag
+//   - size: Byte length
+//
+// Returns:
+//   - eventManager: Manager for Fluent Bit events with the same tag
+//   - err: Error creating new writer
+func (ctx *S3Context) newEventManager(
+	tag string,
+	size int,
+) (*EventManager, error) {
+	var err error
+	var writer *irzstd.Writer
+
+	if ctx.Config.UseDiskBuffer {
+		irPath, zstdPath := getBufferFilePaths(ctx.Config.DiskBufferPath, tag)
+		writer, err = irzstd.NewDiskWriter(
+			ctx.Config.TimeZone,
+			size,
+			irPath,
+			zstdPath,
+		)
+	} else {
+		writer, err = irzstd.NewMemWriter(ctx.Config.TimeZone, size)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	eventManager := EventManager{
+		Tag:    tag,
+		Writer: writer,
+	}
+
+	ctx.EventManagers[tag] = &eventManager
+
+	return &eventManager, nil
+}
+
+// Retrieves paths for IR and Zstd disk buffer files.
+//
+// Parameters:
+//   - diskBufferPath: Path of disk buffer directory
+//   - tagKey: Fluent Bit tag
+//
+// Returns:
+//   - irPath: Path to IR disk buffer file
+//   - zstdPath: Path to Zstd disk buffer file
+func getBufferFilePaths(
+	diskBufferPath string,
+	tagKey string,
+) (string, string) {
+	irFileName := fmt.Sprintf("%s.ir", tagKey)
+	irPath := filepath.Join(diskBufferPath, IrDir, irFileName)
+
+	zstdFileName := fmt.Sprintf("%s.zst", tagKey)
+	zstdPath := filepath.Join(diskBufferPath, ZstdDir, zstdFileName)
+
+	return irPath, zstdPath
 }

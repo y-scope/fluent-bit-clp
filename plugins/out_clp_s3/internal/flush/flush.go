@@ -32,37 +32,36 @@ import (
 // Returns:
 //   - code: Fluent Bit success code (OK, RETRY, ERROR)
 //   - err: Error if flush fails
-func Ingest(data unsafe.Pointer, size int, tagKey string, ctx *outctx.S3Context) (int, error) {
+func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (int, error) {
 	dec := decoder.New(data, size)
 	logEvents, err := decodeMsgpack(dec, ctx.Config)
 	if err != io.EOF {
 		return output.FLB_ERROR, err
 	}
 
-	tag, err := ctx.GetTag(tagKey, size)
+	eventManager, err := ctx.GetEventManager(tag, size)
 	if err != nil {
-		return output.FLB_RETRY, fmt.Errorf("error creating new tag: %w", err)
+		return output.FLB_RETRY, fmt.Errorf("error getting event manager: %w", err)
 	}
 
-	err = tag.Writer.WriteIrZstd(logEvents)
+	err = eventManager.Writer.WriteIrZstd(logEvents)
 	if err != nil {
 		return output.FLB_ERROR, err
 	}
 
-	readyToUpload, err := checkUploadCriteria(
-		tag,
-		ctx.Config.UseDiskBuffer,
+	uploadCriteriaMet, err := checkUploadCriteriaMet(
+		eventManager,
 		ctx.Config.UploadSizeMb,
 	)
 	if err != nil {
 		return output.FLB_ERROR, fmt.Errorf("error checking upload criteria: %w", err)
 	}
 
-	if !readyToUpload {
+	if !uploadCriteriaMet {
 		return output.FLB_OK, nil
 	}
 
-	err = tag.ToS3(ctx.Config, ctx.Uploader)
+	err = eventManager.ToS3(ctx.Config, ctx.Uploader)
 	if err != nil {
 		return output.FLB_ERROR, fmt.Errorf("error flushing Zstd buffer to s3: %w", err)
 	}
@@ -139,7 +138,7 @@ func decodeTs(ts any) time.Time {
 //   - config: Plugin configuration
 //
 // Returns:
-//   - msg: Retrieved message
+//   - stringMsg: Retrieved message
 //   - err: Key not found, json.Unmarshal error, string type assertion error
 func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	if !config.UseSingleKey {
@@ -175,19 +174,19 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 // than upload size.
 //
 // Parameters:
-//   - tag: Tag resources and metadata
+//   - eventManager: Manager for Fluent Bit events with the same tag
 //   - useDiskBuffer: On/off for disk buffering
 //   - uploadSizeMb: S3 upload size in MB
 //
 // Returns:
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
-func checkUploadCriteria(tag *outctx.Tag, useDiskBuffer bool, uploadSizeMb int) (bool, error) {
-	if !useDiskBuffer {
+func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int) (bool, error) {
+	if !eventManager.Writer.GetUseDiskBuffer() {
 		return true, nil
 	}
 
-	_, bufferSize, err := tag.Writer.GetFileSizes()
+	_, bufferSize, err := eventManager.Writer.GetFileSizes()
 	if err != nil {
 		return false, fmt.Errorf("error could not get size of buffer: %w", err)
 	}
@@ -196,9 +195,9 @@ func checkUploadCriteria(tag *outctx.Tag, useDiskBuffer bool, uploadSizeMb int) 
 
 	if bufferSize >= uploadSize {
 		log.Printf(
-			"Zstd buffer size of %d for tag %s exceeded upload size %d",
+			"Zstd buffer size of %d for manager with tag %s exceeded upload size %d",
 			bufferSize,
-			tag.Key,
+			eventManager.Tag,
 			uploadSize,
 		)
 		return true, nil
