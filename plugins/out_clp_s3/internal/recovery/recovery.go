@@ -178,8 +178,7 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 }
 
 // Flushes existing disk buffer to s3 on startup. Prior to sending, opens disk buffer files and
-// creates new [outctx.EventManager] using existing buffer files. Removes IR preamble for new
-// [outctx.EventManager.Writer], as existing stores should already have their own IR preamble.
+// creates new [outctx.EventManager] using existing buffer files.
 //
 // Parameters:
 //   - tag: Fluent Bit tag
@@ -188,7 +187,7 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 //   - ctx: Plugin context
 //
 // Returns:
-//   - err: error removing/open files, error creating tag, error flushing to s3
+//   - err: error removing/open files, error creating event manager, error flushing to s3
 func flushExistingBuffer(
 	tag string,
 	irFileInfo fs.FileInfo,
@@ -205,8 +204,8 @@ func flushExistingBuffer(
 	if (irStoreSize == 0) && (zstdStoreSize == 0) {
 		err := removeBufferFiles(irPath, zstdPath)
 		// If both files are empty, and there is no error, it will skip tag. Creating unnecessary
-		// event manager is wasteful. Also prevents accumulation of old tags no longer being sent
-		// by Fluent Bit.
+		// event manager is wasteful. Also prevents accumulation of event mangers with tags no longer
+		// being sent by Fluent Bit.
 		return err
 	}
 

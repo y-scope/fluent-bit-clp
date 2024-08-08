@@ -219,19 +219,19 @@ func (ctx *S3Context) newEventManager(
 //
 // Parameters:
 //   - diskBufferPath: Path of disk buffer directory
-//   - tagKey: Fluent Bit tag
+//   - tag: Fluent Bit tag
 //
 // Returns:
 //   - irPath: Path to IR disk buffer file
 //   - zstdPath: Path to Zstd disk buffer file
 func getBufferFilePaths(
 	diskBufferPath string,
-	tagKey string,
+	tag string,
 ) (string, string) {
-	irFileName := fmt.Sprintf("%s.ir", tagKey)
+	irFileName := fmt.Sprintf("%s.ir", tag)
 	irPath := filepath.Join(diskBufferPath, IrDir, irFileName)
 
-	zstdFileName := fmt.Sprintf("%s.zst", tagKey)
+	zstdFileName := fmt.Sprintf("%s.zst", tag)
 	zstdPath := filepath.Join(diskBufferPath, ZstdDir, zstdFileName)
 
 	return irPath, zstdPath

@@ -86,17 +86,17 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 	}
 
 	size := int(length)
-	tagKey := C.GoString(tag)
+	stringTag := C.GoString(tag)
 
 	log.Printf(
 		"[%s] Flush called for id %s with tag %s and size %d",
 		s3PluginName,
 		outCtx.Config.Id,
-		tagKey,
+		stringTag,
 		size,
 	)
 
-	code, err := flush.Ingest(data, size, tagKey, outCtx)
+	code, err := flush.Ingest(data, size, stringTag, outCtx)
 	if err != nil {
 		log.Printf("error flushing data: %s", err)
 		// RETRY or ERROR
