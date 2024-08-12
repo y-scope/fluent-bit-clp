@@ -217,9 +217,6 @@ func (ctx *S3Context) newEventManager(
 
 // Retrieves paths for IR and Zstd disk buffer directories.
 //
-// Parameters:
-//   - config: Plugin config
-//
 // Returns:
 //   - irBufferPath: Path of IR disk buffer directory
 //   - zstdBufferPath: Path of Zstd disk buffer directory
