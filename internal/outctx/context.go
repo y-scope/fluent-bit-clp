@@ -150,7 +150,7 @@ func (ctx *S3Context) RecoverEventManager(
 	tag string,
 	size int,
 ) (*EventManager, error) {
-	irPath, zstdPath := getBufferFilePaths(ctx.Config.DiskBufferPath, tag)
+	irPath, zstdPath := ctx.GetBufferFilePaths(tag)
 	writer, err := irzstd.RecoverWriter(
 		ctx.Config.TimeZone,
 		size,
@@ -190,7 +190,7 @@ func (ctx *S3Context) newEventManager(
 	var writer *irzstd.Writer
 
 	if ctx.Config.UseDiskBuffer {
-		irPath, zstdPath := getBufferFilePaths(ctx.Config.DiskBufferPath, tag)
+		irPath, zstdPath := ctx.GetBufferFilePaths(tag)
 		writer, err = irzstd.NewDiskWriter(
 			ctx.Config.TimeZone,
 			size,
@@ -215,24 +215,36 @@ func (ctx *S3Context) newEventManager(
 	return &eventManager, nil
 }
 
+// Retrieves paths for IR and Zstd disk buffer directories.
+//
+// Parameters:
+//   - config: Plugin config
+//
+// Returns:
+//   - irBufferPath: Path of IR disk buffer directory
+//   - zstdBufferPath: Path of Zstd disk buffer directory
+func (ctx *S3Context) GetBufferPaths() (string, string) {
+	irBufferPath := filepath.Join(ctx.Config.DiskBufferPath, IrDir)
+	zstdBufferPath := filepath.Join(ctx.Config.DiskBufferPath, ZstdDir)
+	return irBufferPath, zstdBufferPath
+}
+
 // Retrieves paths for IR and Zstd disk buffer files.
 //
 // Parameters:
-//   - diskBufferPath: Path of disk buffer directory
 //   - tag: Fluent Bit tag
 //
 // Returns:
 //   - irPath: Path to IR disk buffer file
 //   - zstdPath: Path to Zstd disk buffer file
-func getBufferFilePaths(
-	diskBufferPath string,
+func (ctx *S3Context) GetBufferFilePaths(
 	tag string,
 ) (string, string) {
 	irFileName := fmt.Sprintf("%s.ir", tag)
-	irPath := filepath.Join(diskBufferPath, IrDir, irFileName)
+	irPath := filepath.Join(ctx.Config.DiskBufferPath, IrDir, irFileName)
 
 	zstdFileName := fmt.Sprintf("%s.zst", tag)
-	zstdPath := filepath.Join(diskBufferPath, ZstdDir, zstdFileName)
+	zstdPath := filepath.Join(ctx.Config.DiskBufferPath, ZstdDir, zstdFileName)
 
 	return irPath, zstdPath
 }

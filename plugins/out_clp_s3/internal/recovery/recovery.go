@@ -82,7 +82,7 @@ func RecoverBufferFiles(ctx *outctx.S3Context) error {
 func getBufferFiles(
 	ctx *outctx.S3Context,
 ) (map[string]os.FileInfo, map[string]os.FileInfo, error) {
-	irBufferPath, zstdBufferPath := getBufferPaths(ctx.Config)
+	irBufferPath, zstdBufferPath := ctx.GetBufferPaths()
 	irFiles, err := readDirectory(irBufferPath)
 	if err != nil {
 		return nil, nil, err
@@ -194,9 +194,7 @@ func flushExistingBuffer(
 	zstdFileInfo fs.FileInfo,
 	ctx *outctx.S3Context,
 ) error {
-	irBufferPath, zstdBufferPath := getBufferPaths(ctx.Config)
-	irPath := filepath.Join(irBufferPath, irFileInfo.Name())
-	zstdPath := filepath.Join(zstdBufferPath, zstdFileInfo.Name())
+	irPath, zstdPath := ctx.GetBufferFilePaths(tag)
 
 	irFileSize := irFileInfo.Size()
 	zstdFileSize := zstdFileInfo.Size()
@@ -245,18 +243,4 @@ func removeBufferFiles(irPath string, zstdPath string) error {
 		return fmt.Errorf("error deleting file '%s': %w", zstdPath, err)
 	}
 	return nil
-}
-
-// Retrieves paths for IR and Zstd disk buffer directories.
-//
-// Parameters:
-//   - config: Plugin config
-//
-// Returns:
-//   - irBufferPath: Path of IR disk buffer directory
-//   - zstdBufferPath: Path of Zstd disk buffer directory
-func getBufferPaths(config outctx.S3Config) (string, string) {
-	irBufferPath := filepath.Join(config.DiskBufferPath, outctx.IrDir)
-	zstdBufferPath := filepath.Join(config.DiskBufferPath, outctx.ZstdDir)
-	return irBufferPath, zstdBufferPath
 }

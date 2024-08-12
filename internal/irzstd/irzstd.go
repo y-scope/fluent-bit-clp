@@ -46,7 +46,8 @@ const irSizeThreshold = 2 << 20
 // log loss during abrupt crashes and maintains a high compression ratio.
 type Writer struct {
 	useDiskBuffer bool
-	irPath        string
+	irPath        string // Path variable for debugging
+	zstdPath      string // Path variable for debugging
 	irFile        *os.File
 	zstdFile      *os.File
 	zstdMemBuf    *bytes.Buffer
@@ -119,6 +120,7 @@ func NewDiskWriter(
 		timezone:      timezone,
 		irPath:        irPath,
 		irFile:        irFile,
+		zstdPath:      zstdPath,
 		zstdFile:      zstdFile,
 		irWriter:      irWriter,
 		zstdWriter:    zstdWriter,
@@ -162,6 +164,7 @@ func RecoverWriter(
 		timezone:      timezone,
 		irPath:        irPath,
 		irFile:        irFile,
+		zstdPath:      zstdPath,
 		zstdFile:      zstdFile,
 		irWriter:      irWriter,
 		zstdWriter:    zstdWriter,
@@ -360,7 +363,7 @@ func (w *Writer) Close() error {
 
 	err = w.zstdFile.Close()
 	if err != nil {
-		return fmt.Errorf("error could not close Zstd file %s: %w", w.irPath, err)
+		return fmt.Errorf("error could not close Zstd file %s: %w", w.zstdPath, err)
 	}
 
 	return nil
