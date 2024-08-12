@@ -26,6 +26,14 @@ import (
 	"github.com/ugorji/go/codec"
 )
 
+// Fluent-bit can encode timestamps in Msgpack [fixext 8] format. Format stores an integer and a
+// byte array whose length is 8 bytes. The integer is the type, and the 4 MSBs are the seconds
+// (big-endian uint32) and 4 LSBs are nanoseconds.
+// [fixext 8]: https://github.com/msgpack/msgpack/blob/master/spec.md#ext-format-family
+type FlbTime struct {
+	time.Time
+}
+
 // Initializes a Msgpack decoder which automatically converts bytes to strings. Decoder has an
 // extension setup for a custom Fluent Bit [timestamp format]. During [timestamp encoding],
 // Fluent Bit will set the [Msgpack extension type] to "0". This decoder can recognize the
@@ -57,14 +65,6 @@ func New(data unsafe.Pointer, length int) *codec.Decoder {
 	b = C.GoBytes(data, C.int(length))
 	decoder := codec.NewDecoderBytes(b, &mh)
 	return decoder
-}
-
-// Fluent-bit can encode timestamps in Msgpack [fixext 8] format. Format stores an integer and a
-// byte array whose length is 8 bytes. The integer is the type, and the 4 MSBs are the seconds
-// (big-endian uint32) and 4 LSBs are nanoseconds.
-// [fixext 8]: https://github.com/msgpack/msgpack/blob/master/spec.md#ext-format-family
-type FlbTime struct {
-	time.Time
 }
 
 // Updates a value from a []byte.
@@ -105,7 +105,7 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 //   - record: JSON record from Fluent Bit with variable amount of keys
 //   - err: decode error, error retrieving timestamp, error marshalling record
 func GetRecord(decoder *codec.Decoder) (interface{}, []byte, error) {
-	// Expect array of length 2 for timestamp and data. Also intialize expected types for
+	// Expect array of length 2 for timestamp and data. Also initialize expected types for
 	// timestamp and record
 	m := [2]interface{}{nil, make(map[string]interface{})}
 

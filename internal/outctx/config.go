@@ -64,7 +64,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 	}
 
 	// Map used to loop over user inputs saving a [output.FLBPluginConfigKey] call for each key.
-	// Potential to interate over struct using reflect; however, better to avoid reflect package.
+	// Potential to iterate over struct using reflect; however, better to avoid reflect package.
 	pluginSettings := map[string]interface{}{
 		"s3_region":         &config.S3Region,
 		"s3_bucket":         &config.S3Bucket,
@@ -90,7 +90,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 			continue
 		}
 
-		// Type switch to type parse boolean strings into boolean type. This is neccesary since
+		// Type switch to type parse boolean strings into boolean type. This is necessary since
 		// all values are provided as strings.
 		switch configField := untypedField.(type) {
 		case *string:
