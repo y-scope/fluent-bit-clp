@@ -22,7 +22,7 @@ type memoryWriter struct {
 	zstdWriter   *zstd.Encoder
 }
 
-// Opens a new [MemoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
+// Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
 // off.
 //
 // Parameters:
@@ -84,7 +84,7 @@ func (w *memoryWriter) CloseStreams() error {
 	return err
 }
 
-// Reinitialize [memoryWriter] after calling [CloseStreams]. Resets individual IR and Zstd writers and
+// Reinitialize [memoryWriter] after calling CloseStreams(). Resets individual IR and Zstd writers and
 // associated buffers.
 //
 // Returns:
@@ -127,7 +127,7 @@ func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 	return w.zstdBuffer.Len(), nil
 }
 
-// Closes [MemoryWriter]. Currently used during recovery only, and advise caution using elsewhere.
+// Closes [memoryWriter]. Currently used during recovery only, and advise caution using elsewhere.
 // Using [ir.Writer.Serializer.Close] instead of [ir.Writer.Close] so EndofStream byte is not
 // added. It is preferable to add postamble on recovery so that IR is in the same state
 // (i.e. not terminated) for an abrupt crash and a graceful exit. Function does not call

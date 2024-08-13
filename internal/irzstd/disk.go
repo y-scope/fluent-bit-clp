@@ -102,7 +102,7 @@ func RecoverWriter(
 	size int,
 	irPath string,
 	zstdPath string,
-) (Writer, error) {
+) (*diskWriter, error) {
 	irFile, zstdFile, err := openBufferFiles(irPath, zstdPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening files: %w", err)
@@ -126,7 +126,7 @@ func RecoverWriter(
 
 	irFileSize, err := diskWriter.getIrFileSize()
 	if err != nil {
-		return nil, fmt.Errorf("error getting size of disk buffer: %w", err)
+		return nil, fmt.Errorf("error getting size of IR file: %w", err)
 	}
 
 	// During recovery, IR buffer may not be empty, so the size must be set. In addition,
@@ -138,8 +138,8 @@ func RecoverWriter(
 	return &diskWriter, nil
 }
 
-// Converts log events to Zstd compressed IR and outputs to the Zstd buffer. IR is temporarily
-// stored in the IR buffer until it surpasses [irSizeThreshold] with compression to Zstd pushed out
+// Converts log events to Zstd compressed IR and outputs to the Zstd file. IR is temporarily
+// stored in the IR file until it surpasses [irSizeThreshold] with compression to Zstd pushed out
 // to a later call. See [diskWriter] for more specific details on behaviour.
 //
 // Parameters:
@@ -205,7 +205,7 @@ func (w *diskWriter) CloseStreams() error {
 	return nil
 }
 
-// Reinitialize [diskWriter] after calling [CloseStreams]. Resets individual IR and Zstd writers and
+// Reinitialize [diskWriter] after calling CloseStreams(). Resets individual IR and Zstd writers and
 // associated buffers.
 //
 // Returns:
@@ -239,24 +239,6 @@ func (w *diskWriter) Reset() error {
 	return nil
 }
 
-// Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
-// Therefore, cannot keep track of size with variable as implemented for IR with [IrTotalBytes].
-// Instead, must always use stat.
-//
-// Returns:
-//   - err: Error calling stat
-func (w *diskWriter) GetZstdOutputSize() (int, error) {
-
-	zstdFileInfo, err := w.zstdFile.Stat()
-	if err != nil {
-		return 0, err
-	}
-
-	zstdFileSize := int(zstdFileInfo.Size())
-
-	return zstdFileSize, err
-}
-
 // Closes [diskWriter]. Currently used during recovery only, and advise caution using elsewhere.
 // Using [ir.Writer.Serializer.Close] instead of [ir.Writer.Close] so EndofStream byte is not
 // added. It is preferable to add postamble on recovery so that IR is in the same state
@@ -286,25 +268,46 @@ func (w *diskWriter) Close() error {
 	return nil
 }
 
-// Getter for Zstd Output.
-// Returns:
-//   - zstdOutput: Reader for Zstd output
-func (w *diskWriter) GetZstdOutput() io.Reader {
-	return w.zstdFile
-}
-
 // Getter for useDiskBuffer.
+//
 // Returns:
 //   - useDiskBuffer: On/off for disk buffering
 func (w *diskWriter) GetUseDiskBuffer() bool {
 	return true
 }
 
-// Compresses contents of the IR buffer and outputs it to the Zstd buffer. The IR buffer is then
-// reset.
+
+// Getter for Zstd Output.
 //
 // Returns:
-//   - err: Error nil buffer, error from Zstd Encoder, error from operations on file
+//   - zstdOutput: Reader for Zstd output
+func (w *diskWriter) GetZstdOutput() io.Reader {
+	return w.zstdFile
+}
+
+// Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
+// Therefore, cannot keep track of size with variable as implemented for IR with [IrTotalBytes].
+// Instead, must always use stat.
+//
+// Returns:
+//   - err: Error calling stat
+func (w *diskWriter) GetZstdOutputSize() (int, error) {
+
+	zstdFileInfo, err := w.zstdFile.Stat()
+	if err != nil {
+		return 0, err
+	}
+
+	zstdFileSize := int(zstdFileInfo.Size())
+
+	return zstdFileSize, err
+}
+
+// Compresses contents of the IR file and outputs it to the Zstd file. The IR file is then
+// truncated.
+//
+// Returns:
+//   - err: Error nil files, error from Zstd Encoder, error from operations on file
 func (w *diskWriter) flushIrBuffer() error {
 	if (w.irFile == nil) || (w.zstdFile == nil) {
 		return fmt.Errorf("error flush called with non-existent buffer")
