@@ -180,7 +180,7 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 // Returns:
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
-func checkUploadCriteriaMet(eventManager *outctx.EventManager,  uploadSizeMb int) (bool, error) {
+func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int) (bool, error) {
 	if !eventManager.Writer.GetUseDiskBuffer() {
 		return true, nil
 	}

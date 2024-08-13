@@ -276,7 +276,6 @@ func (w *diskWriter) GetUseDiskBuffer() bool {
 	return true
 }
 
-
 // Getter for Zstd Output.
 //
 // Returns:
@@ -292,7 +291,6 @@ func (w *diskWriter) GetZstdOutput() io.Reader {
 // Returns:
 //   - err: Error calling stat
 func (w *diskWriter) GetZstdOutputSize() (int, error) {
-
 	zstdFileInfo, err := w.zstdFile.Stat()
 	if err != nil {
 		return 0, err

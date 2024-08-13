@@ -15,11 +15,11 @@ import (
 // converted to Zstd compressed IR and stored in [MemoryWriter.ZstdBuffer].  After the Zstd buffer
 // receives logs, they are immediately sent to s3.
 type memoryWriter struct {
-	zstdBuffer   *bytes.Buffer
-	irWriter     *ir.Writer
-	size         int
-	timezone     string
-	zstdWriter   *zstd.Encoder
+	zstdBuffer *bytes.Buffer
+	irWriter   *ir.Writer
+	size       int
+	timezone   string
+	zstdWriter *zstd.Encoder
 }
 
 // Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
@@ -84,8 +84,8 @@ func (w *memoryWriter) CloseStreams() error {
 	return err
 }
 
-// Reinitialize [memoryWriter] after calling CloseStreams(). Resets individual IR and Zstd writers and
-// associated buffers.
+// Reinitialize [memoryWriter] after calling CloseStreams(). Resets individual IR and Zstd writers
+// and associated buffers.
 //
 // Returns:
 //   - err: Error opening IR writer
@@ -121,7 +121,7 @@ func (w *memoryWriter) GetZstdOutput() io.Reader {
 // Instead, calling Len() on buffer.
 //
 // Returns:
-//	 - size: Bytes written
+//   - size: Bytes written
 //   - err: nil error to comply with interface
 func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 	return w.zstdBuffer.Len(), nil
