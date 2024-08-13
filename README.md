@@ -6,28 +6,28 @@ Repository contains Fluent Bit output plugins that store records in CLP's compre
 
 The general flow is as follows:
 
-```mermaid
-%%{init: {
-  'theme': 'base',
-    'themeVariables': {
-      'primaryColor': '#0066cc',
-      'primaryTextColor': '#fff',
-      'primaryBorderColor': 'transparent',
-      'lineColor': '#9580ff',
-      'secondaryColor': '#9580ff',
-      'tertiaryColor': '#fff'
-      }
-    }
-}%%
-flowchart LR
-    A(Fluent Bit Input) --> B
-    subgraph CLP Output Plugin
-    B(Parse into IR) --> C(Compress with Zstd)
-    end
-    C --> D(Output)
-    classDef format fill:#007DF4,color:white
-    class A,B,C,D format
-```
+//mermaid
+//%%{init: {
+//  'theme': 'base',
+//    'themeVariables': {
+//      'primaryColor': '#0066cc',
+//      'primaryTextColor': '#fff',
+//      'primaryBorderColor': 'transparent',
+//      'lineColor': '#9580ff',
+//      'secondaryColor': '#9580ff',
+//      'tertiaryColor': '#fff'
+//      }
+//    }
+//}%%
+//flowchart LR
+//    A(Fluent Bit Input) --> B
+//    subgraph CLP Output Plugin
+//    B(Parse into IR) --> C(Compress with Zstd)
+//    end
+//    C --> D(Output)
+//    classDef format fill:#007DF4,color:white
+//    class A,B,C,D format
+
 
 #### Fluent Bit Input
 
