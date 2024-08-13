@@ -12,7 +12,7 @@ import (
 )
 
 // Converts log events into Zstd compressed IR. Log events provided to writer are immediately
-// converted to Zstd compressed IR and stored in [MemoryWriter.ZstdBuffer].  After the Zstd buffer
+// converted to Zstd compressed IR and stored in [memoryWriter.ZstdBuffer].  After the Zstd buffer
 // receives logs, they are immediately sent to s3.
 type memoryWriter struct {
 	zstdBuffer *bytes.Buffer
@@ -30,7 +30,7 @@ type memoryWriter struct {
 //   - size: Byte length
 //
 // Returns:
-//   - Writer: Writer for Zstd compressed IR
+//   - memoryWriter: Memory writer for Zstd compressed IR
 //   - err: Error opening Zstd/IR writers
 func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
 	var zstdBuffer bytes.Buffer
