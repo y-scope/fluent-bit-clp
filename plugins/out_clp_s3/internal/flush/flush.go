@@ -51,7 +51,6 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 
 	uploadCriteriaMet, err := checkUploadCriteriaMet(
 		eventManager,
-		ctx.Config.UseDiskBuffer,
 		ctx.Config.UploadSizeMb,
 	)
 	if err != nil {
@@ -176,18 +175,17 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 //
 // Parameters:
 //   - eventManager: Manager for Fluent Bit events with the same tag
-//   - useDiskBuffer: On/off for disk buffering
 //   - uploadSizeMb: S3 upload size in MB
 //
 // Returns:
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
-func checkUploadCriteriaMet(eventManager *outctx.EventManager, useDiskBuffer bool, uploadSizeMb int) (bool, error) {
-	if !useDiskBuffer {
+func checkUploadCriteriaMet(eventManager *outctx.EventManager,  uploadSizeMb int) (bool, error) {
+	if !eventManager.Writer.GetUseDiskBuffer() {
 		return true, nil
 	}
 
-	bufferSize, err := eventManager.Writer.GetOutputSize()
+	bufferSize, err := eventManager.Writer.GetZstdOutputSize()
 	if err != nil {
 		return false, fmt.Errorf("error could not get size of buffer: %w", err)
 	}

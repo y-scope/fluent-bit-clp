@@ -11,7 +11,7 @@ import (
 	"github.com/y-scope/clp-ffi-go/ir"
 )
 
-// Converts log events into Zstd compressed IR . Log events provided to writer are immediately
+// Converts log events into Zstd compressed IR. Log events provided to writer are immediately
 // converted to Zstd compressed IR and stored in [MemoryWriter.ZstdBuffer].  After the Zstd buffer
 // receives logs, they are immediately sent to s3.
 type memoryWriter struct {
@@ -22,7 +22,7 @@ type memoryWriter struct {
 	zstdWriter   *zstd.Encoder
 }
 
-// Opens a new [MemoryWriter] with a memory buffer for Zstd Output. For use when use_disk_store is
+// Opens a new [MemoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
 // off.
 //
 // Parameters:
@@ -32,14 +32,14 @@ type memoryWriter struct {
 // Returns:
 //   - Writer: Writer for Zstd compressed IR
 //   - err: Error opening Zstd/IR writers
-func NewMemoryWriter(timezone string, size int) (Writer, error) {
+func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
 	var zstdBuffer bytes.Buffer
 	irWriter, zstdWriter, err := newIrZstdWriters(&zstdBuffer, timezone, size)
 	if err != nil {
 		return nil, err
 	}
 
-	writer := memoryWriter{
+	memoryWriter := memoryWriter{
 		size:       size,
 		timezone:   timezone,
 		irWriter:   irWriter,
@@ -47,7 +47,7 @@ func NewMemoryWriter(timezone string, size int) (Writer, error) {
 		zstdBuffer: &zstdBuffer,
 	}
 
-	return &writer, nil
+	return &memoryWriter, nil
 }
 
 // Converts log events to Zstd compressed IR and outputs to the Zstd buffer.
@@ -56,7 +56,7 @@ func NewMemoryWriter(timezone string, size int) (Writer, error) {
 //   - logEvents: A slice of log events to be encoded
 //
 // Returns:
-//   - err: Error writing IR/Zstd, error flushing buffers
+//   - err: Error writing IR/Zstd
 func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
 	err := writeIr(w.irWriter, logEvents)
 	if err != nil {
@@ -68,11 +68,10 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
 }
 
 // Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding. After
-// calling close,
-// [Writer] must be reset prior to calling write.
+// calling close, [memoryWriter] must be reset prior to calling write.
 //
 // Returns:
-//   - err: Error flushing/closing buffers
+//   - err: Error closing buffers
 func (w *memoryWriter) CloseStreams() error {
 	_, err := w.irWriter.CloseTo(w.zstdWriter)
 	if err != nil {
@@ -85,11 +84,11 @@ func (w *memoryWriter) CloseStreams() error {
 	return err
 }
 
-// Reinitialize [Writer] after calling [CloseStreams]. Resets individual IR and Zstd writers and
+// Reinitialize [memoryWriter] after calling [CloseStreams]. Resets individual IR and Zstd writers and
 // associated buffers.
 //
 // Returns:
-//   - err: Error opening IR writer, error IR buffer not empty, error with type assertion
+//   - err: Error opening IR writer
 func (w *memoryWriter) Reset() error {
 	var err error
 	w.irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.size, w.timezone)
@@ -102,16 +101,30 @@ func (w *memoryWriter) Reset() error {
 	return nil
 }
 
+// Getter for useDiskBuffer.
+//
+// Returns:
+//   - useDiskBuffer: On/off for disk buffering
+func (w *memoryWriter) GetUseDiskBuffer() bool {
+	return false
+}
+
+// Getter for Zstd Output.
+//
+// Returns:
+//   - zstdOutput: Reader for Zstd output
+func (w *memoryWriter) GetZstdOutput() io.Reader {
+	return w.zstdBuffer
+}
+
 // Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
-// Therefore, cannot keep track of size with variable as implemented for IR with [IrTotalBytes].
 // Instead, calling Len() on buffer.
 //
 // Returns:
 //	 - size: Bytes written
-//   - err: Error called with useDiskBuffer off, error calling stat
-func (w *memoryWriter) GetOutputSize() (int, error) {
+//   - err: nil error to comply with interface
+func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 	return w.zstdBuffer.Len(), nil
-
 }
 
 // Closes [MemoryWriter]. Currently used during recovery only, and advise caution using elsewhere.
@@ -129,13 +142,5 @@ func (w *memoryWriter) Close() error {
 			return fmt.Errorf("error could not close irWriter: %w", err)
 		}
 	}
-
 	return nil
-}
-
-// Getter for Zstd Output.
-// Returns:
-//   - zstdOutput: Reader for writer Zstd output
-func (w *memoryWriter) GetZstdOutput() io.Reader {
-	return w.zstdBuffer
 }

@@ -24,10 +24,6 @@ import (
 // Returns:
 //   - err: Error closing file
 func GracefulExit(ctx *outctx.S3Context) error {
-	if !ctx.Config.UseDiskBuffer {
-		return nil
-	}
-
 	for _, eventManager := range ctx.EventManagers {
 		err := eventManager.Writer.Close()
 		if err != nil {
