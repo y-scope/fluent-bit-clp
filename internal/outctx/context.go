@@ -187,7 +187,7 @@ func (ctx *S3Context) newEventManager(
 	size int,
 ) (*EventManager, error) {
 	var err error
-	var writer *irzstd.Writer
+	var writer irzstd.Writer
 
 	if ctx.Config.UseDiskBuffer {
 		irPath, zstdPath := ctx.GetBufferFilePaths(tag)
@@ -198,7 +198,7 @@ func (ctx *S3Context) newEventManager(
 			zstdPath,
 		)
 	} else {
-		writer, err = irzstd.NewMemWriter(ctx.Config.TimeZone, size)
+		writer, err = irzstd.NewMemoryWriter(ctx.Config.TimeZone, size)
 	}
 
 	if err != nil {

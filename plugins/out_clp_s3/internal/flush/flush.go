@@ -51,6 +51,7 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 
 	uploadCriteriaMet, err := checkUploadCriteriaMet(
 		eventManager,
+		ctx.Config.UseDiskBuffer,
 		ctx.Config.UploadSizeMb,
 	)
 	if err != nil {
@@ -181,12 +182,12 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 // Returns:
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
-func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int) (bool, error) {
-	if !eventManager.Writer.GetUseDiskBuffer() {
+func checkUploadCriteriaMet(eventManager *outctx.EventManager, useDiskBuffer bool, uploadSizeMb int) (bool, error) {
+	if !useDiskBuffer {
 		return true, nil
 	}
 
-	_, bufferSize, err := eventManager.Writer.GetFileSizes()
+	bufferSize, err := eventManager.Writer.GetOutputSize()
 	if err != nil {
 		return false, fmt.Errorf("error could not get size of buffer: %w", err)
 	}
