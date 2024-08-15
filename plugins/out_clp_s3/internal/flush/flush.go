@@ -44,7 +44,7 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 		return output.FLB_RETRY, fmt.Errorf("error getting event manager: %w", err)
 	}
 
-	err = eventManager.Writer.WriteIrZstd(logEvents)
+	_, err = eventManager.Writer.WriteIrZstd(logEvents)
 	if err != nil {
 		return output.FLB_ERROR, err
 	}
