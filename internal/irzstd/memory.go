@@ -56,15 +56,16 @@ func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
 //   - logEvents: A slice of log events to be encoded
 //
 // Returns:
+//   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd
-func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
-	err := writeIr(w.irWriter, logEvents)
+func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
+	numEvents, err := writeIr(w.irWriter, logEvents)
 	if err != nil {
-		return err
+		return numEvents, err
 	}
 
 	_, err = w.irWriter.WriteTo(w.zstdWriter)
-	return err
+	return numEvents, err
 }
 
 // Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding. After

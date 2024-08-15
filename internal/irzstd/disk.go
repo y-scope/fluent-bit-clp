@@ -146,16 +146,17 @@ func RecoverWriter(
 //   - logEvents: A slice of log events to be encoded
 //
 // Returns:
+//   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd, error flushing buffers
-func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
-	err := writeIr(w.irWriter, logEvents)
+func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
+	numEvents, err := writeIr(w.irWriter, logEvents)
 	if err != nil {
-		return err
+		return numEvents, err
 	}
 
 	numBytes, err := w.irWriter.WriteTo(w.irFile)
 	if err != nil {
-		return err
+		return numEvents, err
 	}
 
 	w.irTotalBytes += int(numBytes)
@@ -165,11 +166,11 @@ func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) error {
 	if w.irTotalBytes >= irSizeThreshold {
 		err := w.flushIrBuffer()
 		if err != nil {
-			return fmt.Errorf("error flushing IR buffer: %w", err)
+			return numEvents, fmt.Errorf("error flushing IR buffer: %w", err)
 		}
 	}
 
-	return nil
+	return numEvents, nil
 }
 
 // Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding.

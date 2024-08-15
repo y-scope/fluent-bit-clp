@@ -20,8 +20,9 @@ type Writer interface {
 	//   - logEvents: A slice of log events to be encoded
 	//
 	// Returns:
+	//   - numEvents: Number of log events successfully written to IR writer buffer
 	//   - err
-	WriteIrZstd([]ffi.LogEvent) error
+	WriteIrZstd([]ffi.LogEvent) (int, error)
 
 	// Closes IR stream and Zstd frame. After calling close, Writer must be Reset() prior to calling
 	// write.
@@ -69,16 +70,19 @@ type Writer interface {
 //   - logEvents: A slice of log events to be encoded
 //
 // Returns:
-//   - err: error if an event could not be written
-func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) error {
+//   - numEvents: Number of log events successfully written to IR writer buffer
+//   - err: Error if an event could not be written
+func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, error) {
+	var numEvents int
 	for _, event := range logEvents {
 		_, err := irWriter.Write(event)
 		if err != nil {
 			err = fmt.Errorf("failed to encode event %v into ir: %w", event, err)
-			return err
+			return numEvents, err
 		}
+		numEvents += 1
 	}
-	return nil
+	return numEvents, nil
 }
 
 // Opens a new [ir.Writer] and [zstd.Encoder].
