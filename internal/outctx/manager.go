@@ -22,7 +22,7 @@ const s3TagKey = "fluentBitTag"
 type EventManager struct {
 	Tag    string
 	Index  int
-	Writer *irzstd.Writer
+	Writer irzstd.Writer
 }
 
 // Sends Zstd buffer to s3 and reset writer and buffers for future uploads. Prior to upload,

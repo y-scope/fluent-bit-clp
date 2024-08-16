@@ -44,8 +44,14 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 		return output.FLB_RETRY, fmt.Errorf("error getting event manager: %w", err)
 	}
 
-	err = eventManager.Writer.WriteIrZstd(logEvents)
+	numEvents, err := eventManager.Writer.WriteIrZstd(logEvents)
 	if err != nil {
+		log.Printf(
+			"Wrote %d out of %d total log events for tag %s",
+			numEvents,
+			len(logEvents),
+			eventManager.Tag,
+		)
 		return output.FLB_ERROR, err
 	}
 
@@ -175,7 +181,6 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 //
 // Parameters:
 //   - eventManager: Manager for Fluent Bit events with the same tag
-//   - useDiskBuffer: On/off for disk buffering
 //   - uploadSizeMb: S3 upload size in MB
 //
 // Returns:
@@ -186,7 +191,7 @@ func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int)
 		return true, nil
 	}
 
-	_, bufferSize, err := eventManager.Writer.GetFileSizes()
+	bufferSize, err := eventManager.Writer.GetZstdOutputSize()
 	if err != nil {
 		return false, fmt.Errorf("error could not get size of buffer: %w", err)
 	}

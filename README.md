@@ -36,7 +36,7 @@ tailing log files and other Fluent Bit instances.
 
 #### CLP Output Plugin
 
-Output plugin recieves logs from Fluent Bit and parses them into [CLP IR][1]. CLP IR consists of a
+Output plugin receives logs from Fluent Bit and parses them into [CLP IR][1]. CLP IR consists of a
 timestamp, a list of variable values, and the log type. IR is then compressed with [Zstd][3] in
 default mode without dictionaries.
 
