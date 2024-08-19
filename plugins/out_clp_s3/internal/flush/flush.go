@@ -152,7 +152,6 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	return stringMsg, nil
 }
 
-
 // Writes logEvents to event manager buffers. If upload criteria is met, sends upload signal to
 // manager's UploadRequest channel. Method acquires lock to prevent upload while writing
 //
@@ -163,7 +162,11 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 //
 // Returns:
 //   - err: Error writing log events, error checking upload criteria
-func write(eventManager *outctx.S3EventManager, logEvents []ffi.LogEvent, config outctx.S3Config)  error {
+func write(
+	eventManager *outctx.S3EventManager,
+	logEvents []ffi.LogEvent,
+	config outctx.S3Config,
+) error {
 	eventManager.Mutex.Lock()
 	defer eventManager.Mutex.Unlock()
 
@@ -193,7 +196,6 @@ func write(eventManager *outctx.S3EventManager, logEvents []ffi.LogEvent, config
 
 	return nil
 }
-
 
 // Checks if criteria are met to upload to s3. If useDiskBuffer is false, then the chunk is always
 // uploaded so always returns true. If useDiskBuffer is true, check if Zstd buffer size is greater

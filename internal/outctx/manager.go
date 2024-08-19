@@ -2,10 +2,9 @@ package outctx
 
 import (
 	"context"
-	"net/url"
-
 	"fmt"
 	"log"
+	"net/url"
 	"path/filepath"
 	"sync"
 	"time"
@@ -34,7 +33,8 @@ type S3EventManager struct {
 // Starts upload listener which can receive signals on UploadRequests channel. Upload timeout
 // is only active if use_disk_buffer is on. If UploadRequests channel is closed, the WaitGroup
 // will decrement. WaitGroup allows graceful exit of listener goroutine when Fluent Bit receives
-//  a kill signal. Without it, Fluent Bit may abruptly kill goroutines.
+//
+//	a kill signal. Without it, Fluent Bit may abruptly kill goroutines.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -62,8 +62,8 @@ func (m *S3EventManager) StopListening() {
 	m.Listening = false
 }
 
-// Immortal listener that uploads events to s3 when receives signal on UploadRequests channel or a timeout is hit.
-// Listener will sleep when inactive.
+// Immortal listener that uploads events to s3 when receives signal on UploadRequests channel or a
+// timeout is hit. Listener will sleep when inactive.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -94,7 +94,7 @@ func (m *S3EventManager) DiskUploadListener(config S3Config, uploader *manager.U
 //   - uploader: S3 uploader manager
 func (m *S3EventManager) MemoryUploadListener(config S3Config, uploader *manager.Uploader) {
 	for {
-		 _, more := <-m.UploadRequests
+		_, more := <-m.UploadRequests
 		if !more {
 			return
 		}
@@ -110,7 +110,6 @@ func (m *S3EventManager) MemoryUploadListener(config S3Config, uploader *manager
 // write while uploading. Must check that buffer is not empty as timeout can trigger on empty
 // buffer and send empty file to s3. Empty buffer check is not explicitly necessary for
 // MemoryUploadListener.
-//
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -134,8 +133,8 @@ func (m *S3EventManager) Upload(config S3Config, uploader *manager.Uploader) err
 }
 
 // Sends Zstd buffer to s3 and reset writer and buffers for future uploads. Prior to upload, IR
-// buffer is flushed and IR/Zstd streams are terminated. The [S3EventManager.Index] is incremented on
-// successful upload.
+// buffer is flushed and IR/Zstd streams are terminated. The [S3EventManager.Index] is incremented
+// on successful upload.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -144,7 +143,6 @@ func (m *S3EventManager) Upload(config S3Config, uploader *manager.Uploader) err
 // Returns:
 //   - err: Error creating closing streams, error uploading to s3, error resetting writer
 func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error {
-
 	err := m.Writer.CloseStreams()
 	if err != nil {
 		panic(fmt.Errorf("error closing irzstd stream: %w", err))

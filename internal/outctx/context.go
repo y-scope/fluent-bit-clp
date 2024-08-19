@@ -162,8 +162,8 @@ func (ctx *S3Context) RecoverEventManager(
 	}
 
 	eventManager := S3EventManager{
-		Tag:    tag,
-		Writer: writer,
+		Tag:            tag,
+		Writer:         writer,
 		UploadRequests: make(chan bool),
 	}
 
@@ -210,8 +210,8 @@ func (ctx *S3Context) newEventManager(
 	}
 
 	eventManager := S3EventManager{
-		Tag:    tag,
-		Writer: writer,
+		Tag:            tag,
+		Writer:         writer,
 		UploadRequests: make(chan bool),
 	}
 

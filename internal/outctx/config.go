@@ -23,19 +23,19 @@ import (
 //
 //nolint:revive
 type S3Config struct {
-	S3Region        string `conf:"s3_region"         validate:"required"`
-	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
-	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
-	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
-	Id              string `conf:"id"                validate:"required"`
-	UseSingleKey    bool   `conf:"use_single_key"    validate:"-"`
-	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
-	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
-	UseDiskBuffer   bool   `conf:"use_disk_buffer"   validate:"-"`
-	DiskBufferPath  string `conf:"disk_buffer_path"  validate:"omitempty,dirpath"`
+	S3Region        string        `conf:"s3_region"         validate:"required"`
+	S3Bucket        string        `conf:"s3_bucket"         validate:"required"`
+	S3BucketPrefix  string        `conf:"s3_bucket_prefix"  validate:"dirpath"`
+	RoleArn         string        `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
+	Id              string        `conf:"id"                validate:"required"`
+	UseSingleKey    bool          `conf:"use_single_key"    validate:"-"`
+	AllowMissingKey bool          `conf:"allow_missing_key" validate:"-"`
+	SingleKey       string        `conf:"single_key"        validate:"required_if=use_single_key true"`
+	UseDiskBuffer   bool          `conf:"use_disk_buffer"   validate:"-"`
+	DiskBufferPath  string        `conf:"disk_buffer_path"  validate:"omitempty,dirpath"`
 	Timeout         time.Duration `conf:"timeout"           validate:"-"`
-	UploadSizeMb    int    `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
-	TimeZone        string `conf:"time_zone"         validate:"timezone"`
+	UploadSizeMb    int           `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
+	TimeZone        string        `conf:"time_zone"         validate:"timezone"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values

@@ -65,7 +65,7 @@ type Writer interface {
 	// Checks if writer is empty. True if no events are buffered.
 	//
 	// Returns:
-    //   - empty: Boolean value that is true if buffer is empty
+	//   - empty: Boolean value that is true if buffer is empty
 	//   - err
 	CheckEmpty() (bool, error)
 }

@@ -137,7 +137,7 @@ func (w *memoryWriter) CheckEmpty() (bool, error) {
 	// Not checking internal IR buffer since should it since should always be empty from
 	// perspective of interface. The only time not empty is inside WriteIrZstd, however, it will
 	// be empty again when function terminates.
-	if w.zstdBuffer.Len() == 0  {
+	if w.zstdBuffer.Len() == 0 {
 		return true, nil
 	}
 
