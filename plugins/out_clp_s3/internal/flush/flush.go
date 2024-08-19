@@ -81,7 +81,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		}
 
 		event := ffi.LogEvent{
-			LogMessage: msg,
+			LogMessage: addSpaceAndNewLine(msg),
 			Timestamp:  ffi.EpochTimeMs(timestamp.UnixMilli()),
 		}
 		logEvents = append(logEvents, event)
@@ -231,4 +231,17 @@ func checkUploadCriteriaMet(eventManager *outctx.S3EventManager, uploadSizeMb in
 	}
 
 	return false, nil
+}
+
+// Decompressed IR streams appear as one concatenated string. Adding a space separates the log
+// from the timestamp. Adding a new line separates logs from each other.
+//
+// Parameters:
+//   - msg: Log event message
+//
+// Returns:
+//   - modifiedMsg: Message with space at beginning at newline at end
+func addSpaceAndNewLine(msg string) string {
+    modifiedMsg := " " + msg + "\n"
+    return modifiedMsg
 }
