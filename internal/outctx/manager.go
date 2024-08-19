@@ -43,11 +43,12 @@ func (m *S3EventManager) StopListening() {
 
 // Starts upload listener which can receive signals on UploadRequests channel. This function should
 // be called as a goroutine. Timeout is only triggered if use_disk_buffer is on. Function calls
-// immortal functions and thus will not exit. It will only exit if the uploadRequest channel is
-// closed which will allow the callee to break out of infinite loop. When function does exit, it
-// decrements a WaitGroup signaling that the goroutine has exited. WaitGroup allows graceful exit
-// of listener when Fluent Bit receives a kill signal. On [recovery.GracefulExit], plugin will
-// wait to exit until all listeners are closed. Without WaitGroup, OS may abruptly kill goroutine.
+// immortal functions and thus will not exit immediately. Instead, it will only exit if the
+// uploadRequest channel is closed which will allow immortal functions to break out of infinite
+// loop. When function does exit, it decrements a WaitGroup letting event manager know it has exited.
+// WaitGroup allows graceful exit of listener when Fluent Bit receives a kill signal. On
+// [recovery.GracefulExit], plugin will wait to exit until all listeners are closed. Without
+// WaitGroup, OS may abruptly kill listen goroutine.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -96,19 +97,18 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 func (m *S3EventManager) memoryUploadListener(config S3Config, uploader *manager.Uploader) {
 	for {
 		_, more := <-m.UploadRequests
-		log.Printf("Listener with tag %s received upload request on channel", m.Tag)
 		// Exit if channel is closed
 		if !more {
 			return
 		}
-
+		log.Printf("Listener with tag %s received upload request on channel", m.Tag)
 		m.memoryUpload(config, uploader)
 	}
 }
 
 // Uploads to s3 after acquiring lock and validating that buffer is not empty. Mutex prevents
 // write while uploading. Must check that buffer is not empty as timeout can trigger on empty
-// buffer and send empty file to s3. Panics instead of returning error.
+// buffer and send empty file to s3. Panics or logs instead of returning error.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -131,7 +131,8 @@ func (m *S3EventManager) diskUpload(config S3Config, uploader *manager.Uploader)
 }
 
 // See [diskUpload]; however, not necessary to check size of buffer since there
-// is no timeout. MemoryUpload cannot be called with empty buffer.
+// is no timeout. MemoryUpload cannot be called with empty buffer.  Panics or logs
+// instead of returning error.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -152,6 +153,9 @@ func (m *S3EventManager) memoryUpload(config S3Config, uploader *manager.Uploade
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
 func (m *S3EventManager) toS3(config S3Config, uploader *manager.Uploader) {
+	// In normal operation, writer GetClosed() should always return false. i.e. writer is open and
+	// the stream should be closed. However, if a s3 request fails, it is already closed.
+	// Therefore, on retry we don't want to close again.
 	if !m.Writer.GetClosed() {
 		err := m.Writer.CloseStreams()
 		if err != nil {

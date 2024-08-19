@@ -109,11 +109,11 @@ the record as JSON.
 #### Disk Buffering
 
 The output plugin receives raw logs from Fluent Bit in small chunks. With `use_disk_buffer` set, the
-output plugin will accumulate logs on disk until the upload size is reached. Buffering logs will
-reduce the amount of S3 API requests and improve the compression ratio. However, the plugin will use
-disk space and have higher memory requirements. The amount of system resources will be proportional
-to the amount of Fluent Bit tags. With `use_disk_buffer` off, the plugin will immediately process
-each chunk and send it to S3.
+output plugin will accumulate logs on disk until the upload size or timeout is reached. Buffering
+logs will reduce the amount of S3 API requests and improve the compression ratio. However, the plugin
+will use disk space and have higher memory requirements. The amount of system resources will be
+proportional to the amount of Fluent Bit tags. With `use_disk_buffer` off, the plugin will immediately
+process each chunk and send it to S3.
 
 Logs are stored on the disk as IR and Zstd compressed IR. If the plugin were to crash, stored logs
 will be sent to S3 when Fluent Bit restarts. The upload index restarts on recovery.
