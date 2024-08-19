@@ -190,9 +190,7 @@ func write(
 	}
 
 	if uploadCriteriaMet {
-		// Possible that this occurs before listener actually starts. This is not an issue as channel
-		// already exists, and listener will start eventually.
-		log.Printf("Send upload request to channel with tag %s", eventManager.Tag)
+		log.Printf("Sending upload request to channel with tag %s", eventManager.Tag)
 		eventManager.UploadRequests <- true
 	}
 

@@ -212,10 +212,7 @@ func flushExistingBuffer(
 		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
 	log.Printf("Recovered disk buffers with tag %s", tag)
-
-	// Possible that this occurs before listener actually starts. This is not an issue as channel
-	// already exists, and listener will start eventually.
-	log.Printf("Send upload request to channel with tag %s", eventManager.Tag)
+	log.Printf("Sending upload request to channel with tag %s", eventManager.Tag)
 	eventManager.UploadRequests <- true
 	return nil
 }

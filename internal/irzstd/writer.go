@@ -37,6 +37,12 @@ type Writer interface {
 	//   - err
 	Close() error
 
+	// Getter for closed.
+	//
+	// Returns:
+	//   - closed: Boolean that is true if IR and Zstd streams are closed.
+	GetClosed() bool
+
 	// Reinitialize Writer after calling CloseStreams().
 	//
 	// Returns:

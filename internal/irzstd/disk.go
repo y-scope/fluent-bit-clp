@@ -40,6 +40,7 @@ type diskWriter struct {
 	timezone     string
 	irTotalBytes int
 	zstdWriter   *zstd.Encoder
+	closed       bool
 }
 
 // Opens a new [diskWriter] using files for IR and Zstd buffers. For use when use_disk_store
@@ -203,6 +204,8 @@ func (w *diskWriter) CloseStreams() error {
 		return err
 	}
 
+	w.closed = true
+
 	return nil
 }
 
@@ -236,6 +239,8 @@ func (w *diskWriter) Reset() error {
 	}
 
 	w.zstdWriter.Reset(w.zstdFile)
+
+	w.closed = false
 
 	return nil
 }
@@ -275,6 +280,14 @@ func (w *diskWriter) Close() error {
 //   - useDiskBuffer: On/off for disk buffering
 func (w *diskWriter) GetUseDiskBuffer() bool {
 	return true
+}
+
+// Getter for closed.
+//
+// Returns:
+//   - closed: Boolean that is true if IR and Zstd streams are closed.
+func (w *diskWriter) GetClosed() bool {
+	return w.closed
 }
 
 // Getter for Zstd Output.

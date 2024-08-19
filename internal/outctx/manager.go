@@ -73,14 +73,14 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 	for {
 		select {
 		case _, more := <-m.UploadRequests:
-			log.Printf("Listener received upload request for event manager with tag %s", m.Tag)
+			log.Printf("Listener with tag %s received upload request on channel", m.Tag)
 			// Exit if channel is closed
 			if !more {
 				return
 			}
 		// Timeout will reset if signal sent on UploadRequest channel
 		case <-time.After(config.Timeout):
-			log.Printf("Timeout surpassed for event manager with tag %s", m.Tag)
+			log.Printf("Timeout surpassed for listener with tag %s", m.Tag)
 		}
 
 		m.upload(config, uploader)
@@ -96,7 +96,7 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 func (m *S3EventManager) memoryUploadListener(config S3Config, uploader *manager.Uploader) {
 	for {
 		_, more := <-m.UploadRequests
-		log.Printf("Listener received upload request for event manager with tag %s", m.Tag)
+		log.Printf("Listener with tag %s received upload request on channel", m.Tag)
 		// Exit if channel is closed
 		if !more {
 			return
@@ -109,7 +109,7 @@ func (m *S3EventManager) memoryUploadListener(config S3Config, uploader *manager
 // Uploads to s3 after acquiring lock and validating that buffer is not empty. Mutex prevents
 // write while uploading. Must check that buffer is not empty as timeout can trigger on empty
 // buffer and send empty file to s3. Empty buffer check is not explicitly necessary for
-// MemoryUploadListener.
+// MemoryUploadListener. Panics instead of returning error.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -133,15 +133,18 @@ func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 
 // Sends Zstd buffer to s3 and reset writer and buffers for future uploads. Prior to upload, IR
 // buffer is flushed and IR/Zstd streams are terminated. The [S3EventManager.Index] is incremented
-// on successful upload.
+// on successful upload. Logs errors with s3 request, otherwise panics instead on error. Errors
+// closing and resetting writer are difficult to recover from.
 //
 // Parameters:
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
 func (m *S3EventManager) toS3(config S3Config, uploader *manager.Uploader) {
-	err := m.Writer.CloseStreams()
-	if err != nil {
-		panic(fmt.Errorf("error closing irzstd stream: %w", err))
+	if !m.Writer.GetClosed() {
+		err := m.Writer.CloseStreams()
+		if err != nil {
+			panic(fmt.Errorf("error closing irzstd stream: %w", err))
+		}
 	}
 
 	outputLocation, err := s3Request(

@@ -20,6 +20,7 @@ type memoryWriter struct {
 	size       int
 	timezone   string
 	zstdWriter *zstd.Encoder
+	closed     bool
 }
 
 // Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
@@ -82,6 +83,9 @@ func (w *memoryWriter) CloseStreams() error {
 	w.irWriter = nil
 
 	err = w.zstdWriter.Close()
+
+	w.closed = true
+
 	return err
 }
 
@@ -99,6 +103,8 @@ func (w *memoryWriter) Reset() error {
 
 	w.zstdBuffer.Reset()
 	w.zstdWriter.Reset(w.zstdBuffer)
+
+	w.closed = false
 	return nil
 }
 
@@ -108,6 +114,14 @@ func (w *memoryWriter) Reset() error {
 //   - useDiskBuffer: On/off for disk buffering
 func (w *memoryWriter) GetUseDiskBuffer() bool {
 	return false
+}
+
+// Getter for closed.
+//
+// Returns:
+//   - closed: Boolean that is true if IR and Zstd streams are closed.
+func (w *memoryWriter) GetClosed() bool {
+	return w.closed
 }
 
 // Getter for Zstd Output.
