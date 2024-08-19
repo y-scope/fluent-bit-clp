@@ -35,7 +35,7 @@ const s3PluginName = "out_clp_s3"
 func FLBPluginRegister(def unsafe.Pointer) int {
 	logPrefix := fmt.Sprintf("[%s] ", s3PluginName)
 	log.SetPrefix(logPrefix)
-	log.SetFlags(log.LstdFlags|log.Lmsgprefix)
+	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.Printf("Register called")
 	return output.FLBPluginRegister(def, s3PluginName, "CLP s3 plugin")
 }

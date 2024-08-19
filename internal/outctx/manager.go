@@ -45,8 +45,8 @@ func (m *S3EventManager) StopListening() {
 // be called as a goroutine. Timeout is only triggered if use_disk_buffer is on. Function calls
 // immortal functions and thus will not exit immediately. Instead, it will only exit if the
 // uploadRequest channel is closed which will allow immortal functions to break out of infinite
-// loop. When function does exit, it decrements a WaitGroup letting event manager know it has exited.
-// WaitGroup allows graceful exit of listener when Fluent Bit receives a kill signal. On
+// loop. When function does exit, it decrements a WaitGroup letting event manager know it has
+// exited. WaitGroup allows graceful exit of listener when Fluent Bit receives a kill signal. On
 // [recovery.GracefulExit], plugin will wait to exit until all listeners are closed. Without
 // WaitGroup, OS may abruptly kill listen goroutine.
 //

@@ -154,7 +154,6 @@ func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 func (w *memoryWriter) CheckEmpty() (bool, error) {
 	w.zstdWriter.Flush()
 
-
 	empty := w.zstdBuffer.Len() == 0
 	return empty, nil
 }
