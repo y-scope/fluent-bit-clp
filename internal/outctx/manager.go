@@ -73,17 +73,17 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 	for {
 		select {
 		case _, more := <-m.UploadRequests:
-			log.Printf("Listener with tag %s received upload request on channel", m.Tag)
 			// Exit if channel is closed
 			if !more {
 				return
 			}
+			log.Printf("Listener with tag %s received upload request on channel", m.Tag)
 		// Timeout will reset if signal sent on UploadRequest channel
 		case <-time.After(config.Timeout):
 			log.Printf("Timeout surpassed for listener with tag %s", m.Tag)
 		}
 
-		m.upload(config, uploader)
+		m.diskUpload(config, uploader)
 	}
 }
 
@@ -102,19 +102,18 @@ func (m *S3EventManager) memoryUploadListener(config S3Config, uploader *manager
 			return
 		}
 
-		m.upload(config, uploader)
+		m.memoryUpload(config, uploader)
 	}
 }
 
 // Uploads to s3 after acquiring lock and validating that buffer is not empty. Mutex prevents
 // write while uploading. Must check that buffer is not empty as timeout can trigger on empty
-// buffer and send empty file to s3. Empty buffer check is not explicitly necessary for
-// MemoryUploadListener. Panics instead of returning error.
+// buffer and send empty file to s3. Panics instead of returning error.
 //
 // Parameters:
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
-func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
+func (m *S3EventManager) diskUpload(config S3Config, uploader *manager.Uploader) {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
@@ -127,6 +126,19 @@ func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 		log.Printf("Did not uploads events with tag %s since buffer is empty", m.Tag)
 		return
 	}
+
+	m.toS3(config, uploader)
+}
+
+// See [diskUpload]; however, not necessary to check size of buffer since there
+// is no timeout. MemoryUpload cannot be called with empty buffer.
+//
+// Parameters:
+//   - config: Plugin configuration
+//   - uploader: S3 uploader manager
+func (m *S3EventManager) memoryUpload(config S3Config, uploader *manager.Uploader) {
+	m.Mutex.Lock()
+	defer m.Mutex.Unlock()
 
 	m.toS3(config, uploader)
 }

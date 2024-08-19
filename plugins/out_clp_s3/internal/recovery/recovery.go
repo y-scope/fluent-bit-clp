@@ -25,12 +25,12 @@ import (
 //   - err: Error closing file
 func GracefulExit(ctx *outctx.S3Context) error {
 	for _, eventManager := range ctx.EventManagers {
+		eventManager.StopListening()
 		err := eventManager.Writer.Close()
 		if err != nil {
 			return err
 		}
 		eventManager.Writer = nil
-		eventManager.StopListening()
 	}
 
 	return nil

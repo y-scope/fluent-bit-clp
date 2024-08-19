@@ -66,6 +66,10 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 	}
 
 	_, err = w.irWriter.WriteTo(w.zstdWriter)
+	if err != nil {
+		return numEvents, err
+	}
+
 	return numEvents, err
 }
 
@@ -133,25 +137,31 @@ func (w *memoryWriter) GetZstdOutput() io.Reader {
 }
 
 // Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
-// Instead, calling Len() on buffer.
+// Instead, calling Len() on buffer. Try to avoid calling this as will flush Zstd Writer
+// potentially creating unnecessary frames.
 //
 // Returns:
 //   - size: Bytes written
 //   - err: nil error to comply with interface
 func (w *memoryWriter) GetZstdOutputSize() (int, error) {
+	w.zstdWriter.Flush()
 	return w.zstdBuffer.Len(), nil
 }
 
-// Checks if writer is empty. True if no events are buffered.
+// Checks if writer is empty. True if no events are buffered. Try to avoid calling this as will
+// flush Zstd Writer potentially creating unnecessary frames.
 //
 // Returns:
 //   - empty: Boolean value that is true if buffer is empty
 //   - err: nil error to comply with interface
 func (w *memoryWriter) CheckEmpty() (bool, error) {
+	w.zstdWriter.Flush()
+
 	// Not checking internal IR buffer since should it since should always be empty from
 	// perspective of interface. The only time not empty is inside WriteIrZstd, however, it will
 	// be empty again when function terminates.
-	return w.zstdBuffer.Len() == 0, nil
+	empty := w.zstdBuffer.Len() == 0
+	return empty, nil
 }
 
 // Closes [memoryWriter]. Currently used during recovery only, and advise caution using elsewhere.
