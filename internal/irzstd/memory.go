@@ -66,9 +66,6 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 	}
 
 	_, err = w.irWriter.WriteTo(w.zstdWriter)
-	if err != nil {
-		return numEvents, err
-	}
 
 	return numEvents, err
 }
@@ -157,9 +154,7 @@ func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 func (w *memoryWriter) CheckEmpty() (bool, error) {
 	w.zstdWriter.Flush()
 
-	// Not checking internal IR buffer since should it since should always be empty from
-	// perspective of interface. The only time not empty is inside WriteIrZstd, however, it will
-	// be empty again when function terminates.
+
 	empty := w.zstdBuffer.Len() == 0
 	return empty, nil
 }
