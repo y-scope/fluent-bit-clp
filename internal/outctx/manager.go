@@ -47,7 +47,7 @@ func (m *S3EventManager) StopListening() {
 // closed which will allow the callee to break out of infinite loop. When function does exit, it
 // decrements a WaitGroup signaling that the goroutine has exited. WaitGroup allows graceful exit
 // of listener when Fluent Bit receives a kill signal. On [recovery.GracefulExit], plugin will
-// wait to exit until all listeners are closed. Without WaitGroup, OS may abruptly kill goroutines.
+// wait to exit until all listeners are closed. Without WaitGroup, OS may abruptly kill goroutine.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -74,6 +74,7 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 	for {
 		select {
 		case _, more := <-m.UploadRequests:
+			// Exit if channel is closed
 			if !more {
 				return
 			}
@@ -94,6 +95,7 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 func (m *S3EventManager) memoryUploadListener(config S3Config, uploader *manager.Uploader) {
 	for {
 		_, more := <-m.UploadRequests
+		// Exit if channel is closed
 		if !more {
 			return
 		}

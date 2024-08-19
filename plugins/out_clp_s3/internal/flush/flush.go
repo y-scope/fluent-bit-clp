@@ -152,8 +152,8 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	return stringMsg, nil
 }
 
-// Writes logEvents to event manager buffers. If upload criteria is met, sends upload signal to
-// manager's UploadRequest channel. Method acquires lock to prevent upload while writing
+// Writes logEvents to event manager buffer. If upload criteria is met, sends upload signal to
+// [EventManager.UploadRequests] channel. Method acquires lock to prevent upload while writing.
 //
 // Parameters:
 //   - eventManager: Manager for Fluent Bit events with the same tag
