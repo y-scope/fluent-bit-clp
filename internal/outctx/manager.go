@@ -53,7 +53,6 @@ func (m *S3EventManager) StopListening() {
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
 func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
-	log.Printf("Starting upload listener for event manager with tag %s", m.Tag)
 	defer m.WaitGroup.Done()
 
 	m.listening = true
@@ -74,12 +73,14 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 	for {
 		select {
 		case _, more := <-m.UploadRequests:
+			log.Printf("Listener received upload request for event manager with tag %s", m.Tag)
 			// Exit if channel is closed
 			if !more {
 				return
 			}
 		// Timeout will reset if signal sent on UploadRequest channel
 		case <-time.After(config.Timeout):
+			log.Printf("Timeout surpassed for event manager with tag %s", m.Tag)
 		}
 
 		m.upload(config, uploader)
@@ -95,6 +96,7 @@ func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.U
 func (m *S3EventManager) memoryUploadListener(config S3Config, uploader *manager.Uploader) {
 	for {
 		_, more := <-m.UploadRequests
+		log.Printf("Listener received upload request for event manager with tag %s", m.Tag)
 		// Exit if channel is closed
 		if !more {
 			return

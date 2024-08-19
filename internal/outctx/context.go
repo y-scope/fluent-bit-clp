@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"unsafe"
 
@@ -167,6 +168,8 @@ func (ctx *S3Context) RecoverEventManager(
 		UploadRequests: make(chan bool),
 	}
 
+	log.Printf("Starting upload listener for event manager with tag %s", tag)
+	eventManager.WaitGroup.Add(1)
 	go eventManager.listen(ctx.Config, ctx.Uploader)
 
 	ctx.EventManagers[tag] = &eventManager
@@ -215,6 +218,8 @@ func (ctx *S3Context) newEventManager(
 		UploadRequests: make(chan bool),
 	}
 
+	log.Printf("Starting upload listener for event manager with tag %s", tag)
+	eventManager.WaitGroup.Add(1)
 	go eventManager.listen(ctx.Config, ctx.Uploader)
 
 	ctx.EventManagers[tag] = &eventManager
