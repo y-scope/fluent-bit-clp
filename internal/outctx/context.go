@@ -167,7 +167,7 @@ func (ctx *S3Context) RecoverEventManager(
 		UploadRequests: make(chan bool),
 	}
 
-	go eventManager.Listen(ctx.Config, ctx.Uploader)
+	go eventManager.listen(ctx.Config, ctx.Uploader)
 
 	ctx.EventManagers[tag] = &eventManager
 
@@ -215,7 +215,7 @@ func (ctx *S3Context) newEventManager(
 		UploadRequests: make(chan bool),
 	}
 
-	go eventManager.Listen(ctx.Config, ctx.Uploader)
+	go eventManager.listen(ctx.Config, ctx.Uploader)
 
 	ctx.EventManagers[tag] = &eventManager
 

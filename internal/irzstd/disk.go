@@ -315,11 +315,7 @@ func (w *diskWriter) CheckEmpty() (bool, error) {
 	// Not checking internal IR buffer since should it since should always be empty from
 	// perspective of interface. The only time not empty is inside WriteIrZstd, however, it will
 	// be empty again when function terminates.
-	if zstdFileInfo.Size() == 0 && w.irTotalBytes == 0 {
-		return true, nil
-	}
-
-	return false, nil
+	return (zstdFileInfo.Size() == 0 && w.irTotalBytes == 0), nil
 }
 
 // Compresses contents of the IR file and outputs it to the Zstd file. The IR file is then

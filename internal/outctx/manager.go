@@ -24,31 +24,10 @@ type S3EventManager struct {
 	Tag            string
 	Index          int
 	Writer         irzstd.Writer
-	Listening      bool
 	Mutex          sync.Mutex
 	WaitGroup      sync.WaitGroup
 	UploadRequests chan bool
-}
-
-// Starts upload listener which can receive signals on UploadRequests channel. Upload timeout
-// is only active if use_disk_buffer is on. If UploadRequests channel is closed, the WaitGroup
-// will decrement. WaitGroup allows graceful exit of listener goroutine when Fluent Bit receives
-//
-//	a kill signal. Without it, Fluent Bit may abruptly kill goroutines.
-//
-// Parameters:
-//   - config: Plugin configuration
-//   - uploader: S3 uploader manager
-func (m *S3EventManager) Listen(config S3Config, uploader *manager.Uploader) {
-	log.Printf("Starting upload listener for event manager with tag %s", m.Tag)
-	defer m.WaitGroup.Done()
-
-	m.Listening = true
-	if m.Writer.GetUseDiskBuffer() {
-		m.DiskUploadListener(config, uploader)
-	} else {
-		m.MemoryUploadListener(config, uploader)
-	}
+	listening      bool
 }
 
 // Ends listener goroutine.
@@ -59,7 +38,30 @@ func (m *S3EventManager) StopListening() {
 	// will block until it actually terminates.
 	close(m.UploadRequests)
 	m.WaitGroup.Wait()
-	m.Listening = false
+	m.listening = false
+}
+
+// Starts upload listener which can receive signals on UploadRequests channel. This function should
+// be called as a goroutine. Timeout is only triggered if use_disk_buffer is on. Function calls
+// immortal functions and thus will not exit. It will only exit if the uploadRequest channel is
+// closed which will allow the callee to break out of infinite loop. When function does exit, it
+// decrements a WaitGroup signaling that the goroutine has exited. WaitGroup allows graceful exit
+// of listener when Fluent Bit receives a kill signal. On [recovery.GracefulExit], plugin will
+// wait to exit until all listeners are closed. Without WaitGroup, OS may abruptly kill goroutines.
+//
+// Parameters:
+//   - config: Plugin configuration
+//   - uploader: S3 uploader manager
+func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
+	log.Printf("Starting upload listener for event manager with tag %s", m.Tag)
+	defer m.WaitGroup.Done()
+
+	m.listening = true
+	if m.Writer.GetUseDiskBuffer() {
+		m.diskUploadListener(config, uploader)
+	} else {
+		m.memoryUploadListener(config, uploader)
+	}
 }
 
 // Immortal listener that uploads events to s3 when receives signal on UploadRequests channel or a
@@ -68,7 +70,7 @@ func (m *S3EventManager) StopListening() {
 // Parameters:
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
-func (m *S3EventManager) DiskUploadListener(config S3Config, uploader *manager.Uploader) {
+func (m *S3EventManager) diskUploadListener(config S3Config, uploader *manager.Uploader) {
 	for {
 		select {
 		case _, more := <-m.UploadRequests:
@@ -79,10 +81,7 @@ func (m *S3EventManager) DiskUploadListener(config S3Config, uploader *manager.U
 		case <-time.After(config.Timeout):
 		}
 
-		err := m.Upload(config, uploader)
-		if err != nil {
-			log.Printf("Error uploading to s3 for event manager with tag %s", m.Tag)
-		}
+		m.upload(config, uploader)
 	}
 }
 
@@ -92,17 +91,14 @@ func (m *S3EventManager) DiskUploadListener(config S3Config, uploader *manager.U
 // Parameters:
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
-func (m *S3EventManager) MemoryUploadListener(config S3Config, uploader *manager.Uploader) {
+func (m *S3EventManager) memoryUploadListener(config S3Config, uploader *manager.Uploader) {
 	for {
 		_, more := <-m.UploadRequests
 		if !more {
 			return
 		}
 
-		err := m.Upload(config, uploader)
-		if err != nil {
-			log.Printf("Error uploading to s3 for event manager with tag %s", m.Tag)
-		}
+		m.upload(config, uploader)
 	}
 }
 
@@ -114,22 +110,21 @@ func (m *S3EventManager) MemoryUploadListener(config S3Config, uploader *manager
 // Parameters:
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
-func (m *S3EventManager) Upload(config S3Config, uploader *manager.Uploader) error {
+func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
 	empty, err := m.Writer.CheckEmpty()
 	if err != nil {
-		return fmt.Errorf("failed to check if buffer is empty, %w", err)
+		panic(fmt.Errorf("failed to check if buffer is empty, %w", err))
 	}
 
 	if empty {
 		log.Printf("Did not uploads events with tag %s since buffer is empty", m.Tag)
-		return nil
+		return
 	}
 
-	err = m.ToS3(config, uploader)
-	return err
+	m.toS3(config, uploader)
 }
 
 // Sends Zstd buffer to s3 and reset writer and buffers for future uploads. Prior to upload, IR
@@ -139,10 +134,7 @@ func (m *S3EventManager) Upload(config S3Config, uploader *manager.Uploader) err
 // Parameters:
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
-//
-// Returns:
-//   - err: Error creating closing streams, error uploading to s3, error resetting writer
-func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error {
+func (m *S3EventManager) toS3(config S3Config, uploader *manager.Uploader) {
 	err := m.Writer.CloseStreams()
 	if err != nil {
 		panic(fmt.Errorf("error closing irzstd stream: %w", err))
@@ -156,8 +148,8 @@ func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error
 		uploader,
 	)
 	if err != nil {
-		err = fmt.Errorf("failed to upload chunk to s3, %w", err)
-		return err
+		log.Print(fmt.Errorf("S3 request failed for event manager with tag %s: %w", m.Tag, err))
+		return
 	}
 
 	m.Index += 1
@@ -168,8 +160,6 @@ func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error
 	if err != nil {
 		panic(fmt.Errorf("error resetting irzstd stream: %w", err))
 	}
-
-	return nil
 }
 
 // Uploads log events to s3.
