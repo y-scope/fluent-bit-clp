@@ -128,6 +128,22 @@ func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 	return w.zstdBuffer.Len(), nil
 }
 
+// Checks if writer is empty. True if no events are buffered.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: nil error to comply with interface
+func (w *memoryWriter) CheckEmpty() (bool, error) {
+	// Not checking internal IR buffer since should it since should always be empty from
+	// perspective of interface. The only time not empty is inside WriteIrZstd, however, it will
+	// be empty again when function terminates.
+	if w.zstdBuffer.Len() == 0  {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // Closes [memoryWriter]. Currently used during recovery only, and advise caution using elsewhere.
 // Using [ir.Writer.Serializer.Close] instead of [ir.Writer.Close] so EndofStream byte is not
 // added. It is preferable to add postamble on recovery so that IR is in the same state

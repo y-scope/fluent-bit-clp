@@ -82,20 +82,21 @@ More detailed information for specifying credentials from AWS can be found [here
 
 ### Plugin configuration
 
-| Key                 | Description                                                                                              | Default           |
-|---------------------|----------------------------------------------------------------------------------------------------------|-------------------|
-| `s3_region`         | The AWS region of your S3 bucket                                                                         | `us-east-1`       |
-| `s3_bucket`         | S3 bucket name. Just the name, no aws prefix neccesary.                                                  | `None`            |
-| `s3_bucket_prefix`  | Bucket prefix path                                                                                       | `logs/`           |
-| `role_arn`          | ARN of an IAM role to assume                                                                             | `None`            |
-| `id`                | Name of output plugin                                                                                    |  Random UUID      |
-| `use_single_key`    | Output single key from Fluent Bit record. See [Use Single Key](#use-single-key) for more info.           | `TRUE`            |
-| `allow_missing_key` | Fallback to whole record if key is missing from log. If set to false, an error will be recorded instead. | `TRUE`            |
-| `single_key`        | Value for single key                                                                                     | `log`             |
-| `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.         | `TRUE`            |
-| `disk_buffer_path`  | Directory for disk buffer                                                                                | `tmp/out_clp_s3/` |
-| `upload_size_mb`    | Set upload size in MB when disk store is enabled. Size refers to the compressed size.                    | `16`              |
-| `time_zone`         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | `America/Toronto` |
+| Key                 | Description                                                                                                     | Default             |
+|---------------------|-----------------------------------------------------------------------------------------------------------------|---------------------|
+| `s3_region`         | The AWS region of your S3 bucket                                                                                | `us-east-1`         |
+| `s3_bucket`         | S3 bucket name. Just the name, no aws prefix necessary.                                                         | `None`              |
+| `s3_bucket_prefix`  | Bucket prefix path                                                                                              | `logs/`             |
+| `role_arn`          | ARN of an IAM role to assume                                                                                    | `None`              |
+| `id`                | Name of output plugin                                                                                           | Random UUID         |
+| `use_single_key`    | Output single key from Fluent Bit record. See [Use Single Key](#use-single-key) for more info.                  | `TRUE`              |
+| `allow_missing_key` | Fallback to whole record if single key is missing from log. If set to false, an error will be recorded instead. | `TRUE`              |
+| `single_key`        | Value for single key                                                                                            | `log`               |
+| `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.                | `TRUE`              |
+| `disk_buffer_path`  | Directory for disk buffer. Path should be unique for each output.                                               | `tmp/out_clp_s3/1/` |
+| `upload_size_mb`    | Set upload size in MB when disk buffer is enabled. Size refers to the compressed size.                          | `16`                |
+| `timeout`           | Upload timeout if upload size is not met. For use when disk buffer is enabled. Valid time units are s, m, h.    | `15m`               |
+| `time_zone`         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.                   | `America/Toronto`   |
 
 #### Use Single Key
 
@@ -107,7 +108,7 @@ the record as JSON.
 
 #### Disk Buffering
 
-The output plugin recieves raw logs from Fluent Bit in small chunks. With `use_disk_buffer` set, the
+The output plugin receives raw logs from Fluent Bit in small chunks. With `use_disk_buffer` set, the
 output plugin will accumulate logs on disk until the upload size is reached. Buffering logs will
 reduce the amount of S3 API requests and improve the compression ratio. However, the plugin will use
 disk space and have higher memory requirements. The amount of system resources will be proportional

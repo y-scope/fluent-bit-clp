@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/go-playground/validator/v10"
@@ -32,6 +33,7 @@ type S3Config struct {
 	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
 	UseDiskBuffer   bool   `conf:"use_disk_buffer"   validate:"-"`
 	DiskBufferPath  string `conf:"disk_buffer_path"  validate:"omitempty,dirpath"`
+	Timeout         time.Duration `conf:"timeout"           validate:"-"`
 	UploadSizeMb    int    `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
 	TimeZone        string `conf:"time_zone"         validate:"timezone"`
 }
@@ -46,6 +48,8 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All validation errors in config wrapped, parse bool error
 func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
+	defaultTimeout, _ := time.ParseDuration("15m")
+
 	// Define default values for settings. Setting defaults before validation simplifies validation
 	// configuration, and ensures that default settings are also validated.
 	config := S3Config{
@@ -59,6 +63,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		SingleKey:       "log",
 		UseDiskBuffer:   true,
 		DiskBufferPath:  "tmp/out_clp_s3/",
+		Timeout:         defaultTimeout,
 		UploadSizeMb:    16,
 		TimeZone:        "America/Toronto",
 	}
@@ -76,6 +81,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		"single_key":        &config.SingleKey,
 		"use_disk_buffer":   &config.UseDiskBuffer,
 		"disk_buffer_path":  &config.DiskBufferPath,
+		"timeout":           &config.Timeout,
 		"upload_size_mb":    &config.UploadSizeMb,
 		"time_zone":         &config.TimeZone,
 	}
@@ -90,7 +96,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 			continue
 		}
 
-		// Type switch to type parse boolean strings into boolean type. This is necessary since
+		// Type switch to type parse interface into field type. This is necessary since
 		// all values are provided as strings.
 		switch configField := untypedField.(type) {
 		case *string:
@@ -102,6 +108,12 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 				return nil, fmt.Errorf("error could not parse input %v into bool", userInput)
 			}
 			*configField = boolInput
+		case *time.Duration:
+			durationInput, err := time.ParseDuration(userInput)
+			if err != nil {
+				return nil, fmt.Errorf("error could not parse input %v into duration", userInput)
+			}
+			*configField = durationInput
 		case *int:
 			intInput, err := strconv.Atoi(userInput)
 			if err != nil {
