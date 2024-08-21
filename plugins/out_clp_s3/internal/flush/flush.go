@@ -240,7 +240,7 @@ func checkUploadCriteriaMet(eventManager *outctx.S3EventManager, uploadSizeMb in
 //   - msg: Log event message
 //
 // Returns:
-//   - modifiedMsg: Message with space at beginning at newline at end
+//   - modifiedMsg: Message with space at beginning and newline at end
 func addSpaceAndNewLine(msg string) string {
 	modifiedMsg := " " + msg + "\n"
 	return modifiedMsg

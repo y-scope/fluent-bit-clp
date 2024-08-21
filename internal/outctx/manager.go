@@ -27,18 +27,23 @@ type S3EventManager struct {
 	Mutex          sync.Mutex
 	WaitGroup      sync.WaitGroup
 	UploadRequests chan bool
-	listening      bool
+	Listening      bool
 }
 
 // Ends listener goroutine.
 func (m *S3EventManager) StopListening() {
+
+	if !m.Listening {
+		return
+	}
+
 	log.Printf("Stopping upload listener for event manager with tag %s", m.Tag)
 
 	// Closing the channel sends terminate signal to goroutine. The WaitGroup
 	// will block until it actually terminates.
 	close(m.UploadRequests)
 	m.WaitGroup.Wait()
-	m.listening = false
+	m.Listening = false
 }
 
 // Starts upload listener which can receive signals on UploadRequests channel. This function should
@@ -56,7 +61,7 @@ func (m *S3EventManager) StopListening() {
 func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
 	defer m.WaitGroup.Done()
 
-	m.listening = true
+	m.Listening = true
 	if m.Writer.GetUseDiskBuffer() {
 		m.diskUploadListener(config, uploader)
 	} else {
