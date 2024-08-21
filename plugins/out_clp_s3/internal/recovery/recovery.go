@@ -25,6 +25,7 @@ import (
 //   - err: Error closing file
 func GracefulExit(ctx *outctx.S3Context) error {
 	for _, eventManager := range ctx.EventManagers {
+		eventManager.StopListening()
 		err := eventManager.Writer.Close()
 		if err != nil {
 			return err
@@ -174,7 +175,7 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 }
 
 // Flushes existing disk buffer to s3 on startup. Prior to sending, opens disk buffer files and
-// creates new [outctx.EventManager] using existing buffer files.
+// creates new [outctx.S3EventManager] using existing buffer files.
 //
 // Parameters:
 //   - tag: Fluent Bit tag
@@ -210,14 +211,9 @@ func flushExistingBuffer(
 	if err != nil {
 		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
-
 	log.Printf("Recovered disk buffers with tag %s", tag)
-
-	err = eventManager.ToS3(ctx.Config, ctx.Uploader)
-	if err != nil {
-		return fmt.Errorf("error flushing Zstd to s3: %w", err)
-	}
-
+	log.Printf("Sending upload request to channel with tag %s", eventManager.Tag)
+	eventManager.UploadRequests <- true
 	return nil
 }
 

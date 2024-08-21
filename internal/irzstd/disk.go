@@ -40,6 +40,7 @@ type diskWriter struct {
 	timezone     string
 	irTotalBytes int
 	zstdWriter   *zstd.Encoder
+	closed       bool
 }
 
 // Opens a new [diskWriter] using files for IR and Zstd buffers. For use when use_disk_store
@@ -203,6 +204,8 @@ func (w *diskWriter) CloseStreams() error {
 		return err
 	}
 
+	w.closed = true
+
 	return nil
 }
 
@@ -236,6 +239,8 @@ func (w *diskWriter) Reset() error {
 	}
 
 	w.zstdWriter.Reset(w.zstdFile)
+
+	w.closed = false
 
 	return nil
 }
@@ -277,6 +282,14 @@ func (w *diskWriter) GetUseDiskBuffer() bool {
 	return true
 }
 
+// Getter for closed.
+//
+// Returns:
+//   - closed: Boolean that is true if IR and Zstd streams are closed.
+func (w *diskWriter) GetClosed() bool {
+	return w.closed
+}
+
 // Getter for Zstd Output.
 //
 // Returns:
@@ -300,6 +313,23 @@ func (w *diskWriter) GetZstdOutputSize() (int, error) {
 	zstdFileSize := int(zstdFileInfo.Size())
 
 	return zstdFileSize, err
+}
+
+// Checks if writer is empty. True if no events are buffered.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: Error calling stat
+func (w *diskWriter) CheckEmpty() (bool, error) {
+	zstdFileInfo, err := w.zstdFile.Stat()
+	if err != nil {
+		return false, err
+	}
+	// Not checking internal IR buffer since should it since should always be empty from
+	// perspective of interface. The only time not empty is inside WriteIrZstd, however, it will
+	// be empty again when function terminates.
+	empty := (zstdFileInfo.Size() == 0) && (w.irTotalBytes == 0)
+	return empty, nil
 }
 
 // Compresses contents of the IR file and outputs it to the Zstd file. The IR file is then

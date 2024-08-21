@@ -37,6 +37,12 @@ type Writer interface {
 	//   - err
 	Close() error
 
+	// Getter for closed.
+	//
+	// Returns:
+	//   - closed: Boolean that is true if IR and Zstd streams are closed.
+	GetClosed() bool
+
 	// Reinitialize Writer after calling CloseStreams().
 	//
 	// Returns:
@@ -61,6 +67,13 @@ type Writer interface {
 	//	 - size: Bytes written
 	//   - err
 	GetZstdOutputSize() (int, error)
+
+	// Checks if writer is empty. True if no events are buffered.
+	//
+	// Returns:
+	//   - empty: Boolean value that is true if buffer is empty
+	//   - err
+	CheckEmpty() (bool, error)
 }
 
 // Writes log events to a IR Writer.
