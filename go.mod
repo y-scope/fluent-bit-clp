@@ -1,6 +1,7 @@
 module github.com/y-scope/fluent-bit-clp
 
 go 1.22.3
+toolchain go1.23.7
 
 require (
 	github.com/fluent/fluent-bit-go v0.0.0-20230731091245-a7a013e2473c
@@ -39,8 +40,8 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	golang.org/x/crypto v0.19.0 // indirect
-	golang.org/x/net v0.21.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 )
