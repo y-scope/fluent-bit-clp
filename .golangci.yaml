@@ -1,0 +1,94 @@
+version: "2"
+
+# NOTE: `golines` will autoformat code to 100 characters, but is disabled on comments as it will
+# flag long lines such as URLs. `revive` also checks for 100 character line length, but uses a regex
+# linter exclusion to avoid false positives.
+
+formatters:
+  enable:
+    - "gci"
+    - "gofumpt"
+    - "golines"
+
+  settings:
+    gci:
+      custom-order: true
+      sections:
+        - "standard"
+        - "default"
+        - "blank"
+        - "dot"
+        - "alias"
+        - "localmodule"
+
+linters:
+  default: "none"
+  enable:
+    - "errorlint"
+    - "exhaustive"
+    - "gocritic"
+    - "gosec"
+    - "govet"
+    - "ineffassign"
+    - "misspell"
+    - "nakedret"
+    - "nilnil"
+    - "recvcheck"
+    - "revive"
+    - "staticcheck"
+    - "unused"
+
+  settings:
+    gocritic:
+      disabled-checks:
+        # Appears to cause a false positive for Cgo calls
+        - "dupSubExpr"
+
+    nakedret:
+      # Completely disallow naked returns
+      max-func-lines: 0
+
+    revive:
+      confidence: 0
+      enable-all-rules: true
+      rules:
+        - name: "add-constant"
+          arguments:
+            - max-lit-count: "1"
+              allow-strs: ""
+              allow-ints: "0"
+              allow-floats: "0.0"
+        - name: "bool-literal-in-expr"
+          disabled: true
+        - name: "confusing-naming"
+          disabled: true
+        - name: "exported"
+          disabled: true
+        - name: "line-length-limit"
+          arguments: [100]
+        - name: "package-comments"
+          disabled: true
+
+    staticcheck:
+      checks:
+        - "all"
+        - "-S1002"  # Allow bool literals in expressions
+        - "-ST1000"  # Allow package docstring to start without name
+        - "-ST1020"  # Allow exported function docstring to start without name
+        - "-ST1021"  # Allow exported type docstring to start without name
+        - "-ST1022"  # Allow exported constant/variable docstring to start without name
+      initialisms:
+        - ""
+
+  exclusions:
+    rules:
+      - linters:
+          - "revive"
+        source: "^\\s*// (?:\\[.+\\]: )?https?://.+"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+severity:
+  default: "error"

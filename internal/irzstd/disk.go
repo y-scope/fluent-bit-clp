@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/klauspost/compress/zstd"
-
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 )
@@ -65,7 +64,7 @@ func NewDiskWriter(
 		return nil, err
 	}
 
-	irWriter, zstdWriter, err := newIrZstdWriters(zstdFile, timezone, size)
+	irWriter, zstdWriter, err := newIrZstdWriters(zstdFile)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +107,7 @@ func RecoverWriter(
 		return nil, fmt.Errorf("error opening files: %w", err)
 	}
 
-	irWriter, zstdWriter, err := newIrZstdWriters(zstdFile, timezone, size)
+	irWriter, zstdWriter, err := newIrZstdWriters(zstdFile)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +132,6 @@ func RecoverWriter(
 	// the non-empty disk buffers already have existing preamble so remove it. Disk buffer
 	// must have non-zero size or else would be deleted in recover.
 	diskWriter.irTotalBytes = irFileSize
-	irWriter.Reset()
 
 	return &diskWriter, nil
 }
@@ -149,12 +147,7 @@ func RecoverWriter(
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd, error flushing buffers
 func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
-	numEvents, err := writeIr(w.irWriter, logEvents)
-	if err != nil {
-		return numEvents, err
-	}
-
-	numBytes, err := w.irWriter.WriteTo(w.irFile)
+	numBytes, numEvents, err := writeIr(w.irWriter, logEvents)
 	if err != nil {
 		return numEvents, err
 	}
@@ -186,7 +179,7 @@ func (w *diskWriter) CloseStreams() error {
 		return fmt.Errorf("error flushing IR buffer: %w", err)
 	}
 
-	_, err = w.irWriter.CloseTo(w.zstdWriter)
+	err = w.irWriter.Close()
 	if err != nil {
 		return err
 	}
@@ -212,12 +205,6 @@ func (w *diskWriter) CloseStreams() error {
 // Returns:
 //   - err: Error opening IR writer, error IR buffer not empty
 func (w *diskWriter) Reset() error {
-	var err error
-	w.irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.size, w.timezone)
-	if err != nil {
-		return err
-	}
-
 	// Flush should be called prior to reset, so buffer should be empty. There may be a future
 	// use case to truncate a non-empty IR buffer; however, there is currently no use case
 	// so safer to throw an error.
@@ -225,7 +212,7 @@ func (w *diskWriter) Reset() error {
 		return fmt.Errorf("error IR buffer is not empty")
 	}
 
-	_, err = w.zstdFile.Seek(0, io.SeekStart)
+	_, err := w.zstdFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -236,6 +223,11 @@ func (w *diskWriter) Reset() error {
 	}
 
 	w.zstdWriter.Reset(w.zstdFile)
+
+	w.irWriter, err = ir.NewWriter[ir.FourByteEncoding](w.zstdWriter)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

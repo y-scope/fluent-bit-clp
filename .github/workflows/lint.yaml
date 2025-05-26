@@ -1,0 +1,33 @@
+name: "lint"
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+jobs:
+  go-lint:
+    strategy:
+      matrix:
+        go: ["1.24"]
+        os: ["ubuntu-latest", "macos-latest"]
+    runs-on: "${{ matrix.os }}"
+    steps:
+      - uses: "actions/checkout@v4"
+        with:
+          submodules: "recursive"
+
+      - uses: "actions/setup-go@v5"
+        with:
+          go-version: "${{ matrix.go }}"
+
+      - name: "Install task"
+        shell: "bash"
+        run: "npm install -g @go-task/cli"
+
+      - name: "Install uv"
+        shell: "bash"
+        run: "curl --fail --location --silent --show-error https://astral.sh/uv/install.sh | sh"
+
+      - name: "Run linting checks"
+        run: "task lint:check"

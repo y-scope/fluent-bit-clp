@@ -1,0 +1,121 @@
+version: "3"
+
+includes:
+  utils:
+    internal: true
+    taskfile: "../tools/yscope-dev-utils/exports/taskfiles/utils/utils.yaml"
+
+vars:
+  G_UTILS_EXPORTS_DIR: "{{.ROOT_DIR}}/tools/yscope-dev-utils/exports"
+  G_UTILS_CONFIGS_DIR: "{{.G_UTILS_EXPORTS_DIR}}/lint-configs"
+  G_UTILS_YSTDLIB_PY: "{{.G_UTILS_EXPORTS_DIR}}/ystdlib-py"
+
+tasks:
+  check:
+    deps:
+      - "check-go"
+      - "check-yaml"
+
+  check-go:
+    cmds:
+      - task: "lint-go"
+        vars:
+          FMT_FLAGS:
+            - "--diff"
+
+  check-yaml:
+    aliases: ["fix-yaml"]
+    deps:
+      - "venv"
+    vars:
+      SRC_FILES_:
+        sh: |-
+          uv run --project "{{.G_UTILS_YSTDLIB_PY}}" find \
+            "{{.ROOT_DIR}}" \
+            --exclude "build/**" \
+            --exclude "tools/**" \
+            --exclude "**/.venv/**" \
+            --filename "*.yaml" \
+            --filename "*.yml"
+      SRC_FILES:
+        ref: >-
+          splitList "\n" .SRC_FILES_
+    cmds:
+      - for:
+          var: "SRC_FILES"
+        cmd: |-
+          . "{{.G_LINT_VENV_DIR}}/bin/activate"
+          yamllint --config-file "{{.G_UTILS_CONFIGS_DIR}}/.yamllint.yml" --strict "{{.ITEM}}"
+
+  fix:
+    deps:
+      - "fix-go"
+      - "fix-yaml"
+
+  fix-go:
+    # NOTE: We omit `--fix` from RUN_FLAGS until we determine which golangci-lint fixes can be
+    # applied safely.
+    deps:
+      - "venv"
+    cmds:
+      - task: "lint-go"
+
+  lint-go:
+    # NOTE: golangci-lint does its own caching, so we can omit `sources`.
+    internal: true
+    deps:
+      - "venv"
+    cmd: |-
+      "{{.G_LINT_VENV_DIR}}/bin/golangci-lint" fmt \
+        {{- range .FMT_FLAGS}}
+          "{{.}}" \
+        {{- end}}
+        internal/... \
+        plugins/...
+      "{{.G_LINT_VENV_DIR}}/bin/golangci-lint" run \
+        {{- range .RUN_FLAGS}}
+          "{{.}}" \
+        {{- end}}
+        internal/... \
+        plugins/...
+
+  venv:
+    internal: true
+    vars:
+      CHECKSUM_FILE: "{{.G_BUILD_DIR}}/{{.TASK | replace \":\" \"#\"}}.md5"
+      OUTPUT_DIR: "{{.G_LINT_VENV_DIR}}"
+    sources:
+      - "{{.ROOT_DIR}}/taskfile.yaml"
+      - "{{.TASKFILE}}"
+      - "lint-requirements.txt"
+    generates: ["{{.CHECKSUM_FILE}}"]
+    run: "once"
+    deps:
+      - ":init"
+      - task: "utils:checksum:validate"
+        vars:
+          CHECKSUM_FILE: "{{.CHECKSUM_FILE}}"
+          INCLUDE_PATTERNS: ["{{.OUTPUT_DIR}}"]
+    cmds:
+      - task: "utils:misc:create-venv"
+        vars:
+          LABEL: "lint"
+          OUTPUT_DIR: "{{.OUTPUT_DIR}}"
+          REQUIREMENTS_FILE: "{{.ROOT_DIR}}/lint-requirements.txt"
+      - task: "venv-go"
+        vars:
+          VENV_BIN_DIR: "{{.OUTPUT_DIR}}/bin"
+      # This command must be last
+      - task: "utils:checksum:compute"
+        vars:
+          CHECKSUM_FILE: "{{.CHECKSUM_FILE}}"
+          INCLUDE_PATTERNS: ["{{.OUTPUT_DIR}}"]
+
+  venv-go:
+    internal: true
+    requires:
+      vars: ["VENV_BIN_DIR"]
+    cmd: |-
+      curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+        | sh -s -- -b "{{.VENV_BIN_DIR}}" v2.1.5
+      go install golang.org/x/tools/gopls@latest

@@ -8,8 +8,9 @@ package main
 // Note package name "main" is required by Fluent Bit which suppresses go docs. Do not remove
 // export, required for use by Fluent Bit C calls.
 
+import "C"
+
 import (
-	"C"
 	"log"
 	"unsafe"
 

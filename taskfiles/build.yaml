@@ -1,0 +1,33 @@
+version: "3"
+
+vars:
+  G_INSTALL_DIR: "{{.ROOT_DIR}}/pre-built"
+
+tasks:
+  s3v2:
+    cmds:
+      - task: "build"
+        vars:
+          PLUGIN_NAME: "out_clp_s3_v2"
+
+  s3:
+    cmds:
+      - task: "build"
+        vars:
+          PLUGIN_NAME: "out_clp_s3"
+
+  build:
+    internal: true
+    vars:
+      SRC_DIR: "{{.G_PLUGINS_DIR}}/{{.PLUGIN_NAME}}"
+      INSTALL_PREFIX: "{{.G_INSTALL_DIR}}/{{.PLUGIN_NAME}}_{{OS}}_{{ARCH}}"
+    requires:
+      vars: ["PLUGIN_NAME"]
+    sources:
+      - "{{.ROOT_DIR}}/internal/**/*.go"
+      - "{{.SRC_DIR}}/**/*.go"
+    generates:
+      - "{{.INSTALL_PREFIX}}.h"
+      - "{{.INSTALL_PREFIX}}.so"
+    cmd: |-
+      go build -o "{{.INSTALL_PREFIX}}.so" -buildmode=c-shared "{{.SRC_DIR}}"

@@ -8,10 +8,9 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/fluent/fluent-bit-go/output"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-
-	"github.com/fluent/fluent-bit-go/output"
 )
 
 // Holds settings for S3 CLP plugin from user-defined Fluent Bit configuration file.

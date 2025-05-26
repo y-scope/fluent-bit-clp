@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"github.com/klauspost/compress/zstd"
-
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 )
@@ -72,17 +71,19 @@ type Writer interface {
 // Returns:
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error if an event could not be written
-func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, error) {
+func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, int, error) {
 	var numEvents int
+	var numBytes int
 	for _, event := range logEvents {
-		_, err := irWriter.Write(event)
+		n, err := irWriter.WriteLogEvent(event)
+		numBytes += n
 		if err != nil {
 			err = fmt.Errorf("failed to encode event %v into ir: %w", event, err)
-			return numEvents, err
+			return numBytes, numEvents, err
 		}
 		numEvents += 1
 	}
-	return numEvents, nil
+	return numBytes, numEvents, nil
 }
 
 // Opens a new [ir.Writer] and [zstd.Encoder].
@@ -98,19 +99,15 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, error) {
 //   - err: Error opening IR/Zstd writer
 func newIrZstdWriters(
 	zstdOutput io.Writer,
-	timezone string,
-	size int,
 ) (*ir.Writer, *zstd.Encoder, error) {
-	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
-	// FourByteEncoding as default encoding.
-	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](size, timezone)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening IR writer: %w", err)
-	}
-
 	zstdWriter, err := zstd.NewWriter(zstdOutput)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error opening Zstd writer: %w", err)
+	}
+
+	irWriter, err := ir.NewWriter[ir.FourByteEncoding](zstdWriter)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening IR writer: %w", err)
 	}
 	return irWriter, zstdWriter, err
 }

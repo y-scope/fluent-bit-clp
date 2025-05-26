@@ -3,8 +3,9 @@
 
 package flush
 
+import "C"
+
 import (
-	"C"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,23 +92,21 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
 	for {
-		ts, record, err := decoder.GetRecord(dec)
+		flbTimestamp, jsonRecord, err := decoder.GetRecord(dec)
 		if err != nil {
 			return logEvents, err
 		}
 
-		timestamp := decodeTs(ts)
-		msg, err := getMessage(record, config)
+		var userKvPairs map[string]any
+		err = json.Unmarshal(jsonRecord, &userKvPairs)
 		if err != nil {
-			err = fmt.Errorf("failed to get message from record: %w", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
 		}
 
-		event := ffi.LogEvent{
-			LogMessage: msg,
-			Timestamp:  ffi.EpochTimeMs(timestamp.UnixMilli()),
-		}
-		logEvents = append(logEvents, event)
+		event := ffi.NewLogEvent()
+		event.AutoKvPairs["timestamp"] = decodeTs(flbTimestamp)
+		event.UserKvPairs = userKvPairs
+		logEvents = append(logEvents, (*event))
 	}
 }
 

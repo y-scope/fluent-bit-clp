@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/klauspost/compress/zstd"
-
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 )
@@ -34,7 +33,7 @@ type memoryWriter struct {
 //   - err: Error opening Zstd/IR writers
 func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
 	var zstdBuffer bytes.Buffer
-	irWriter, zstdWriter, err := newIrZstdWriters(&zstdBuffer, timezone, size)
+	irWriter, zstdWriter, err := newIrZstdWriters(&zstdBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +58,10 @@ func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd
 func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
-	numEvents, err := writeIr(w.irWriter, logEvents)
+	_, numEvents, err := writeIr(w.irWriter, logEvents)
 	if err != nil {
 		return numEvents, err
 	}
-
-	_, err = w.irWriter.WriteTo(w.zstdWriter)
 	return numEvents, err
 }
 
@@ -74,15 +71,12 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 // Returns:
 //   - err: Error closing buffers
 func (w *memoryWriter) CloseStreams() error {
-	_, err := w.irWriter.CloseTo(w.zstdWriter)
-	if err != nil {
+	if err := w.irWriter.Close(); err != nil {
 		return err
 	}
-
 	w.irWriter = nil
 
-	err = w.zstdWriter.Close()
-	return err
+	return w.zstdWriter.Close()
 }
 
 // Reinitialize [memoryWriter] after calling CloseStreams(). Resets individual IR and Zstd writers
@@ -92,7 +86,7 @@ func (w *memoryWriter) CloseStreams() error {
 //   - err: Error opening IR writer
 func (w *memoryWriter) Reset() error {
 	var err error
-	w.irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.size, w.timezone)
+	w.irWriter, err = ir.NewWriter[ir.FourByteEncoding](w.zstdWriter)
 	if err != nil {
 		return err
 	}

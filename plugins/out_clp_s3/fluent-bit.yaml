@@ -1,0 +1,39 @@
+plugins:
+  - "/fluent-bit/plugins/out_clp_s3_v2/out_clp_s3.so"
+
+service:
+  # flush: Set an interval of seconds before to flush record to destination
+  flush: 1
+
+  # daemon: instruct Fluent Bit to run in foreground or background mode
+  daemon: "off"
+
+  # log_level: Set the verbosity level of the service, values can be error, warning, info, debug,
+  # trace
+  log_level: "trace"
+
+pipeline:
+  inputs:
+    - name: "tail"
+      path: "/tmp/test-*.log"
+      path_key: "file_path"
+      tag: "michelangelo_logs"
+      # The interval of refreshing the list of watched files in seconds.
+      refresh_interval: 5
+      # For new discovered files on start (without a database offset/position),
+      # read the content from the head of the file, not tail.
+      read_from_head: true
+      # Skips empty lines in the log file from any further processing or output.
+      skip_empty_lines: true
+      # When a message is unstructured (no parser applied), it's appended as a string under the key
+      # name log. This option allows to define an alternative name for that key.
+      key: "message"
+      processors: []
+
+  outputs:
+    - name: "out_clp_s3_v2"
+      match: "*"
+      s3_bucket: "log-viewer"
+      s3_bucket_prefix: "clp/"
+      use_single_key: true
+      single_key: "message"
