@@ -1,33 +1,31 @@
-# Builds plugin binary in go container and then runs in Fluent Bit container.
-
-# Using bullseye tag to match debian version from Fluent Bit image [Fluent Bit Debian version].
-# Matching debian versions prevents glibc compatibility issues.
+# NOTE: Match debian version from Fluent Bit image [Fluent Bit Debian version] to prevent glibc
+# compatibility issues.
 # [Fluent Bit Debian version]: https://github.com/fluent/fluent-bit/blob/master/dockerfiles/Dockerfile
-FROM golang:1.22.3-bullseye as builder
+FROM golang:1.24.3-bookworm AS builder
 
-# install task
+# Install task
 RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /bin
 
 WORKDIR /root
 
-ENV GOOS=linux\
+ENV GOOS=linux \
     GOARCH=amd64
 
-COPY / /root/
+COPY . .
+
+RUN git init && git submodule update --init --recursive
 
 RUN go mod download
 
 WORKDIR /root/plugins/out_clp_s3
 
-RUN task build
+RUN task build:s3
 
-FROM fluent/fluent-bit:3.0.6
+FROM fluent/fluent-bit:3.2.7
 
-# Copy plugin binary to Fluent Bit image. 
-COPY --from=builder /root/plugins/out_clp_s3/out_clp_s3.so /fluent-bit/bin/
+COPY --from=builder /root/pre-built/out_clp_s3_linux_amd64.so /fluent-bit/lib/out_clp_s3.so
 COPY --from=builder /root/plugins/out_clp_s3/*.conf /fluent-bit/etc/
 
-# Port for listening interface for HTTP Server.
 EXPOSE 2020
 
 CMD ["/fluent-bit/bin/fluent-bit", "--config", "/fluent-bit/etc/fluent-bit.conf"]
