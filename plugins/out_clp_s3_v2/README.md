@@ -84,6 +84,19 @@ Levels: `debug`, `info`, `warn`, `error`, `fatal`
 | `AWS_REGION` | AWS region | `us-west-1` |
 | `AWS_ENDPOINT_URL` | Custom endpoint (for MinIO) | - |
 
+### AWS Credentials
+
+Credentials are loaded using the [AWS SDK default credential chain][aws-creds]:
+
+1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+2. Shared credentials file (`~/.aws/credentials`)
+3. ECS task IAM role
+4. EC2 instance IAM role
+
+For Kubernetes, mount credentials as a secret (see [k8s/aws-credentials.yaml](k8s/aws-credentials.yaml)).
+
+[aws-creds]: https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials
+
 ### Log Level Detection
 
 | Level | Recognized Values |
