@@ -235,9 +235,12 @@ Two deployment patterns are supported:
 ### Quick Start
 
 ```shell
+# Download plugins from GitHub Actions (see main README)
+# Extract to a local directory, e.g., ./plugins/
+
 # Create cluster with plugin mounted
 k3d cluster create yscope --servers 1 --agents 1 \
-  -v $(pwd)/../../pre-built:/fluent-bit/plugins \
+  -v $(pwd)/plugins:/fluent-bit/plugins \
   -p 9000:30000@agent:0 -p 9001:30001@agent:0
 
 # Deploy stack

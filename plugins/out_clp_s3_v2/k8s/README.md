@@ -34,9 +34,12 @@ Quick reference for deploying out_clp_s3_v2 on a local Kubernetes cluster using 
 ## Cluster Setup
 
 ```shell
+# Download plugins from GitHub Actions (see main README)
+# Extract to a local directory, e.g., /path/to/plugins/
+
 # Create cluster with plugin volume and port forwarding
 k3d cluster create yscope --servers 1 --agents 1 \
-  -v <repo-root>/pre-built:/fluent-bit/plugins \
+  -v /path/to/plugins:/fluent-bit/plugins \
   -p 9000:30000@agent:0 \
   -p 9001:30001@agent:0
 

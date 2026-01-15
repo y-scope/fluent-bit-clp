@@ -8,6 +8,7 @@ storage and search on AWS S3.
 - [Overview](#overview)
 - [Which Plugin Should I Use?](#which-plugin-should-i-use)
 - [Quick Start](#quick-start)
+- [Docker Images](#docker-images)
 - [Pre-built Binaries](#pre-built-binaries)
 - [Documentation](#documentation)
 - [Development](#development)
@@ -60,9 +61,12 @@ Size-based uploads with crash recovery:
 ### Using Pre-built Binaries (Kubernetes)
 
 ```shell
+# Download plugins from GitHub Actions (see Pre-built Binaries section)
+# Extract to a local directory, e.g., ./plugins/
+
 # Create k3d cluster with plugin mounted
 k3d cluster create yscope --servers 1 --agents 1 \
-  -v $(pwd)/pre-built:/fluent-bit/plugins \
+  -v $(pwd)/plugins:/fluent-bit/plugins \
   -p 9000:30000@agent:0 -p 9001:30001@agent:0
 
 # Deploy MinIO and Fluent Bit
@@ -89,9 +93,26 @@ docker build -t fluent-bit-clp -f Dockerfile ../../
 docker run -v ~/.aws/credentials:/root/.aws/credentials fluent-bit-clp
 ```
 
+## Docker Images
+
+Pre-built Fluent Bit images with CLP plugins are published to GitHub Container Registry:
+
+```shell
+# Time-based plugin (recommended)
+docker pull ghcr.io/y-scope/fluent-bit-clp-s3-v2:latest
+
+# Size-based plugin
+docker pull ghcr.io/y-scope/fluent-bit-clp-s3:latest
+```
+
+Images are tagged with `latest` (main branch), branch names, and commit SHAs.
+
 ## Pre-built Binaries
 
-Linux AMD64 binaries are available in `pre-built/`:
+Standalone plugin binaries (`.so` files) are also available as GitHub Actions artifacts.
+
+**Download:** Go to [Actions → build](../../actions/workflows/build.yaml), select a workflow run,
+and download the `fluent-bit-clp-plugins-linux-amd64` artifact.
 
 | File | Plugin |
 |------|--------|
