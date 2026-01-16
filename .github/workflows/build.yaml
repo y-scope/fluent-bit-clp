@@ -15,27 +15,35 @@ jobs:
         include:
           - arch: "amd64"
             runner: "ubuntu-24.04"
+            manylinux: "quay.io/pypa/manylinux_2_28_x86_64"
           - arch: "arm64"
             runner: "ubuntu-24.04-arm"
+            manylinux: "quay.io/pypa/manylinux_2_28_aarch64"
     steps:
       - uses: "actions/checkout@v4"
         with:
           submodules: "recursive"
 
-      - uses: "actions/setup-go@v5"
-        with:
-          go-version: "1.24"
-
-      - name: "Install task"
-        run: "npm install -g @go-task/cli"
-
-      - name: "Download clp-ffi-go libraries"
-        run: "bash third-party/clp-ffi-go/scripts/download-libs.sh"
-
+      # Build inside manylinux container for glibc compatibility
       - name: "Build plugins"
         run: |
-          task build:s3
-          task build:s3v2
+          docker run --rm -v "${{ github.workspace }}:/src" -w /src ${{ matrix.manylinux }} bash -c '
+            set -e
+
+            # Install Go
+            curl -fsSL "https://go.dev/dl/go1.24.3.linux-${{ matrix.arch }}.tar.gz" | tar -C /usr/local -xz
+            export PATH="/usr/local/go/bin:$PATH"
+
+            # Install task
+            curl -fsSL https://taskfile.dev/install.sh | sh -s -- -d -b /usr/local/bin
+
+            # Download clp-ffi-go libraries
+            bash third-party/clp-ffi-go/scripts/download-libs.sh
+
+            # Build plugins
+            task build:s3
+            task build:s3v2
+          '
 
       - name: "Upload artifacts"
         uses: "actions/upload-artifact@v4"
@@ -103,7 +111,7 @@ jobs:
         include:
           - plugin: "out_clp_s3"
             image: "fluent-bit-clp-s3"
-            platforms: "linux/amd64"
+            platforms: "linux/amd64,linux/arm64"
           - plugin: "out_clp_s3_v2"
             image: "fluent-bit-clp-s3-v2"
             platforms: "linux/amd64,linux/arm64"

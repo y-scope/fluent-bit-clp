@@ -1,0 +1,78 @@
+apiVersion: "v1"
+kind: "Pod"
+metadata:
+  labels:
+    app: "fluent-bit-sidecar"
+  name: "fluent-bit-sidecar"
+spec:
+  initContainers:
+    # Downloads the CLP plugin from GitHub Releases
+    # Architecture is detected automatically at runtime
+    - name: "download-plugin"
+      image: "busybox:1.36"
+      env:
+        - name: "PLUGIN_VERSION"
+          value: "latest"  # Or use a specific commit hash, e.g., "e0efdea"
+      command:
+        - "sh"
+        - "-c"
+        - |
+          # Detect architecture
+          ARCH=$(uname -m)
+          case "${ARCH}" in
+            x86_64)  PLUGIN_ARCH="amd64" ;;
+            aarch64) PLUGIN_ARCH="arm64" ;;
+            *)       echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
+          esac
+
+          PLUGIN_FILE="out_clp_s3_v2_linux_${PLUGIN_ARCH}.so"
+          PLUGIN_URL="https://github.com/y-scope/fluent-bit-clp/releases/${PLUGIN_VERSION}/download/${PLUGIN_FILE}"
+          echo "Detected architecture: ${ARCH} -> ${PLUGIN_ARCH}"
+          echo "Downloading plugin from: ${PLUGIN_URL}"
+          # Download to generic name so config doesn't need architecture suffix
+          wget -O "/plugins/out_clp_s3_v2.so" "${PLUGIN_URL}"
+          chmod 755 "/plugins/out_clp_s3_v2.so"
+          ls -la /plugins/
+      volumeMounts:
+        - name: "plugins-volume"
+          mountPath: "/plugins"
+
+  containers:
+    - name: "app"
+      image: "ubuntu:22.04"
+      command: ["sleep", "infinity"]
+      volumeMounts:
+        - name: "log-volume"
+          mountPath: "/logs"
+
+    - name: "fluent-bit"
+      image: "fluent/fluent-bit:3.2.7"
+      args: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+      env:
+        - name: "AWS_ENDPOINT_URL"
+          value: "http://minio:9000"  # Remove for AWS S3
+      volumeMounts:
+        - name: "log-volume"
+          mountPath: "/logs"
+          readOnly: true
+        - name: "aws-credentials-volume"
+          mountPath: "/root/.aws"
+          readOnly: true
+        - name: "config-volume"
+          mountPath: "/fluent-bit/etc"
+          readOnly: true
+        - name: "plugins-volume"
+          mountPath: "/fluent-bit/plugins"
+          readOnly: true
+
+  volumes:
+    - name: "aws-credentials-volume"
+      secret:
+        secretName: "aws-credentials"
+    - name: "config-volume"
+      configMap:
+        name: "fluent-bit-config"
+    - name: "plugins-volume"
+      emptyDir: {}
+    - name: "log-volume"
+      emptyDir: {}

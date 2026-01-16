@@ -1,9 +1,19 @@
 # Kubernetes Examples
 
-Deploy out_clp_s3_v2 on a local Kubernetes cluster using [k3d][k3d] (Kubernetes in Docker).
+Deploy out_clp_s3_v2 on Kubernetes clusters.
 
 > **See also:** [Plugin README](../../README.md) for configuration options |
 > [Main README](../../../../README.md) for project overview
+
+## Deployment Options
+
+| Environment | Plugin Loading | Directory |
+|-------------|----------------|-----------|
+| **Production** (EKS, GKE, AKS) | Init container downloads from GitHub Releases | [`production/`](production/) |
+| **Local Development** (k3d) | hostPath volume mount | `sidecar/`, `daemonset/` |
+
+**For production clusters**, use the [`production/`](production/) examples which download the plugin
+at pod startup—no node configuration required.
 
 ## Deployment Patterns
 
@@ -11,6 +21,7 @@ Deploy out_clp_s3_v2 on a local Kubernetes cluster using [k3d][k3d] (Kubernetes 
 |---------|----------|-----------|
 | [**Sidecar**](sidecar/) | Per-pod log collection via shared volume | `sidecar/` |
 | [**DaemonSet**](daemonset/) | Node-level log collection from `/var/log` | `daemonset/` |
+| [**Production**](production/) | Production-ready manifests with init containers | `production/` |
 
 ## Architecture
 
@@ -24,7 +35,13 @@ Deploy out_clp_s3_v2 on a local Kubernetes cluster using [k3d][k3d] (Kubernetes 
                                          bucket    bucket
 ```
 
-## Prerequisites
+## Local Development with k3d
+
+The following sections describe how to set up a local development environment using
+[k3d][k3d] (Kubernetes in Docker). For production deployments, see the [`production/`](production/)
+directory.
+
+### Prerequisites
 
 - [Docker](https://docs.docker.com/engine/install)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) - Kubernetes CLI
@@ -32,7 +49,7 @@ Deploy out_clp_s3_v2 on a local Kubernetes cluster using [k3d][k3d] (Kubernetes 
 
 [k3d]: https://k3d.io/stable/#installation
 
-## Cluster Setup
+### Cluster Setup
 
 ```shell
 # Download plugins from GitHub Actions (see main README)
@@ -45,7 +62,7 @@ k3d cluster create yscope --servers 1 --agents 1 \
   -p 9001:30001@agent:0
 ```
 
-## Deploy Infrastructure
+### Deploy Infrastructure
 
 [MinIO](https://min.io/) provides S3-compatible storage for local development. The same plugin
 configuration works with AWS S3 in production.
@@ -62,7 +79,7 @@ kubectl apply -f logs-bucket-creation.yaml
 kubectl apply -f yscope-log-viewer-deployment.yaml
 ```
 
-## Deploy Fluent Bit
+### Deploy Fluent Bit
 
 Choose a deployment pattern:
 
@@ -71,7 +88,7 @@ Choose a deployment pattern:
 
 See each directory's README for detailed instructions.
 
-## Access Services
+### Access Services
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
@@ -84,7 +101,7 @@ See each directory's README for detailed instructions.
 2. Enter S3 path: `s3://logs/<path-to-file>.clp.zst`
 3. The viewer decompresses and displays logs in the browser
 
-## Cleanup
+### Cleanup
 
 ```shell
 k3d cluster delete yscope
@@ -99,12 +116,17 @@ kubernetes/
 ├── aws-credentials.yaml              # AWS credentials secret
 ├── logs-bucket-creation.yaml         # Job to create logs bucket
 ├── yscope-log-viewer-deployment.yaml # Log viewer web UI
-├── sidecar/                          # Sidecar deployment
+├── production/                       # Production-ready examples
+│   ├── README.md
+│   ├── fluent-bit-config.yaml        # ConfigMap for production
+│   ├── fluent-bit-sidecar.yaml       # Sidecar with init container
+│   └── fluent-bit-daemonset.yaml     # DaemonSet with init container
+├── sidecar/                          # Sidecar deployment (k3d)
 │   ├── README.md
 │   ├── fluent-bit-sidecar.yaml
 │   ├── fluent-bit-sidecar-config.yaml
 │   └── *-full.yaml                   # Extended config variants
-└── daemonset/                        # DaemonSet deployment
+└── daemonset/                        # DaemonSet deployment (k3d)
     ├── README.md
     ├── fluent-bit-daemonset.yaml
     ├── fluent-bit-daemonset-config.yaml
