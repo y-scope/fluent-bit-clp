@@ -1,0 +1,37 @@
+# Fluent Bit configuration for Docker Compose
+# Watches /logs directory and uploads to MinIO
+
+plugins:
+  - /fluent-bit/lib/out_clp_s3_v2.so
+
+service:
+  flush: 1
+  daemon: off
+  log_level: info
+  parsers_file: /fluent-bit/etc/parsers.conf
+
+pipeline:
+  inputs:
+    - name: tail
+      path: /logs/*/*.jsonl
+      parser: json
+      tag: app.*
+      path_key: file_path
+      refresh_interval: 5
+      read_from_head: true
+
+  outputs:
+    - name: out_clp_s3_v2
+      match: "*"
+      log_bucket: logs
+      # Development settings - fast uploads for testing
+      flush_hard_delta_debug: 10s
+      flush_hard_delta_info: 10s
+      flush_hard_delta_warn: 5s
+      flush_hard_delta_error: 3s
+      flush_hard_delta_fatal: 1s
+      flush_soft_delta_debug: 5s
+      flush_soft_delta_info: 5s
+      flush_soft_delta_warn: 3s
+      flush_soft_delta_error: 2s
+      flush_soft_delta_fatal: 1s
