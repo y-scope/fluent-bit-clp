@@ -73,28 +73,49 @@ func New(data unsafe.Pointer, length int) *codec.Decoder {
 // Parameters:
 //   - i: Pointer to the registered extension type
 //   - b: Msgpack data in fixext 8 format
-func (f FlbTime) ReadExt(i interface{}, b []byte) {
+func (FlbTime) ReadExt(i any, b []byte) {
 	// Note that ts refers to the same object since i is a pointer.
-	ts := i.(*FlbTime)
+	ts, ok := i.(*FlbTime)
+	if !ok {
+		return
+	}
 	sec := binary.BigEndian.Uint32(b)
 	nsec := binary.BigEndian.Uint32(b[4:])
 	ts.Time = time.Unix(int64(sec), int64(nsec))
 }
 
+// errUnsupported is a common error message for unimplemented codec extension methods.
+const errUnsupported = "unsupported"
+
 // Function required by codec but not being used by decoder.
-func (f FlbTime) WriteExt(interface{}) []byte {
-	panic("unsupported")
+func (FlbTime) WriteExt(any) []byte {
+	panic(errUnsupported)
 }
 
 // Function required by codec but not being used by decoder.
-func (f FlbTime) ConvertExt(v interface{}) interface{} {
+func (FlbTime) ConvertExt(_ any) any {
 	return nil
 }
 
 // Function required by codec but not being used by decoder.
-func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
-	panic("unsupported")
+func (FlbTime) UpdateExt(_, _ any) {
+	panic(errUnsupported)
 }
+
+// msgpackArrayLen is the expected length of a Fluent Bit msgpack array [timestamp, data].
+const msgpackArrayLen = 2
+
+// timestampIndex is the index of the timestamp in the msgpack array.
+const timestampIndex = 0
+
+// recordIndex is the index of the record in the msgpack array.
+const recordIndex = 1
+
+// minMetadataLen is the minimum length for V2 metadata format [[TIMESTAMP, METADATA], MESSAGE].
+const minMetadataLen = 2
+
+// errDecodingTimestamp is a format string for timestamp decoding errors.
+const errDecodingTimestamp = "error decoding timestamp %v from stream"
 
 // Retrieves data and timestamp from Msgpack object.
 //
@@ -105,10 +126,10 @@ func (f FlbTime) UpdateExt(dest interface{}, v interface{}) {
 //   - timestamp: Timestamp retrieved from Fluent Bit
 //   - record: JSON record from Fluent Bit with variable amount of keys
 //   - err: decode error, error retrieving timestamp, error marshalling record
-func GetRecord(decoder *codec.Decoder) (interface{}, []byte, error) {
+func GetRecord(decoder *codec.Decoder) (any, []byte, error) {
 	// Expect array of length 2 for timestamp and data. Also initialize expected types for
 	// timestamp and record
-	m := [2]interface{}{nil, make(map[string]interface{})}
+	m := [msgpackArrayLen]any{nil, make(map[string]any)}
 
 	err := decoder.Decode(&m)
 	if err != nil {
@@ -118,8 +139,8 @@ func GetRecord(decoder *codec.Decoder) (interface{}, []byte, error) {
 	}
 
 	// Timestamp is located in first index.
-	t := m[0]
-	var timestamp interface{}
+	t := m[timestampIndex]
+	var timestamp any
 
 	// Fluent Bit can provide timestamp in multiple formats, so we use type switch to process
 	// correctly.
@@ -130,19 +151,19 @@ func GetRecord(decoder *codec.Decoder) (interface{}, []byte, error) {
 	case uint64:
 		timestamp = v
 	// For fluent-bit V2 metadata type of format [[TIMESTAMP, METADATA], MESSAGE].
-	case []interface{}:
-		if len(v) < 2 {
-			err = fmt.Errorf("error decoding timestamp %v from stream", v)
+	case []any:
+		if len(v) < minMetadataLen {
+			err = fmt.Errorf(errDecodingTimestamp, v)
 			return nil, nil, err
 		}
 		timestamp = v[0]
 	default:
-		err = fmt.Errorf("error decoding timestamp %v from stream", v)
+		err = fmt.Errorf(errDecodingTimestamp, v)
 		return nil, nil, err
 	}
 
 	// Record is located in second index.
-	record := m[1]
+	record := m[recordIndex]
 
 	// Marshall record to json.
 	jsonRecord, err := json.Marshal(record)

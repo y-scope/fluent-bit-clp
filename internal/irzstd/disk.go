@@ -1,6 +1,7 @@
 package irzstd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +15,27 @@ import (
 
 // 2 MB threshold to buffer IR before compressing to Zstd.
 const irSizeThreshold = 2 << 20
+
+// dirPermission is the permission mode for created directories.
+const dirPermission = 0o750
+
+// filePermission is the permission mode for created files.
+const filePermission = 0o600
+
+// errFlushingIrBuffer is a format string for IR buffer flush errors.
+const errFlushingIrBuffer = "error flushing IR buffer: %w"
+
+// errCreatingFile is a format string for file creation errors.
+const errCreatingFile = "error creating file %s: %w"
+
+// logCreatedFile is a log format for file creation messages.
+const logCreatedFile = "created file %s"
+
+// errIrBufferNotEmpty is returned when attempting to reset a non-empty IR buffer.
+var errIrBufferNotEmpty = errors.New("error IR buffer is not empty")
+
+// errFlushNonExistentBuffer is returned when flush is called with nil buffers.
+var errFlushNonExistentBuffer = errors.New("error flush called with non-existent buffer")
 
 // Converts log events into Zstd compressed IR using "trash compactor" design. Log events are
 // converted to uncompressed IR and buffered into "bins". Uncompressed IR represents uncompressed
@@ -29,7 +51,7 @@ const irSizeThreshold = 2 << 20
 // "compacted"); however, if the chunks are small, the compression ratio would deteriorate. "Trash
 // compactor" design provides protection from log loss during abrupt crashes and maintains a high
 // compression ratio.
-type diskWriter struct {
+type DiskWriter struct {
 	irPath       string // Path variable for debugging
 	zstdPath     string // Path variable for debugging
 	irFile       *os.File
@@ -41,7 +63,7 @@ type diskWriter struct {
 	zstdWriter   *zstd.Encoder
 }
 
-// Opens a new [diskWriter] using files for IR and Zstd buffers. For use when use_disk_store
+// Opens a new [DiskWriter] using files for IR and Zstd buffers. For use when use_disk_store
 // is on.
 //
 // Parameters:
@@ -51,14 +73,14 @@ type diskWriter struct {
 //   - zstdPath: Path to Zstd disk buffer file
 //
 // Returns:
-//   - diskWriter: Disk writer for Zstd compressed IR
+//   - DiskWriter: Disk writer for Zstd compressed IR
 //   - err: Error creating new buffers, error opening Zstd/IR writers
 func NewDiskWriter(
 	timezone string,
 	size int,
 	irPath string,
 	zstdPath string,
-) (*diskWriter, error) {
+) (*DiskWriter, error) {
 	irFile, zstdFile, err := newFileBuffers(irPath, zstdPath)
 	if err != nil {
 		return nil, err
@@ -69,7 +91,7 @@ func NewDiskWriter(
 		return nil, err
 	}
 
-	diskWriter := diskWriter{
+	writer := DiskWriter{
 		size:       size,
 		timezone:   timezone,
 		irPath:     irPath,
@@ -80,10 +102,10 @@ func NewDiskWriter(
 		zstdWriter: zstdWriter,
 	}
 
-	return &diskWriter, nil
+	return &writer, nil
 }
 
-// Recovers a [diskWriter] opening buffer files from a previous execution of output plugin.
+// Recovers a [DiskWriter] opening buffer files from a previous execution of output plugin.
 // Recovery of files necessitates that use_disk_store is on. IR preamble is removed for
 // recovered store. Avoid use with empty disk stores as there will be no preamble.
 //
@@ -94,14 +116,14 @@ func NewDiskWriter(
 //   - zstdPath: Path to Zstd disk buffer file
 //
 // Returns:
-//   - diskWriter: Disk writer for Zstd compressed IR
+//   - DiskWriter: Disk writer for Zstd compressed IR
 //   - err: Error opening buffers, error opening Zstd/IR writers, error getting file sizes
 func RecoverWriter(
 	timezone string,
 	size int,
 	irPath string,
 	zstdPath string,
-) (*diskWriter, error) {
+) (*DiskWriter, error) {
 	irFile, zstdFile, err := openBufferFiles(irPath, zstdPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening files: %w", err)
@@ -112,7 +134,7 @@ func RecoverWriter(
 		return nil, err
 	}
 
-	diskWriter := diskWriter{
+	writer := DiskWriter{
 		size:       size,
 		timezone:   timezone,
 		irPath:     irPath,
@@ -123,7 +145,7 @@ func RecoverWriter(
 		zstdWriter: zstdWriter,
 	}
 
-	irFileSize, err := diskWriter.getIrFileSize()
+	irFileSize, err := writer.getIrFileSize()
 	if err != nil {
 		return nil, fmt.Errorf("error getting size of IR file: %w", err)
 	}
@@ -131,14 +153,14 @@ func RecoverWriter(
 	// During recovery, IR buffer may not be empty, so the size must be set. In addition,
 	// the non-empty disk buffers already have existing preamble so remove it. Disk buffer
 	// must have non-zero size or else would be deleted in recover.
-	diskWriter.irTotalBytes = irFileSize
+	writer.irTotalBytes = irFileSize
 
-	return &diskWriter, nil
+	return &writer, nil
 }
 
 // Converts log events to Zstd compressed IR and outputs to the Zstd file. IR is temporarily
 // stored in the IR file until it surpasses [irSizeThreshold] with compression to Zstd pushed out
-// to a later call. See [diskWriter] for more specific details on behaviour.
+// to a later call. See [DiskWriter] for more specific details on behaviour.
 //
 // Parameters:
 //   - logEvents: A slice of log events to be encoded
@@ -146,7 +168,7 @@ func RecoverWriter(
 // Returns:
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd, error flushing buffers
-func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
+func (w *DiskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 	numBytes, numEvents, err := writeIr(w.irWriter, logEvents)
 	if err != nil {
 		return numEvents, err
@@ -159,7 +181,7 @@ func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 	if w.irTotalBytes >= irSizeThreshold {
 		err := w.flushIrBuffer()
 		if err != nil {
-			return numEvents, fmt.Errorf("error flushing IR buffer: %w", err)
+			return numEvents, fmt.Errorf(errFlushingIrBuffer, err)
 		}
 	}
 
@@ -168,15 +190,15 @@ func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 
 // Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding.
 // The IR buffer is also flushed before ending stream. After calling close,
-// [diskWriter] must be reset prior to calling write.
+// [DiskWriter] must be reset prior to calling write.
 //
 // Returns:
 //   - err: Error flushing/closing buffers
-func (w *diskWriter) CloseStreams() error {
+func (w *DiskWriter) CloseStreams() error {
 	// IR buffer may not be empty, so must be flushed prior to adding trailing EndOfStream byte.
 	err := w.flushIrBuffer()
 	if err != nil {
-		return fmt.Errorf("error flushing IR buffer: %w", err)
+		return fmt.Errorf(errFlushingIrBuffer, err)
 	}
 
 	err = w.irWriter.Close()
@@ -199,17 +221,17 @@ func (w *diskWriter) CloseStreams() error {
 	return nil
 }
 
-// Reinitialize [diskWriter] after calling CloseStreams(). Resets individual IR and Zstd writers and
+// Reinitialize [DiskWriter] after calling CloseStreams(). Resets individual IR and Zstd writers and
 // associated buffers.
 //
 // Returns:
 //   - err: Error opening IR writer, error IR buffer not empty
-func (w *diskWriter) Reset() error {
+func (w *DiskWriter) Reset() error {
 	// Flush should be called prior to reset, so buffer should be empty. There may be a future
 	// use case to truncate a non-empty IR buffer; however, there is currently no use case
 	// so safer to throw an error.
 	if w.irTotalBytes != 0 {
-		return fmt.Errorf("error IR buffer is not empty")
+		return errIrBufferNotEmpty
 	}
 
 	_, err := w.zstdFile.Seek(0, io.SeekStart)
@@ -232,7 +254,7 @@ func (w *diskWriter) Reset() error {
 	return nil
 }
 
-// Closes [diskWriter]. Currently used during recovery only, and advise caution using elsewhere.
+// Closes [DiskWriter]. Currently used during recovery only, and advise caution using elsewhere.
 // Using [ir.Writer.Serializer.Close] instead of [ir.Writer.Close] so EndofStream byte is not
 // added. It is preferable to add postamble on recovery so that IR is in the same state
 // (i.e. not terminated) for an abrupt crash and a graceful exit. Function does not call
@@ -240,7 +262,7 @@ func (w *diskWriter) Reset() error {
 //
 // Returns:
 //   - err: Error closing irWriter, error closing files
-func (w *diskWriter) Close() error {
+func (w *DiskWriter) Close() error {
 	if w.irWriter != nil {
 		err := w.irWriter.Serializer.Close()
 		if err != nil {
@@ -265,7 +287,7 @@ func (w *diskWriter) Close() error {
 //
 // Returns:
 //   - useDiskBuffer: On/off for disk buffering
-func (w *diskWriter) GetUseDiskBuffer() bool {
+func (*DiskWriter) GetUseDiskBuffer() bool {
 	return true
 }
 
@@ -273,7 +295,7 @@ func (w *diskWriter) GetUseDiskBuffer() bool {
 //
 // Returns:
 //   - zstdOutput: Reader for Zstd output
-func (w *diskWriter) GetZstdOutput() io.Reader {
+func (w *DiskWriter) GetZstdOutput() io.Reader {
 	return w.zstdFile
 }
 
@@ -283,7 +305,7 @@ func (w *diskWriter) GetZstdOutput() io.Reader {
 //
 // Returns:
 //   - err: Error calling stat
-func (w *diskWriter) GetZstdOutputSize() (int, error) {
+func (w *DiskWriter) GetZstdOutputSize() (int, error) {
 	zstdFileInfo, err := w.zstdFile.Stat()
 	if err != nil {
 		return 0, err
@@ -299,9 +321,9 @@ func (w *diskWriter) GetZstdOutputSize() (int, error) {
 //
 // Returns:
 //   - err: Error nil files, error from Zstd Encoder, error from operations on file
-func (w *diskWriter) flushIrBuffer() error {
+func (w *DiskWriter) flushIrBuffer() error {
 	if (w.irFile == nil) || (w.zstdFile == nil) {
-		return fmt.Errorf("error flush called with non-existent buffer")
+		return errFlushNonExistentBuffer
 	}
 
 	// Flush is called during Close(), and possible that the IR buffer is empty.
@@ -311,6 +333,21 @@ func (w *diskWriter) flushIrBuffer() error {
 
 	log.Printf("flushing IR buffer %s", filepath.Base(w.irPath))
 
+	if err := w.compressIrToZstd(); err != nil {
+		return err
+	}
+
+	if err := w.truncateIrFile(); err != nil {
+		return err
+	}
+
+	w.irTotalBytes = 0
+
+	return nil
+}
+
+// compressIrToZstd copies IR file contents to Zstd writer and closes the frame.
+func (w *DiskWriter) compressIrToZstd() error {
 	_, err := w.irFile.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
@@ -330,19 +367,17 @@ func (w *diskWriter) flushIrBuffer() error {
 	// upload.
 	w.zstdWriter.Reset(w.zstdFile)
 
-	_, err = w.irFile.Seek(0, io.SeekStart)
-	if err != nil {
-		return err
-	}
-
-	err = w.irFile.Truncate(0)
-	if err != nil {
-		return err
-	}
-
-	w.irTotalBytes = 0
-
 	return nil
+}
+
+// truncateIrFile resets the IR file for the next batch of writes.
+func (w *DiskWriter) truncateIrFile() error {
+	_, err := w.irFile.Seek(0, io.SeekStart)
+	if err != nil {
+		return err
+	}
+
+	return w.irFile.Truncate(0)
 }
 
 // Creates file buffers to hold logs prior to sending to s3.
@@ -358,18 +393,18 @@ func (w *diskWriter) flushIrBuffer() error {
 func newFileBuffers(
 	irPath string,
 	zstdPath string,
-) (*os.File, *os.File, error) {
-	irFile, err := createFile(irPath)
+) (irFile *os.File, zstdFile *os.File, err error) {
+	irFile, err = createFile(irPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating file %s: %w", irPath, err)
+		return nil, nil, fmt.Errorf(errCreatingFile, irPath, err)
 	}
-	log.Printf("created file %s", irPath)
+	log.Printf(logCreatedFile, irPath)
 
-	zstdFile, err := createFile(zstdPath)
+	zstdFile, err = createFile(zstdPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating file %s: %w", zstdPath, err)
+		return nil, nil, fmt.Errorf(errCreatingFile, zstdPath, err)
 	}
-	log.Printf("created file %s", zstdPath)
+	log.Printf(logCreatedFile, zstdPath)
 
 	return irFile, zstdFile, nil
 }
@@ -385,13 +420,14 @@ func newFileBuffers(
 func createFile(path string) (*os.File, error) {
 	// Make directory if does not exist.
 	dir := filepath.Dir(path)
-	err := os.MkdirAll(dir, 0o751)
+	err := os.MkdirAll(dir, dirPermission)
 	if err != nil {
 		err = fmt.Errorf("failed to create directory %s: %w", dir, err)
 		return nil, err
 	}
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o751)
+	//nolint:gosec // path is validated by caller
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, filePermission)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file %s: %w", path, err)
 	}
@@ -405,14 +441,21 @@ func createFile(path string) (*os.File, error) {
 //   - zstdPath: Path to Zstd disk buffer file
 //
 // Returns:
+//   - irFile: File for IR
+//   - zstdFile: File for Zstd
 //   - err: error opening files
-func openBufferFiles(irPath string, zstdPath string) (*os.File, *os.File, error) {
-	irFile, err := os.OpenFile(irPath, os.O_RDWR, 0o751)
+func openBufferFiles(
+	irPath string,
+	zstdPath string,
+) (irFile *os.File, zstdFile *os.File, err error) {
+	//nolint:gosec // path is validated by caller
+	irFile, err = os.OpenFile(irPath, os.O_RDWR, filePermission)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error opening ir file %s: %w", irPath, err)
 	}
 
-	zstdFile, err := os.OpenFile(zstdPath, os.O_RDWR, 0o751)
+	//nolint:gosec // path is validated by caller
+	zstdFile, err = os.OpenFile(zstdPath, os.O_RDWR, filePermission)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error opening zstd file %s: %w", zstdPath, err)
 	}
@@ -434,7 +477,7 @@ func openBufferFiles(irPath string, zstdPath string) (*os.File, *os.File, error)
 //
 // Returns:
 //   - err: Error calling stat
-func (w *diskWriter) getIrFileSize() (int, error) {
+func (w *DiskWriter) getIrFileSize() (int, error) {
 	irFileInfo, err := w.irFile.Stat()
 	if err != nil {
 		return 0, err

@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -36,7 +37,7 @@ import (
 func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (int, error) {
 	dec := decoder.New(data, size)
 	logEvents, err := decodeMsgpack(dec, ctx.Config)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		return output.FLB_ERROR, err
 	}
 
