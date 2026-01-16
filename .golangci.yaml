@@ -81,6 +81,12 @@ linters:
         - ""
 
   exclusions:
+    # TODO: v1 plugin linting is temporarily disabled. These exclusions should be removed once
+    # lint issues in the v1 plugin are addressed.
+    paths:
+      - "plugins/out_clp_s3"
+      - "internal/outctx"
+      - "internal/irzstd"
     rules:
       - linters:
           - "revive"

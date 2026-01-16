@@ -188,6 +188,9 @@ task lint:check
 task lint:fix
 ```
 
+> **Note:** Linting for the v1 plugin (`out_clp_s3`) is currently disabled and will be addressed in
+> a future update.
+
 [clp-blog]: https://www.uber.com/blog/reducing-logging-cost-by-two-orders-of-magnitude-using-clp
 [fluent-bit]: https://fluentbit.io/
 [log-viewer]: https://github.com/y-scope/yscope-log-viewer
