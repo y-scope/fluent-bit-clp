@@ -16,7 +16,7 @@ tasks:
   build:
     deps:
       - "build:s3"
-      - "build:ir-file"
+      - "build:s3v2"
 
   init:
     internal: true
