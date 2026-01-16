@@ -58,7 +58,24 @@ Size-based uploads with crash recovery:
 
 ## Quick Start
 
-### Using Pre-built Binaries (Kubernetes)
+### Docker Compose (Easiest)
+
+The fastest way to try the plugins locally:
+
+```shell
+# out_clp_s3_v2 (recommended)
+cd plugins/out_clp_s3_v2/examples/docker-compose
+docker compose up
+
+# out_clp_s3
+cd plugins/out_clp_s3/examples/docker-compose
+docker compose up
+```
+
+This starts MinIO, Fluent Bit with the plugin, and a log generator. View logs at
+http://localhost:9001 (minioadmin/minioadmin).
+
+### Kubernetes (k3d)
 
 ```shell
 # Download plugins from GitHub Actions (see Pre-built Binaries section)
@@ -70,16 +87,16 @@ k3d cluster create yscope --servers 1 --agents 1 \
   -p 9000:30000@agent:0 -p 9001:30001@agent:0
 
 # Deploy MinIO and Fluent Bit
-cd plugins/out_clp_s3_v2/k8s
-kubectl apply -f minio.yaml
-kubectl apply -f logs-bucket-creation.yaml -f aws-credentials.yaml
-kubectl apply -f fluent-bit-sidecar.yaml -f fluent-bit-sidecar-config.yaml -f aws-credentials.yaml
+cd plugins/out_clp_s3_v2/examples/kubernetes
+kubectl apply -f minio.yaml -f aws-credentials.yaml
+kubectl apply -f logs-bucket-creation.yaml
+kubectl apply -f sidecar/fluent-bit-sidecar.yaml -f sidecar/fluent-bit-sidecar-config.yaml
 ```
 
-See [out_clp_s3_v2 Kubernetes guide](plugins/out_clp_s3_v2/README.md#kubernetes-deployment) for
-detailed setup.
+See [Kubernetes Examples](plugins/out_clp_s3_v2/examples/kubernetes/README.md) for sidecar and
+DaemonSet deployment patterns.
 
-### Using Docker
+### Docker (Build from Source)
 
 ```shell
 # out_clp_s3_v2
@@ -125,15 +142,33 @@ and download the `fluent-bit-clp-plugins-linux-amd64` artifact.
 |----------|-------------|
 | [out_clp_s3_v2 README](plugins/out_clp_s3_v2/README.md) | Configuration, flush strategy, Kubernetes deployment |
 | [out_clp_s3 README](plugins/out_clp_s3/README.md) | Configuration, disk buffering, crash recovery |
-| [Kubernetes Quick Reference](plugins/out_clp_s3_v2/k8s/README.md) | kubectl commands for local k8s setup |
+| [Kubernetes Examples](plugins/out_clp_s3_v2/examples/kubernetes/README.md) | Sidecar and DaemonSet deployments |
 
 ## Development
+
+### Prerequisites
+
+- Go 1.24+
+- [Task](https://taskfile.dev/installation/)
+
+### Cloning
+
+This project uses git submodules for the [clp-ffi-go](https://github.com/y-scope/clp-ffi-go)
+dependency:
+
+```shell
+# New clone (recommended)
+git clone --recursive https://github.com/y-scope/fluent-bit-clp.git
+
+# Existing clone
+git submodule update --init --recursive
+```
 
 ### Building
 
 ```shell
-# Install Task (build tool)
-npm install -g @go-task/cli
+# Download clp-ffi-go native libraries
+bash third-party/clp-ffi-go/scripts/download-libs.sh
 
 # Build plugins
 task build
