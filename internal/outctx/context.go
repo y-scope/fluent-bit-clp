@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"unsafe"
 
@@ -79,7 +80,13 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 		awsCfg.Credentials = aws.NewCredentialsCache(creds)
 	}
 
-	s3Client := s3.NewFromConfig(awsCfg)
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		// Enable path-style addressing for S3-compatible services (MinIO, LocalStack, etc.)
+		// AWS S3 supports both styles, but custom endpoints typically require path-style.
+		if os.Getenv("AWS_ENDPOINT_URL") != "" {
+			o.UsePathStyle = true
+		}
+	})
 
 	// Confirm bucket exists and test aws credentials.
 	_, err = s3Client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
