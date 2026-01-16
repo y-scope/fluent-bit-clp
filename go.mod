@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/fluent/fluent-bit-go v0.0.0-20230731091245-a7a013e2473c
-	github.com/y-scope/clp-ffi-go v0.0.9-beta.0.20250629182525-0dc22d574855
+	github.com/y-scope/clp-ffi-go v0.0.9-beta.0.20260116045443-443182852576
 )
 
 require (
@@ -46,3 +46,5 @@ require (
 	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )
+
+replace github.com/y-scope/clp-ffi-go => ./third-party/clp-ffi-go

@@ -1,3 +1,6 @@
 [submodule "tools/yscope-dev-uilts"]
 	path = tools/yscope-dev-utils
 	url = https://github.com/y-scope/yscope-dev-utils.git
+[submodule "third-party/clp-ffi-go"]
+	path = third-party/clp-ffi-go
+	url = https://github.com/y-scope/clp-ffi-go.git

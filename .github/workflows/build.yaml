@@ -9,7 +9,14 @@ env:
 
 jobs:
   build-plugins:
-    runs-on: "ubuntu-latest"
+    runs-on: "${{ matrix.runner }}"
+    strategy:
+      matrix:
+        include:
+          - arch: "amd64"
+            runner: "ubuntu-24.04"
+          - arch: "arm64"
+            runner: "ubuntu-24.04-arm"
     steps:
       - uses: "actions/checkout@v4"
         with:
@@ -22,6 +29,9 @@ jobs:
       - name: "Install task"
         run: "npm install -g @go-task/cli"
 
+      - name: "Download clp-ffi-go libraries"
+        run: "bash third-party/clp-ffi-go/scripts/download-libs.sh"
+
       - name: "Build plugins"
         run: |
           task build:s3
@@ -30,11 +40,61 @@ jobs:
       - name: "Upload artifacts"
         uses: "actions/upload-artifact@v4"
         with:
-          name: "fluent-bit-clp-plugins-linux-amd64"
+          name: "fluent-bit-clp-plugins-${{ matrix.arch }}"
           path: "pre-built/*.so"
 
+  merge-artifacts:
+    runs-on: "ubuntu-24.04"
+    needs: "build-plugins"
+    steps:
+      - name: "Download all artifacts"
+        uses: "actions/download-artifact@v4"
+        with:
+          path: "plugins"
+          pattern: "fluent-bit-clp-plugins-*"
+          merge-multiple: true
+
+      - name: "Upload merged artifact"
+        uses: "actions/upload-artifact@v4"
+        with:
+          name: "fluent-bit-clp-plugins"
+          path: "plugins/*.so"
+
+      - name: "Delete arch-specific artifacts"
+        uses: "geekyeggo/delete-artifact@v5"
+        with:
+          name: "fluent-bit-clp-plugins-*"
+
+  release:
+    if: "github.event_name == 'push'"
+    needs: "merge-artifacts"
+    runs-on: "ubuntu-24.04"
+    permissions:
+      contents: "write"
+    steps:
+      - uses: "actions/checkout@v4"
+
+      - name: "Download merged artifacts"
+        uses: "actions/download-artifact@v4"
+        with:
+          name: "fluent-bit-clp-plugins"
+          path: "plugins"
+
+      - name: "Get short commit hash"
+        id: "commit"
+        run: "echo \"hash=$(git rev-parse --short HEAD)\" >> \"$GITHUB_OUTPUT\""
+
+      - name: "Create release"
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          gh release create "${{ steps.commit.outputs.hash }}" \
+            --title "Build ${{ steps.commit.outputs.hash }}" \
+            --notes "Pre-built Fluent Bit CLP plugins for commit ${{ steps.commit.outputs.hash }}" \
+            plugins/*.so
+
   build-docker:
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-24.04"
     permissions:
       contents: "read"
       packages: "write"
@@ -43,12 +103,20 @@ jobs:
         include:
           - plugin: "out_clp_s3"
             image: "fluent-bit-clp-s3"
+            platforms: "linux/amd64"
           - plugin: "out_clp_s3_v2"
             image: "fluent-bit-clp-s3-v2"
+            platforms: "linux/amd64,linux/arm64"
     steps:
       - uses: "actions/checkout@v4"
         with:
           submodules: "recursive"
+
+      - name: "Set up QEMU"
+        uses: "docker/setup-qemu-action@v3"
+
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
 
       - name: "Log in to GitHub Container Registry"
         uses: "docker/login-action@v3"
@@ -73,6 +141,7 @@ jobs:
         with:
           context: "."
           file: "plugins/${{ matrix.plugin }}/Dockerfile"
+          platforms: "${{ matrix.platforms }}"
           push: "${{ github.event_name == 'push' }}"
           tags: "${{ steps.meta.outputs.tags }}"
           labels: "${{ steps.meta.outputs.labels }}"
