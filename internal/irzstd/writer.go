@@ -108,10 +108,6 @@ func newIrZstdWriters(
 		return nil, nil, fmt.Errorf("error opening Zstd writer: %w", err)
 	}
 
-	if irOutput == nil {
-		irOutput = zstdWriter
-	}
-
 	irWriter, err := ir.NewWriter[ir.FourByteEncoding](irOutput)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error opening IR writer: %w", err)

@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/klauspost/compress/zstd"
+
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 )
@@ -47,7 +48,7 @@ func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
 	memoryWriter := memoryWriter{
 		size:       size,
 		timezone:   timezone,
-		irWriter: irWriter,
+		irWriter:   irWriter,
 		zstdWriter: zstdWriter,
 		zstdBuffer: &zstdBuffer,
 	}

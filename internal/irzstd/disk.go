@@ -85,8 +85,9 @@ func NewDiskWriter(
 }
 
 // Recovers a [diskWriter] opening buffer files from a previous execution of output plugin.
-// Recovery of files necessitates that use_disk_store is on. IR preamble is removed for
-// recovered store. Avoid use with empty disk stores as there will be no preamble.
+// Recovery of files necessitates that use_disk_store is on. Recovered store must be closed
+// with close streams() before can be used for future writting since it does not init with
+// an IR writer. Avoid use with empty disk stores.
 //
 // Parameters:
 //   - timezone: Time zone of the log source
@@ -120,6 +121,7 @@ func RecoverWriter(
 		irFile:     irFile,
 		zstdPath:   zstdPath,
 		zstdFile:   zstdFile,
+		// Recovered streams should already have IR, so irWriter is nil until flushed/reset.
 		irWriter:   nil,
 		zstdWriter: zstdWriter,
 	}
@@ -180,7 +182,7 @@ func (w *diskWriter) CloseStreams() error {
 		return fmt.Errorf("error flushing IR buffer: %w", err)
 	}
 
-	// may be nil if recovered.
+	// irWriter will be nil for recoveredWriter until flushed/reset at least once.
 	if (w.irWriter == nil) {
 		err := w.irWriter.Serializer.Close()
 		if err != nil {
@@ -189,7 +191,8 @@ func (w *diskWriter) CloseStreams() error {
 		w.irWriter = nil
     }
 
-	// ir termination byte
+	// Add IR postamble byte manually. We cannot use [ir.Writer.Close] since it add
+	// postable to the irFile, which was already flushed, and not the zstdFile.
 	w.zstdWriter.Write([]byte{0x0})
 	err = w.zstdWriter.Close()
 	if err != nil {
