@@ -3,6 +3,12 @@
 
 extends: "tools/yscope-dev-utils/exports/lint-configs/.yamllint.yml"
 
+# Exclude third-party, tools, and v1 plugin (linting temporarily disabled)
+ignore:
+  - "third-party/"
+  - "tools/"
+  - "plugins/out_clp_s3/"
+
 rules:
   # Allow document separators (---) for multi-resource Kubernetes manifests
   document-start: "disable"

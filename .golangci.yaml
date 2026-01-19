@@ -16,10 +16,15 @@ formatters:
       sections:
         - "standard"
         - "default"
+        - "prefix(github.com/y-scope/fluent-bit-clp)"
         - "blank"
         - "dot"
         - "alias"
-        - "localmodule"
+
+  exclusions:
+    generated: "lax"
+    paths:
+      - "third-party"
 
 linters:
   default: "none"
@@ -81,9 +86,18 @@ linters:
         - ""
 
   exclusions:
-    # TODO: v1 plugin linting is temporarily disabled. These exclusions should be removed once
-    # lint issues in the v1 plugin are addressed.
+    generated: "lax"
+    presets:
+      - "comments"
+      - "common-false-positives"
+      - "legacy"
+      - "std-error-handling"
     paths:
+      # Third-party and generated code
+      - "third-party"
+      - "examples"
+      # TODO: v1 plugin linting is temporarily disabled. These exclusions should be removed once
+      # lint issues in the v1 plugin are addressed.
       - "plugins/out_clp_s3"
       - "internal/outctx"
       - "internal/irzstd"

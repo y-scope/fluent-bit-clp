@@ -19,9 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
 
-	awsConfig "github.com/aws/aws-sdk-go-v2/config"
-
 	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
+
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 )
 
 // Names of disk buffering directories.

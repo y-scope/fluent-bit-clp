@@ -34,6 +34,8 @@ tasks:
             "{{.ROOT_DIR}}" \
             --exclude "build/**" \
             --exclude "tools/**" \
+            --exclude "third-party/**" \
+            --exclude "plugins/out_clp_s3/**" \
             --exclude "**/.venv/**" \
             --filename "*.yaml" \
             --filename "*.yml"

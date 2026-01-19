@@ -27,7 +27,11 @@ jobs:
       # Build inside manylinux container for glibc compatibility
       - name: "Build plugins"
         run: |
-          docker run --rm -v "${{ github.workspace }}:/src" -w /src ${{ matrix.manylinux }} bash -c '
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            ${{ matrix.manylinux }} \
+            bash -c '
             set -e
 
             # Install git (required for download-libs.sh to detect commit hash)
@@ -38,7 +42,8 @@ jobs:
             git config --global --add safe.directory /src/third-party/clp-ffi-go
 
             # Install Go
-            curl -fsSL "https://go.dev/dl/go1.24.3.linux-${{ matrix.arch }}.tar.gz" | tar -C /usr/local -xz
+            GO_URL="https://go.dev/dl/go1.25.6.linux-${{ matrix.arch }}.tar.gz"
+            curl -fsSL "${GO_URL}" | tar -C /usr/local -xz
             export PATH="/usr/local/go/bin:$PATH"
 
             # Install task
