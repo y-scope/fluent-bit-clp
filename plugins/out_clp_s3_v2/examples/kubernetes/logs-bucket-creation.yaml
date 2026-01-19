@@ -24,7 +24,7 @@ spec:
           volumeMounts:
             - name: "aws-credentials-volume"
               mountPath: "/root/.aws"
-            - name:  "scripts-volume"
+            - name: "scripts-volume"
               mountPath: "/scripts"
           imagePullPolicy: "IfNotPresent"
       restartPolicy: "Never"
@@ -36,7 +36,10 @@ spec:
           configMap:
             name: "logs-bucket-creation"
 ---
-apiVersion: v1
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "logs-bucket-creation"
 data:
   logs-bucket-creation.sh: |-
     #!/usr/bin/env bash
@@ -59,8 +62,8 @@ data:
     set -o pipefail
     set -u
 
-    # Emits a log event to stderr with an auto-generated ISO timestamp as well as the given level
-    # and message.
+    # Emits a log event to stderr with an auto-generated ISO timestamp as well as
+    # the given level and message.
     #
     # @param $1: Level string
     # @param $2: Message to be logged
@@ -86,7 +89,8 @@ data:
         done
 
         if [[ $retries -eq $MAX_RETRIES ]]; then
-            log "ERROR" "Maximum retries reached. S3 API endpoint ${AWS_ENDPOINT_URL} didn't respond."
+            log "ERROR" \
+                "Maximum retries reached. S3 endpoint ${AWS_ENDPOINT_URL} didn't respond."
             exit 1
         fi
     }
@@ -153,6 +157,3 @@ data:
     fi
 
     log "INFO" "Bucket ${BUCKET_NAME} created and configured successfully."
-kind: ConfigMap
-metadata:
-  name: logs-bucket-creation

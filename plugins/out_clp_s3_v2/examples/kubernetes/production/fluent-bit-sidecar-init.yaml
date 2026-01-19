@@ -1,0 +1,96 @@
+# =============================================================================
+# Production Sidecar with Init Container
+# =============================================================================
+# Downloads the CLP plugin from GitHub Releases at pod startup.
+# Combines sidecar pattern (per-pod logging) with init container
+# (flexible plugin versioning).
+#
+# For the simpler pre-built image approach, see: fluent-bit-sidecar.yaml
+# For detailed explanations, see: ../init-container/sidecar.yaml
+# =============================================================================
+
+apiVersion: "v1"
+kind: "Pod"
+metadata:
+  labels:
+    app: "fluent-bit-sidecar"
+  name: "fluent-bit-sidecar"
+spec:
+  # ---------------------------------------------------------------------------
+  # Init Container: Downloads plugin before main containers start
+  # ---------------------------------------------------------------------------
+  initContainers:
+    - name: "download-plugin"
+      image: "busybox:1.36"
+      env:
+        - name: "PLUGIN_VERSION"
+          value: "latest"
+      command:
+        - "sh"
+        - "-c"
+        - |
+          ARCH=$(uname -m)
+          case "${ARCH}" in
+            x86_64)  PLUGIN_ARCH="amd64" ;;
+            aarch64) PLUGIN_ARCH="arm64" ;;
+            *)       echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
+          esac
+
+          PLUGIN_FILE="out_clp_s3_v2_linux_${PLUGIN_ARCH}.so"
+          BASE_URL="https://github.com/y-scope/fluent-bit-clp"
+          PLUGIN_URL="${BASE_URL}/releases/${PLUGIN_VERSION}/download/${PLUGIN_FILE}"
+
+          echo "Detected architecture: ${ARCH} -> ${PLUGIN_ARCH}"
+          echo "Downloading plugin from: ${PLUGIN_URL}"
+
+          wget -O "/plugins/out_clp_s3_v2.so" "${PLUGIN_URL}"
+          chmod 755 "/plugins/out_clp_s3_v2.so"
+          ls -la /plugins/
+      volumeMounts:
+        - name: "plugins-volume"
+          mountPath: "/plugins"
+
+  # ---------------------------------------------------------------------------
+  # Main Containers
+  # ---------------------------------------------------------------------------
+  containers:
+    # Application (replace with your actual app)
+    - name: "app"
+      image: "ubuntu:22.04"
+      command: ["sleep", "infinity"]
+      volumeMounts:
+        - name: "log-volume"
+          mountPath: "/logs"
+
+    # Fluent Bit sidecar
+    - name: "fluent-bit"
+      image: "fluent/fluent-bit:3.2.7"
+      args: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+      env:
+        - name: "AWS_ENDPOINT_URL"
+          value: "http://minio:9000"
+      volumeMounts:
+        - name: "log-volume"
+          mountPath: "/logs"
+          readOnly: true
+        - name: "aws-credentials-volume"
+          mountPath: "/root/.aws"
+          readOnly: true
+        - name: "config-volume"
+          mountPath: "/fluent-bit/etc"
+          readOnly: true
+        - name: "plugins-volume"
+          mountPath: "/fluent-bit/plugins"
+          readOnly: true
+
+  volumes:
+    - name: "aws-credentials-volume"
+      secret:
+        secretName: "aws-credentials"
+    - name: "config-volume"
+      configMap:
+        name: "fluent-bit-config-init"
+    - name: "plugins-volume"
+      emptyDir: {}
+    - name: "log-volume"
+      emptyDir: {}

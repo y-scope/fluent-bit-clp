@@ -1,33 +1,61 @@
 # Production Deployment
 
-Production-ready Kubernetes manifests that work on any cluster (EKS, GKE, AKS, etc.) without
-requiring pre-mounted plugin volumes.
+Production-ready Kubernetes manifests that work on any cluster (EKS, GKE, AKS, etc.).
 
 > **See also:** [Kubernetes Examples](../README.md) for local k3d setup |
 > [Plugin README](../../../README.md) for configuration options
 
-## Recommended: Pre-built Docker Image
+## Deployment Options
 
-The simplest and most reliable approach is to use the pre-built Docker image:
+### Option Comparison
 
-```yaml
-containers:
-  - name: "fluent-bit"
-    image: "ghcr.io/y-scope/fluent-bit-clp-s3-v2:<branch-or-tag>"
+| | Pre-built Image (bundled .so) | Init Container (.so download) |
+|-|-------------------------------|-------------------------------|
+| **Pros** | Simple setup, no compatibility issues | Flexible plugin versioning, combine with other plugins |
+| **Cons** | Fixed plugin version per image tag | Potential GLIBC compatibility issues with some base images |
+| **Best for** | Most users, quick deployment | Custom setups, multi-plugin configurations |
+
+### Option 1: Pre-built Docker Image
+
+The image includes the plugin with all required libraries, avoiding compatibility issues.
+
+```shell
+# Create secrets
+kubectl create secret generic aws-credentials \
+  --from-file=credentials=$HOME/.aws/credentials
+
+# Deploy
+kubectl apply -f service-account.yaml
+kubectl apply -f fluent-bit-config.yaml
+kubectl apply -f fluent-bit-daemonset.yaml  # or fluent-bit-sidecar.yaml
 ```
 
-This image includes the plugin with all required libraries, avoiding compatibility issues.
+Build the image locally if not using the published image:
+```shell
+./scripts/build-docker.sh --amd64  # or --arm64
+```
 
-## Alternative: Init Container
+### Option 2: Init Container (Download Plugin)
 
-> **Note:** The init container approach may have GLIBC compatibility issues depending on the
-> Fluent Bit base image version. If you encounter errors like `GLIBCXX_X.X.XX not found`,
-> use the pre-built Docker image instead.
+Downloads the plugin binary from GitHub Releases at pod startup. Use this when you need
+to pin a specific plugin version or combine with other Fluent Bit plugins in a custom image.
 
-## How It Works
+> **Note:** This approach may have GLIBC compatibility issues depending on the Fluent Bit
+> base image version. If you encounter errors like `GLIBCXX_X.X.XX not found`, consider
+> using the pre-built Docker image or building a custom image with matching libraries.
 
-These examples use an **init container** to download the CLP plugin from GitHub Releases at pod
-startup. This eliminates the need for hostPath volumes or custom node configuration.
+```shell
+# Create secrets
+kubectl create secret generic aws-credentials \
+  --from-file=credentials=$HOME/.aws/credentials
+
+# Deploy (uses *-init.yaml variants)
+kubectl apply -f service-account.yaml
+kubectl apply -f fluent-bit-config-init.yaml
+kubectl apply -f fluent-bit-daemonset-init.yaml  # or fluent-bit-sidecar-init.yaml
+```
+
+#### How Init Container Works
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -47,51 +75,25 @@ startup. This eliminates the need for hostPath volumes or custom node configurat
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Quick Start
-
-### Sidecar Deployment
-
-```shell
-# Create secrets
-kubectl create secret generic aws-credentials \
-  --from-file=credentials=$HOME/.aws/credentials
-
-# Deploy ConfigMap and sidecar pod
-kubectl apply -f fluent-bit-config.yaml
-kubectl apply -f fluent-bit-sidecar.yaml
-```
-
-### DaemonSet Deployment
-
-```shell
-# Create secrets
-kubectl create secret generic aws-credentials \
-  --from-file=credentials=$HOME/.aws/credentials
-
-# Deploy ConfigMap and DaemonSet
-kubectl apply -f fluent-bit-config.yaml
-kubectl apply -f fluent-bit-daemonset.yaml
-```
-
 ## Configuration
 
-### Plugin Version
+### Plugin Version (Init Container only)
 
 Edit the `PLUGIN_VERSION` environment variable in the init container:
 
 ```yaml
 env:
   - name: "PLUGIN_VERSION"
-    value: "latest"  # Or use a specific commit hash, e.g., "e0efdea"
+    value: "latest"  # Or use a specific tag, e.g., "v0.1.0"
 ```
 
-Available versions can be found at: https://github.com/y-scope/fluent-bit-clp/releases
+Available versions: https://github.com/y-scope/fluent-bit-clp/releases
 
 ### Architecture
 
-Architecture is **automatically detected** at runtime using `uname -m`. The init container
-maps `x86_64` → `amd64` and `aarch64` → `arm64`. No configuration needed for mixed-architecture
-clusters.
+Architecture is **automatically detected** at runtime:
+- Pre-built image: Multi-arch image works on both amd64 and arm64
+- Init container: Uses `uname -m` to download the correct binary
 
 ### AWS S3 (Production)
 
@@ -107,22 +109,17 @@ Configure AWS credentials via:
 - Workload Identity on GKE
 - Kubernetes secrets (as shown in examples)
 
-## Alternative: Pre-built Docker Image
-
-For simpler deployments, use the pre-built Fluent Bit image that includes the plugin:
-
-```yaml
-containers:
-  - name: "fluent-bit"
-    image: "ghcr.io/y-scope/fluent-bit-clp-s3-v2:latest"
-```
-
-This eliminates the need for init containers but offers less flexibility in plugin versioning.
-
 ## Files
 
 | File | Description |
 |------|-------------|
-| `fluent-bit-config.yaml` | ConfigMap with Fluent Bit configuration |
-| `fluent-bit-sidecar.yaml` | Sidecar pod with init container |
-| `fluent-bit-daemonset.yaml` | DaemonSet with init container and ServiceAccount |
+| **Pre-built Image** | |
+| `fluent-bit-config.yaml` | ConfigMap for pre-built image |
+| `fluent-bit-daemonset.yaml` | DaemonSet using pre-built image |
+| `fluent-bit-sidecar.yaml` | Sidecar pod using pre-built image |
+| **Init Container (.so download)** | |
+| `fluent-bit-config-init.yaml` | ConfigMap for init container deployment |
+| `fluent-bit-daemonset-init.yaml` | DaemonSet with init container |
+| `fluent-bit-sidecar-init.yaml` | Sidecar pod with init container |
+| **Common** | |
+| `service-account.yaml` | ServiceAccount for Fluent Bit |

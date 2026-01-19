@@ -1,0 +1,116 @@
+# =============================================================================
+# Production DaemonSet with Init Container
+# =============================================================================
+# Downloads the CLP plugin from GitHub Releases at pod startup.
+# Use this when you need a specific plugin version or want to combine
+# multiple Fluent Bit plugins.
+#
+# For the simpler pre-built image approach, see: fluent-bit-daemonset.yaml
+# For detailed init container explanations, see: ../init-container/daemonset.yaml
+# =============================================================================
+
+apiVersion: "apps/v1"
+kind: "DaemonSet"
+metadata:
+  name: "fluent-bit"
+  labels:
+    k8s-app: "fluent-bit"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: "fluent-bit"
+  template:
+    metadata:
+      labels:
+        k8s-app: "fluent-bit"
+    spec:
+      serviceAccountName: "fluent-bit"
+
+      # -----------------------------------------------------------------------
+      # Init Container: Downloads plugin before main container starts
+      # -----------------------------------------------------------------------
+      initContainers:
+        - name: "download-plugin"
+          image: "busybox:1.36"
+          env:
+            - name: "PLUGIN_VERSION"
+              # Pin to specific version for reproducible builds: "v0.1.0"
+              value: "latest"
+          command:
+            - "sh"
+            - "-c"
+            - |
+              # Auto-detect architecture for mixed clusters (amd64/arm64)
+              ARCH=$(uname -m)
+              case "${ARCH}" in
+                x86_64)  PLUGIN_ARCH="amd64" ;;
+                aarch64) PLUGIN_ARCH="arm64" ;;
+                *)       echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
+              esac
+
+              PLUGIN_FILE="out_clp_s3_v2_linux_${PLUGIN_ARCH}.so"
+              BASE_URL="https://github.com/y-scope/fluent-bit-clp"
+              PLUGIN_URL="${BASE_URL}/releases/${PLUGIN_VERSION}/download/${PLUGIN_FILE}"
+
+              echo "Detected architecture: ${ARCH} -> ${PLUGIN_ARCH}"
+              echo "Downloading plugin from: ${PLUGIN_URL}"
+
+              wget -O "/plugins/out_clp_s3_v2.so" "${PLUGIN_URL}"
+              chmod 755 "/plugins/out_clp_s3_v2.so"
+              ls -la /plugins/
+          volumeMounts:
+            - name: "plugins-volume"
+              mountPath: "/plugins"
+
+      # -----------------------------------------------------------------------
+      # Main Container
+      # -----------------------------------------------------------------------
+      containers:
+        - name: "fluent-bit"
+          # Official Fluent Bit image - plugin loaded from init container
+          image: "fluent/fluent-bit:3.2.7"
+          args: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+
+          env:
+            - name: "AWS_ENDPOINT_URL"
+              # REMOVE for real AWS S3
+              value: "http://minio:9000"
+
+          resources:
+            limits:
+              memory: "100Mi"
+            requests:
+              cpu: "100m"
+              memory: "100Mi"
+
+          volumeMounts:
+            - name: "varlog"
+              mountPath: "/var/log"
+            - name: "varlibdockercontainers"
+              mountPath: "/var/lib/docker/containers"
+              readOnly: true
+            - name: "aws-credentials-volume"
+              mountPath: "/root/.aws"
+            - name: "config-volume"
+              mountPath: "/fluent-bit/etc"
+            # Plugin from init container
+            - name: "plugins-volume"
+              mountPath: "/fluent-bit/plugins"
+              readOnly: true
+
+      volumes:
+        - name: "varlog"
+          hostPath:
+            path: "/var/log"
+        - name: "varlibdockercontainers"
+          hostPath:
+            path: "/var/lib/docker/containers"
+        - name: "aws-credentials-volume"
+          secret:
+            secretName: "aws-credentials"
+        - name: "config-volume"
+          configMap:
+            name: "fluent-bit-config-init"
+        # Shared between init container and main container
+        - name: "plugins-volume"
+          emptyDir: {}

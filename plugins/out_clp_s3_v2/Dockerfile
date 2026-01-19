@@ -31,7 +31,7 @@ RUN task build:s3v2
 
 FROM fluent/fluent-bit:3.2.7
 
-COPY --from=builder /src/pre-built/out_clp_s3_v2_linux_*.so /fluent-bit/lib/out_clp_s3_v2.so
+COPY --from=builder /src/pre-built/out_clp_s3_v2_linux_*.so /fluent-bit/plugins/out_clp_s3_v2.so
 COPY --from=builder /src/plugins/out_clp_s3_v2/*.yaml /fluent-bit/etc/
 
 CMD ["/fluent-bit/bin/fluent-bit", "--config", "/fluent-bit/etc/fluent-bit.yaml"]

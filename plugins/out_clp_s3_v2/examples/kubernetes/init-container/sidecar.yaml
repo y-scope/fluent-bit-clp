@@ -1,0 +1,131 @@
+# =============================================================================
+# Sidecar with Init Container: Downloads plugin at pod startup
+# =============================================================================
+# This example combines two patterns:
+#   1. INIT CONTAINER: Downloads the plugin before main containers start
+#   2. SIDECAR: Fluent Bit runs alongside your app in the same pod
+#
+# Pod Startup Flow:
+#   1. Init container downloads plugin to shared volume
+#   2. Init container exits successfully
+#   3. App container AND Fluent Bit container start together
+#   4. App writes logs → Fluent Bit reads and ships them
+#
+# This approach is useful when:
+#   - You want per-application log collection (sidecar benefit)
+#   - You want to control the exact plugin version (init container benefit)
+#   - You need to combine multiple Fluent Bit plugins
+# =============================================================================
+
+apiVersion: "v1"
+kind: "Pod"
+metadata:
+  labels:
+    app: "fluent-bit-sidecar"
+  name: "fluent-bit-sidecar"
+spec:
+  # ---------------------------------------------------------------------------
+  # Init Containers
+  # ---------------------------------------------------------------------------
+  # Run BEFORE main containers. Must complete successfully.
+  initContainers:
+    - name: "download-plugin"
+      # busybox: Minimal image with wget for downloading
+      image: "busybox:1.36"
+
+      env:
+        - name: "PLUGIN_VERSION"
+          # "latest" or specific version like "v0.1.0"
+          value: "latest"
+
+      command:
+        - "sh"
+        - "-c"
+        - |
+          # Detect CPU architecture for correct binary
+          ARCH=$(uname -m)
+          case "${ARCH}" in
+            x86_64)  PLUGIN_ARCH="amd64" ;;
+            aarch64) PLUGIN_ARCH="arm64" ;;
+            *)       echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
+          esac
+
+          PLUGIN_FILE="out_clp_s3_v2_linux_${PLUGIN_ARCH}.so"
+          BASE_URL="https://github.com/y-scope/fluent-bit-clp"
+          PLUGIN_URL="${BASE_URL}/releases/${PLUGIN_VERSION}/download/${PLUGIN_FILE}"
+
+          echo "Downloading plugin from: ${PLUGIN_URL}"
+          wget -O "/plugins/out_clp_s3_v2.so" "${PLUGIN_URL}"
+          chmod 755 "/plugins/out_clp_s3_v2.so"
+
+      volumeMounts:
+        - name: "plugins-volume"
+          mountPath: "/plugins"
+
+  # ---------------------------------------------------------------------------
+  # Main Containers (run after init containers complete)
+  # ---------------------------------------------------------------------------
+  containers:
+    # -------------------------------------------------------------------------
+    # Application Container
+    # -------------------------------------------------------------------------
+    - name: "app"
+      image: "ubuntu:22.04"
+      # Placeholder command - replace with your actual application
+      command: ["sleep", "infinity"]
+      volumeMounts:
+        # Your app writes logs here
+        - name: "log-volume"
+          mountPath: "/var/log/app"
+
+    # -------------------------------------------------------------------------
+    # Fluent Bit Sidecar Container
+    # -------------------------------------------------------------------------
+    - name: "fluent-bit"
+      # Official Fluent Bit image (plugin loaded from init container)
+      image: "fluent/fluent-bit:3.2.7"
+      args: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+
+      env:
+        - name: "AWS_ENDPOINT_URL"
+          # Remove for AWS S3
+          value: "http://minio:9000"
+
+      volumeMounts:
+        # Same log volume as app - this is how sidecar accesses app logs
+        - name: "log-volume"
+          mountPath: "/var/log/app"
+          readOnly: true
+
+        - name: "aws-credentials-volume"
+          mountPath: "/root/.aws"
+          readOnly: true
+
+        - name: "config-volume"
+          mountPath: "/fluent-bit/etc"
+          readOnly: true
+
+        # Plugin from init container
+        - name: "plugins-volume"
+          mountPath: "/fluent-bit/plugins"
+          readOnly: true
+
+  # ---------------------------------------------------------------------------
+  # Volumes
+  # ---------------------------------------------------------------------------
+  volumes:
+    - name: "aws-credentials-volume"
+      secret:
+        secretName: "aws-credentials"
+
+    - name: "config-volume"
+      configMap:
+        name: "fluent-bit-config"
+
+    # Shared between init container and Fluent Bit
+    - name: "plugins-volume"
+      emptyDir: {}
+
+    # Shared between app and Fluent Bit sidecar
+    - name: "log-volume"
+      emptyDir: {}

@@ -1,13 +1,13 @@
 # =============================================================================
-# Production Fluent Bit Configuration
+# Fluent Bit Configuration for Init Container Deployment
 # =============================================================================
-# More complete configuration with:
-#   - JSON parser for structured logs
-#   - Filter to add default log level
-#   - Log level key for CLP indexing
+# This ConfigMap is used with the init-container deployment pattern.
+# The only difference from the quickstart config is the plugin path:
+#   - quickstart: /fluent-bit/plugins/ (baked into image)
+#   - init-container: /fluent-bit/plugins/ (downloaded to emptyDir volume)
 #
-# For detailed explanations of each setting,
-# see: ../quickstart/config.yaml
+# Both use the same path because the init container downloads the plugin
+# to an emptyDir volume mounted at /fluent-bit/plugins/
 # =============================================================================
 
 apiVersion: "v1"
@@ -19,6 +19,8 @@ data:
     # -------------------------------------------------------------------------
     # Plugins
     # -------------------------------------------------------------------------
+    # Load the CLP plugin downloaded by the init container
+    # The init container saves it to an emptyDir mounted at /fluent-bit/plugins/
     plugins:
       - "/fluent-bit/plugins/out_clp_s3_v2.so"
 
@@ -31,47 +33,23 @@ data:
       log_level: "info"
 
     # -------------------------------------------------------------------------
-    # Parsers
-    # -------------------------------------------------------------------------
-    # Define how to parse log lines
-    parsers:
-      - name: "json"
-        format: "json"
-        # If JSON parsing fails, store raw line in "message" field
-        json_error_key: "message"
-
-    # -------------------------------------------------------------------------
     # Pipeline
     # -------------------------------------------------------------------------
     pipeline:
-      # Input: Read log files
       inputs:
         - name: "tail"
-          path: "/logs/*/*.jsonl"
-          # Use JSON parser defined above
-          parser: json
+          # Watch for .jsonl files in subdirectories of /var/log
+          path: "/var/log/*/*.jsonl"
           path_key: "file_path"
-          tag_regex: "^\\/logs\\/(?<user_name>[^\\/]+)\\/(?<file_name>.*\\.jsonl)$"
+          # Extract folder name and filename as tag components
+          tag_regex: "^\\/var\\/log\\/(?<user_name>[^\\/]+)\\/(?<file_name>.*\\.jsonl)$"
           tag: "<user_name>/<file_name>"
           refresh_interval: 5
           read_from_head: true
           key: "message"
           buffer_max_size: "1MB"
 
-      # Filters: Transform logs in-flight
-      filters:
-        - name: "modify"
-          match: "*"
-          # Add default log level if not present
-          # CLP uses this for organizing logs by severity
-          Add:
-            - "level INFO"
-
-      # Output: Send to S3 with CLP compression
       outputs:
         - name: "out_clp_s3_v2"
           match: "*/*"
           log_bucket: "logs"
-          # Tell CLP which field contains the log level
-          # Enables filtering by level in the log viewer
-          log_level_key: "level"

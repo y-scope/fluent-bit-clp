@@ -45,7 +45,7 @@ tasks:
           var: "SRC_FILES"
         cmd: |-
           . "{{.G_LINT_VENV_DIR}}/bin/activate"
-          yamllint --config-file "{{.G_UTILS_CONFIGS_DIR}}/.yamllint.yml" --strict "{{.ITEM}}"
+          yamllint --config-file "{{.ROOT_DIR}}/.yamllint.yml" --strict "{{.ITEM}}"
 
   fix:
     deps:

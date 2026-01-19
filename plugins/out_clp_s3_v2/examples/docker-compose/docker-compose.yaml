@@ -54,7 +54,8 @@ services:
     entrypoint: >
       /bin/bash -c "
       yum install -y -q gzip jq tar &&
-      curl -s https://raw.githubusercontent.com/y-scope/yscope-log-viewer/refs/heads/main/tools/deployment/s3/deploy.sh | bash
+      DEPLOY_SCRIPT='y-scope/yscope-log-viewer/refs/heads/main/tools/deployment/s3/deploy.sh' &&
+      curl -s https://raw.githubusercontent.com/$${DEPLOY_SCRIPT} | bash
       "
 
   fluent-bit:
@@ -91,7 +92,10 @@ services:
       while true; do
         timestamp=$$(date -u +%Y-%m-%dT%H:%M:%SZ);
         level=$$(shuf -n1 -e debug info info info warn error);
-        echo \"{\\\"timestamp\\\":\\\"$$timestamp\\\",\\\"level\\\":\\\"$$level\\\",\\\"message\\\":\\\"Log message $$i from container\\\",\\\"service\\\":\\\"app\\\"}\" >> /logs/app/test-$$(date +%Y%m%d).jsonl;
+        msg=\"Log message $$i from container\";
+        json=\"{\\\"timestamp\\\":\\\"$$timestamp\\\",\\\"level\\\":\\\"$$level\\\",\";
+        json=\"$${json}\\\"message\\\":\\\"$$msg\\\",\\\"service\\\":\\\"app\\\"}\";
+        echo \"$$json\" >> /logs/app/test-$$(date +%Y%m%d).jsonl;
         i=$$((i + 1));
         sleep 1;
       done

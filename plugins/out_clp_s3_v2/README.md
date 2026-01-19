@@ -123,7 +123,7 @@ Credentials are loaded via the [AWS SDK default credential chain][aws-creds]:
 3. ECS task IAM role
 4. EC2 instance IAM role
 
-**For Kubernetes:** Mount credentials as a secret—see [examples/kubernetes/aws-credentials.yaml](examples/kubernetes/aws-credentials.yaml).
+**For Kubernetes:** Mount credentials as a secret or use IAM roles—see [Kubernetes Examples](examples/kubernetes/README.md#aws-s3-production).
 
 [aws-creds]: https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials
 
@@ -380,32 +380,37 @@ Two deployment patterns are supported:
 
 | Pattern | Description |
 |---------|-------------|
-| [**Sidecar**](examples/kubernetes/sidecar/) | Fluent Bit runs alongside your app, reading from shared volume |
-| [**DaemonSet**](examples/kubernetes/daemonset/) | One Fluent Bit per node, collecting from `/var/log` |
+| **Sidecar** | Fluent Bit runs alongside your app in the same pod |
+| **DaemonSet** | One Fluent Bit per node, collecting from `/var/log` |
+
+Two plugin delivery methods:
+
+| Method | Description |
+|--------|-------------|
+| **Pre-built image** | Plugin bundled in Docker image (simplest) |
+| **Init container** | Download plugin at pod startup (flexible versioning) |
 
 #### Quick Start with k3d
 
 ```shell
-# Create cluster with plugin mounted
-k3d cluster create yscope --servers 1 --agents 1 \
-  -v /path/to/plugins:/fluent-bit/plugins \
-  -p 9000:30000@agent:0 \
-  -p 9001:30001@agent:0
+# Create cluster
+k3d cluster create clp-test -p "30000-30001:30000-30001@server:0"
 
-# Deploy infrastructure and Fluent Bit
+# Deploy infrastructure
 cd examples/kubernetes
-kubectl apply -f minio.yaml -f aws-credentials.yaml
-kubectl wait --for=condition=Ready pod/minio --timeout=60s
+kubectl create secret generic aws-credentials \
+  --from-literal=credentials=$'[default]\naws_access_key_id=minioadmin\naws_secret_access_key=minioadmin'
+kubectl apply -f minio.yaml
+kubectl wait --for=condition=ready pod/minio --timeout=60s
 kubectl apply -f logs-bucket-creation.yaml
-kubectl apply -f sidecar/fluent-bit-sidecar.yaml -f sidecar/fluent-bit-sidecar-config.yaml
+
+# Deploy Fluent Bit (pre-built image)
+kubectl apply -f service-account.yaml
+kubectl apply -f quickstart/
 ```
 
 #### View Logs
 
-Open [YScope Log Viewer](http://localhost:9000/log-viewer/index.html) and enter the S3 path:
+Access MinIO Console at http://localhost:30001 (minioadmin/minioadmin) to browse uploaded logs.
 
-```
-s3://logs/app/test-001.jsonl.clp.zst
-```
-
-See [examples/kubernetes/README.md](examples/kubernetes/README.md) for complete setup and patterns.
+See [Kubernetes Examples](examples/kubernetes/README.md) for detailed setup, deployment patterns, and production configuration.

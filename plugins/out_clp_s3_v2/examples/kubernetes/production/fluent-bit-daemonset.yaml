@@ -1,10 +1,15 @@
-apiVersion: "v1"
-kind: "ServiceAccount"
-metadata:
-  name: "fluent-bit"
----
-apiVersion: apps/v1
-kind: DaemonSet
+# =============================================================================
+# Production DaemonSet: Node-level log collection
+# =============================================================================
+# Runs one Fluent Bit pod on every node to collect logs from all containers.
+# Uses the pre-built image with CLP plugin bundled.
+#
+# For detailed explanations of DaemonSets and Kubernetes concepts,
+# see: ../quickstart/daemonset.yaml
+# =============================================================================
+
+apiVersion: "apps/v1"
+kind: "DaemonSet"
 metadata:
   name: "fluent-bit"
   labels:
@@ -19,77 +24,55 @@ spec:
         k8s-app: "fluent-bit"
     spec:
       serviceAccountName: "fluent-bit"
-      initContainers:
-        # Downloads the CLP plugin from GitHub Releases
-        # Architecture is detected automatically at runtime
-        - name: "download-plugin"
-          image: "busybox:1.36"
-          env:
-            - name: "PLUGIN_VERSION"
-              value: "latest"  # Or use a specific commit hash, e.g., "e0efdea"
-          command:
-            - "sh"
-            - "-c"
-            - |
-              # Detect architecture
-              ARCH=$(uname -m)
-              case "${ARCH}" in
-                x86_64)  PLUGIN_ARCH="amd64" ;;
-                aarch64) PLUGIN_ARCH="arm64" ;;
-                *)       echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
-              esac
-
-              PLUGIN_FILE="out_clp_s3_v2_linux_${PLUGIN_ARCH}.so"
-              PLUGIN_URL="https://github.com/y-scope/fluent-bit-clp/releases/${PLUGIN_VERSION}/download/${PLUGIN_FILE}"
-              echo "Detected architecture: ${ARCH} -> ${PLUGIN_ARCH}"
-              echo "Downloading plugin from: ${PLUGIN_URL}"
-              # Download to generic name so config doesn't need architecture suffix
-              wget -O "/plugins/out_clp_s3_v2.so" "${PLUGIN_URL}"
-              chmod 755 "/plugins/out_clp_s3_v2.so"
-              ls -la /plugins/
-          volumeMounts:
-            - name: "plugins-volume"
-              mountPath: "/plugins"
 
       containers:
         - name: "fluent-bit"
-          image: "fluent/fluent-bit:3.2.7"
+          # Pre-built image includes CLP plugin at /fluent-bit/plugins/
+          # Build locally: ./scripts/build-docker.sh
+          image: "ghcr.io/y-scope/fluent-bit-clp-s3-v2:latest"
           args: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+
           env:
             - name: "AWS_ENDPOINT_URL"
-              value: "http://minio:9000"  # Remove for AWS S3
+              # REMOVE this line for real AWS S3
+              # Only needed for MinIO or S3-compatible storage
+              value: "http://minio:9000"
+
           resources:
+            # Adjust based on log volume
             limits:
               memory: "100Mi"
             requests:
               cpu: "100m"
               memory: "100Mi"
+
           volumeMounts:
+            # Host log directory - access logs from all pods on this node
             - name: "varlog"
               mountPath: "/var/log"
             - name: "varlibdockercontainers"
               mountPath: "/var/lib/docker/containers"
               readOnly: true
+            # AWS credentials
             - name: "aws-credentials-volume"
               mountPath: "/root/.aws"
+            # Fluent Bit config
             - name: "config-volume"
               mountPath: "/fluent-bit/etc"
-            - name: "plugins-volume"
-              mountPath: "/fluent-bit/plugins"
-              readOnly: true
 
       volumes:
+        # hostPath: Mount directories from the node's filesystem
         - name: "varlog"
           hostPath:
             path: "/var/log"
         - name: "varlibdockercontainers"
           hostPath:
             path: "/var/lib/docker/containers"
+        # Secret: AWS credentials
         - name: "aws-credentials-volume"
           secret:
             secretName: "aws-credentials"
+        # ConfigMap: Fluent Bit configuration
         - name: "config-volume"
           configMap:
             name: "fluent-bit-config"
-        - name: "plugins-volume"
-          emptyDir: {}

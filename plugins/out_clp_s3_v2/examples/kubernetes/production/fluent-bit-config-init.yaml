@@ -1,0 +1,58 @@
+# =============================================================================
+# Production Config for Init Container Deployment
+# =============================================================================
+# Used with fluent-bit-daemonset-init.yaml and fluent-bit-sidecar-init.yaml
+# Same as fluent-bit-config.yaml but with different ConfigMap name to allow
+# both deployment options to coexist in the same cluster.
+#
+# For detailed configuration explanations, see: ../quickstart/config.yaml
+# =============================================================================
+
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  # Different name allows both pre-built and init-container deployments
+  # to coexist in the same namespace
+  name: "fluent-bit-config-init"
+data:
+  fluent-bit.yaml: |
+    # Plugin downloaded by init container to /fluent-bit/plugins/
+    plugins:
+      - "/fluent-bit/plugins/out_clp_s3_v2.so"
+
+    service:
+      flush: 1
+      daemon: "off"
+      log_level: "info"
+
+    # JSON parser for structured logs
+    parsers:
+      - name: "json"
+        format: "json"
+        json_error_key: "message"
+
+    pipeline:
+      inputs:
+        - name: "tail"
+          path: "/logs/*/*.jsonl"
+          parser: json
+          path_key: "file_path"
+          tag_regex: "^\\/logs\\/(?<user_name>[^\\/]+)\\/(?<file_name>.*\\.jsonl)$"
+          tag: "<user_name>/<file_name>"
+          refresh_interval: 5
+          read_from_head: true
+          key: "message"
+          buffer_max_size: "1MB"
+
+      # Add default log level for logs missing it
+      filters:
+        - name: "modify"
+          match: "*"
+          Add:
+            - "level INFO"
+
+      outputs:
+        - name: "out_clp_s3_v2"
+          match: "*/*"
+          log_bucket: "logs"
+          log_level_key: "level"

@@ -1,0 +1,104 @@
+# =============================================================================
+# Sidecar Pattern: Fluent Bit runs alongside your application in the same Pod
+# =============================================================================
+# A sidecar is a container that runs alongside your main application container
+# in the same Pod. They share:
+#   - Network namespace (can communicate via localhost)
+#   - Storage volumes (can share files)
+#   - Lifecycle (start and stop together)
+#
+# This pattern is useful when:
+#   - Your app writes logs to files (not stdout)
+#   - You want dedicated log processing per application
+#   - You need to transform or enrich logs before shipping
+#
+# In this example:
+#   - "app" container: Your application (simulated with sleep)
+#   - "fluent-bit" container: Collects logs written by the app
+#   - Both share a volume at /var/log/app
+# =============================================================================
+
+apiVersion: "v1"
+kind: "Pod"
+metadata:
+  labels:
+    app: "fluent-bit-sidecar"
+  name: "fluent-bit-sidecar"
+spec:
+  containers:
+    # -------------------------------------------------------------------------
+    # Application Container
+    # -------------------------------------------------------------------------
+    # This is a placeholder for your actual application.
+    # Replace this with your real application container.
+    # The key requirement: write logs to the shared volume (/var/log/app)
+    - name: "app"
+      image: "ubuntu:22.04"
+      # sleep infinity keeps the container running (for demo purposes)
+      # Replace with your actual application command
+      command: ["sleep", "infinity"]
+      volumeMounts:
+        # Mount the shared log volume where your app writes logs
+        # Fluent Bit will read from this same location
+        - name: "log-volume"
+          mountPath: "/var/log/app"
+
+    # -------------------------------------------------------------------------
+    # Fluent Bit Sidecar Container
+    # -------------------------------------------------------------------------
+    # This container runs alongside your app and collects its logs
+    - name: "fluent-bit"
+      # Pre-built image with CLP plugin already included
+      # To build locally: ./scripts/build-docker.sh
+      image: "ghcr.io/y-scope/fluent-bit-clp-s3-v2:latest"
+
+      # Point Fluent Bit to our configuration file
+      args: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+
+      env:
+        - name: "AWS_ENDPOINT_URL"
+          # MinIO endpoint for local testing
+          # REMOVE this env var entirely when using real AWS S3
+          value: "http://minio:9000"
+
+      volumeMounts:
+        # Mount the SAME log volume as the app container
+        # This is how Fluent Bit accesses logs written by your app
+        # readOnly: true because Fluent Bit only needs to read, not write
+        - name: "log-volume"
+          mountPath: "/var/log/app"
+          readOnly: true
+
+        # AWS credentials for S3 access
+        - name: "aws-credentials-volume"
+          mountPath: "/root/.aws"
+          readOnly: true
+
+        # Fluent Bit configuration from ConfigMap
+        - name: "config-volume"
+          mountPath: "/fluent-bit/etc"
+          readOnly: true
+
+  # ---------------------------------------------------------------------------
+  # Volumes
+  # ---------------------------------------------------------------------------
+  # Volumes are storage units that can be mounted into containers
+  volumes:
+    # Secret: Stores sensitive data like credentials
+    # Created with: kubectl create secret generic aws-credentials ...
+    - name: "aws-credentials-volume"
+      secret:
+        secretName: "aws-credentials"
+
+    # ConfigMap: Stores configuration files
+    # Defined in config.yaml
+    - name: "config-volume"
+      configMap:
+        name: "fluent-bit-config"
+
+    # emptyDir: Temporary storage shared between containers in the same Pod
+    # - Created when Pod starts, deleted when Pod terminates
+    # - Perfect for sharing data between sidecar containers
+    # - Both "app" and "fluent-bit" containers mount this volume
+    - name: "log-volume"
+      emptyDir: {}

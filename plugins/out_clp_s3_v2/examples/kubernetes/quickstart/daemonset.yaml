@@ -1,0 +1,105 @@
+# =============================================================================
+# DaemonSet: Runs one Fluent Bit pod on EVERY node in the cluster
+# =============================================================================
+# A DaemonSet is a Kubernetes workload that ensures exactly one copy of a pod
+# runs on each node. This is ideal for:
+#   - Log collection (collect logs from all pods on each node)
+#   - Monitoring agents (one agent per node)
+#   - Network plugins (node-level networking)
+#
+# When you apply this file, Kubernetes will:
+#   1. Create one Fluent Bit pod on each node
+#   2. Automatically add pods when new nodes join the cluster
+#   3. Remove pods when nodes are removed
+# =============================================================================
+
+apiVersion: "apps/v1"
+kind: "DaemonSet"
+metadata:
+  name: "fluent-bit"
+  labels:
+    # Labels are key-value pairs for organizing and selecting resources
+    k8s-app: "fluent-bit"
+spec:
+  # Selector defines how the DaemonSet finds which pods to manage
+  selector:
+    matchLabels:
+      k8s-app: "fluent-bit"
+
+  # Template defines the pod that will be created on each node
+  template:
+    metadata:
+      labels:
+        # These labels must match the selector above
+        k8s-app: "fluent-bit"
+    spec:
+      # ServiceAccount provides an identity for the pod
+      # Required for accessing Kubernetes API (if needed) and RBAC
+      serviceAccountName: "fluent-bit"
+
+      containers:
+        - name: "fluent-bit"
+          # Pre-built image with CLP plugin already included
+          # To build locally: ./scripts/build-docker.sh
+          image: "ghcr.io/y-scope/fluent-bit-clp-s3-v2:latest"
+
+          # Override the default command to use our config file
+          args: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+
+          # Environment variables configure the S3 endpoint
+          env:
+            - name: "AWS_ENDPOINT_URL"
+              # MinIO endpoint for local testing
+              # REMOVE this env var entirely when using real AWS S3
+              value: "http://minio:9000"
+
+          # Resource limits prevent runaway resource consumption
+          resources:
+            limits:
+              memory: "100Mi"
+            requests:
+              cpu: "100m"
+              memory: "100Mi"
+
+          # Volume mounts make external data available inside the container
+          volumeMounts:
+            # Mount host's /var/log to read log files from all pods
+            - name: "varlog"
+              mountPath: "/var/log"
+
+            # Mount Docker container logs (needed for container runtime logs)
+            - name: "varlibdockercontainers"
+              mountPath: "/var/lib/docker/containers"
+              readOnly: true
+
+            # Mount AWS credentials for S3 access
+            - name: "aws-credentials-volume"
+              mountPath: "/root/.aws"
+
+            # Mount Fluent Bit configuration
+            - name: "config-volume"
+              mountPath: "/fluent-bit/etc"
+
+      # Volumes define the storage that can be mounted into containers
+      volumes:
+        # hostPath volumes mount directories from the host node's filesystem
+        # This gives Fluent Bit access to logs from ALL containers on the node
+        - name: "varlog"
+          hostPath:
+            path: "/var/log"
+
+        - name: "varlibdockercontainers"
+          hostPath:
+            path: "/var/lib/docker/containers"
+
+        # Secret volume mounts a Kubernetes Secret as files
+        # The aws-credentials secret should contain your AWS credentials
+        - name: "aws-credentials-volume"
+          secret:
+            secretName: "aws-credentials"
+
+        # ConfigMap volume mounts configuration as files
+        # See config.yaml for the Fluent Bit configuration
+        - name: "config-volume"
+          configMap:
+            name: "fluent-bit-config"

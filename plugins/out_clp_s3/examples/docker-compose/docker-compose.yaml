@@ -68,7 +68,8 @@ services:
       echo 'Starting log generator...';
       i=0;
       while true; do
-        echo \"$$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO Log message $$i from container\" >> /logs/app.log;
+        ts=$$(date -u +%Y-%m-%dT%H:%M:%SZ);
+        echo \"$$ts INFO Log message $$i from container\" >> /logs/app.log;
         i=$$((i + 1));
         sleep 0.1;
       done

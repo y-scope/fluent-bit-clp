@@ -2,7 +2,7 @@
 # Watches /logs directory and uploads to MinIO
 
 plugins:
-  - /fluent-bit/lib/out_clp_s3_v2.so
+  - /fluent-bit/plugins/out_clp_s3_v2.so
 
 service:
   flush: 1

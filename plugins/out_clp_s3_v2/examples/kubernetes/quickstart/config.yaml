@@ -1,0 +1,102 @@
+# =============================================================================
+# Fluent Bit Configuration (ConfigMap)
+# =============================================================================
+# A ConfigMap stores configuration data as key-value pairs.
+# This ConfigMap contains the Fluent Bit configuration file (fluent-bit.yaml).
+#
+# Fluent Bit configuration has three main sections:
+#   1. plugins: External plugins to load (.so files)
+#   2. service: Global settings (flush interval, logging, etc.)
+#   3. pipeline: Data flow (inputs → filters → outputs)
+# =============================================================================
+
+apiVersion: "v1"
+kind: "ConfigMap"
+metadata:
+  name: "fluent-bit-config"
+data:
+  # The key "fluent-bit.yaml" becomes the filename when mounted
+  # The value (after |) is the file content
+  fluent-bit.yaml: |
+    # -------------------------------------------------------------------------
+    # Plugins Section
+    # -------------------------------------------------------------------------
+    # Load external plugins (.so shared libraries)
+    # The CLP S3 plugin compresses logs using CLP and uploads to S3
+    plugins:
+      - "/fluent-bit/plugins/out_clp_s3_v2.so"
+
+    # -------------------------------------------------------------------------
+    # Service Section
+    # -------------------------------------------------------------------------
+    # Global Fluent Bit settings
+    service:
+      # flush: How often (in seconds) to flush data to outputs
+      # Lower = more frequent uploads, higher latency
+      # Higher = less frequent uploads, lower latency
+      flush: 1
+
+      # daemon: Run as background daemon (off for containers)
+      daemon: "off"
+
+      # log_level: Verbosity of Fluent Bit's own logs
+      # Options: error, warn, info, debug, trace
+      log_level: "info"
+
+    # -------------------------------------------------------------------------
+    # Pipeline Section
+    # -------------------------------------------------------------------------
+    # Defines data flow: inputs → (filters) → outputs
+    pipeline:
+      # -----------------------------------------------------------------------
+      # Inputs: Where logs come from
+      # -----------------------------------------------------------------------
+      inputs:
+        - name: "tail"
+          # tail: Read log files and follow new lines (like tail -f)
+
+          # path: Which files to read (supports wildcards)
+          # This pattern matches: /var/log/<any-folder>/<any-file>.jsonl
+          path: "/var/log/*/*.jsonl"
+
+          # path_key: Add the source file path to each log record
+          # Useful for knowing which file a log came from
+          path_key: "file_path"
+
+          # tag_regex & tag: Extract metadata from file path to create tags
+          # Tags are used to route logs to different outputs
+          # Example: /var/log/myapp/errors.jsonl → tag: "myapp/errors.jsonl"
+          tag_regex: "^\\/var\\/log\\/(?<user_name>[^\\/]+)\\/(?<file_name>.*\\.jsonl)$"
+          tag: "<user_name>/<file_name>"
+
+          # refresh_interval: How often to check for new files (seconds)
+          refresh_interval: 5
+
+          # read_from_head: Start reading from beginning of file (true)
+          # vs from the end/new lines only (false)
+          read_from_head: true
+
+          # key: Field name for the raw log line when not using a parser
+          key: "message"
+
+          # buffer_max_size: Maximum size of the read buffer per file
+          buffer_max_size: "1MB"
+
+      # -----------------------------------------------------------------------
+      # Outputs: Where logs go
+      # -----------------------------------------------------------------------
+      outputs:
+        - name: "out_clp_s3_v2"
+          # out_clp_s3_v2: CLP compression + S3 upload plugin
+
+          # match: Which tags to send to this output
+          # "*/*" matches any tag with a slash (e.g., "myapp/errors.jsonl")
+          match: "*/*"
+
+          # log_bucket: S3 bucket name for storing compressed logs
+          log_bucket: "logs"
+
+          # For more options, see the plugin README:
+          # - log_level_key: Field containing log level
+          # - flush intervals: Control upload timing
+          # - S3 path customization

@@ -20,7 +20,7 @@ spec:
   volumes:
     - name: "data-volume"
       emptyDir: {}
----  # yamllint disable-line
+---
 apiVersion: "v1"
 kind: "Service"
 metadata:

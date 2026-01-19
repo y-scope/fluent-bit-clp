@@ -1,0 +1,8 @@
+# Local overrides for yamllint
+# Extends the base config from yscope-dev-utils
+
+extends: "tools/yscope-dev-utils/exports/lint-configs/.yamllint.yml"
+
+rules:
+  # Allow document separators (---) for multi-resource Kubernetes manifests
+  document-start: "disable"

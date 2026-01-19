@@ -92,10 +92,15 @@ Also available as zip from [Actions → build](../../actions/workflows/build.yam
 
 ## Kubernetes
 
-See [Kubernetes Examples](plugins/out_clp_s3_v2/examples/kubernetes/README.md) for:
-- Local development with k3d
-- Production deployment with init containers
-- Sidecar and DaemonSet patterns
+See [Kubernetes Examples](plugins/out_clp_s3_v2/examples/kubernetes/README.md) for deployment guides:
+
+| Directory | Description |
+|-----------|-------------|
+| `quickstart/` | Pre-built image with bundled .so plugin |
+| `init-container/` | Base Fluent Bit image + plugin downloaded at startup |
+| `production/` | Production-ready manifests for EKS, GKE, AKS |
+
+Both **Sidecar** (per-pod) and **DaemonSet** (per-node) patterns are supported.
 
 ## Documentation
 
@@ -103,15 +108,11 @@ See [Kubernetes Examples](plugins/out_clp_s3_v2/examples/kubernetes/README.md) f
 |----------|-------------|
 | [out_clp_s3_v2 README](plugins/out_clp_s3_v2/README.md) | Configuration and flush strategy |
 | [out_clp_s3 README](plugins/out_clp_s3/README.md) | Configuration and disk buffering |
+| [Contributing Guide](CONTRIBUTING.md) | Development setup, code structure, testing |
 
 ## Development
 
-### Prerequisites
-
-- Go 1.24+
-- [Task](https://taskfile.dev/installation/)
-
-### Building
+### Quick Start
 
 ```shell
 # Clone with submodules
@@ -123,7 +124,15 @@ bash third-party/clp-ffi-go/scripts/download-libs.sh
 
 # Build plugins
 task build
+
+# Run tests
+go test ./...
 ```
+
+### Prerequisites
+
+- Go 1.24+
+- [Task](https://taskfile.dev/installation/)
 
 ### Linting
 
@@ -132,7 +141,7 @@ task lint:check  # Run checks
 task lint:fix    # Auto-fix
 ```
 
-> **Note:** Linting for `out_clp_s3` is temporarily disabled.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guide, code structure, and testing instructions.
 
 [clp-blog]: https://www.uber.com/blog/reducing-logging-cost-by-two-orders-of-magnitude-using-clp
 [fluent-bit]: https://fluentbit.io/
