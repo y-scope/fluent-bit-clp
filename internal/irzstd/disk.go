@@ -36,8 +36,6 @@ type diskWriter struct {
 	irFile       *os.File
 	zstdFile     *os.File
 	irWriter     *ir.Writer
-	size         int
-	timezone     string
 	irTotalBytes int
 	zstdWriter   *zstd.Encoder
 }
@@ -46,20 +44,13 @@ type diskWriter struct {
 // is on.
 //
 // Parameters:
-//   - timezone: Time zone of the log source
-//   - size: Byte length
 //   - irPath: Path to IR disk buffer file
 //   - zstdPath: Path to Zstd disk buffer file
 //
 // Returns:
 //   - diskWriter: Disk writer for Zstd compressed IR
 //   - err: Error creating new buffers, error opening Zstd/IR writers
-func NewDiskWriter(
-	timezone string,
-	size int,
-	irPath string,
-	zstdPath string,
-) (*diskWriter, error) {
+func NewDiskWriter(irPath string, zstdPath string) (*diskWriter, error) {
 	irFile, zstdFile, err := newFileBuffers(irPath, zstdPath)
 	if err != nil {
 		return nil, err
@@ -71,8 +62,6 @@ func NewDiskWriter(
 	}
 
 	diskWriter := diskWriter{
-		size:       size,
-		timezone:   timezone,
 		irPath:     irPath,
 		irFile:     irFile,
 		zstdPath:   zstdPath,
@@ -84,26 +73,19 @@ func NewDiskWriter(
 	return &diskWriter, nil
 }
 
-// Recovers a [diskWriter] opening buffer files from a previous execution of output plugin.
-// Recovery of files necessitates that use_disk_store is on. Recovered store must be closed
-// with close streams() before can be used for future writting since it does not init with
-// an IR writer. Avoid use with empty disk stores.
+// Recovers a [diskWriter] by opening buffer files from a previous execution of the output plugin.
+// Requires use_disk_store to be enabled. The recovered writer must be closed with closeStreams()
+// before it can be used for future writes, since it does not initialize with an IR writer. Avoid
+// use with empty disk buffers.
 //
 // Parameters:
-//   - timezone: Time zone of the log source
-//   - size: Byte length
 //   - irPath: Path to IR disk buffer file
 //   - zstdPath: Path to Zstd disk buffer file
 //
 // Returns:
 //   - diskWriter: Disk writer for Zstd compressed IR
 //   - err: Error opening buffers, error opening Zstd/IR writers, error getting file sizes
-func RecoverWriter(
-	timezone string,
-	size int,
-	irPath string,
-	zstdPath string,
-) (*diskWriter, error) {
+func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 	irFile, zstdFile, err := openBufferFiles(irPath, zstdPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening files: %w", err)
@@ -115,8 +97,6 @@ func RecoverWriter(
 	}
 
 	diskWriter := diskWriter{
-		size:     size,
-		timezone: timezone,
 		irPath:   irPath,
 		irFile:   irFile,
 		zstdPath: zstdPath,

@@ -17,22 +17,16 @@ import (
 type memoryWriter struct {
 	zstdBuffer *bytes.Buffer
 	irWriter   *ir.Writer
-	size       int
-	timezone   string
 	zstdWriter *zstd.Encoder
 }
 
 // Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
 // off.
 //
-// Parameters:
-//   - timezone: Time zone of the log source
-//   - size: Byte length
-//
 // Returns:
 //   - memoryWriter: Memory writer for Zstd compressed IR
 //   - err: Error opening Zstd/IR writers
-func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
+func NewMemoryWriter() (*memoryWriter, error) {
 	var zstdBuffer bytes.Buffer
 
 	zstdWriter, err := zstd.NewWriter(&zstdBuffer)
@@ -46,8 +40,6 @@ func NewMemoryWriter(timezone string, size int) (*memoryWriter, error) {
 	}
 
 	memoryWriter := memoryWriter{
-		size:       size,
-		timezone:   timezone,
 		irWriter:   irWriter,
 		zstdWriter: zstdWriter,
 		zstdBuffer: &zstdBuffer,
