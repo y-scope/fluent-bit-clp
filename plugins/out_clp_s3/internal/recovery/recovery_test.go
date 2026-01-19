@@ -185,7 +185,7 @@ func TestReadDirectory_IgnoresSubdirectories(t *testing.T) {
 
 	// Create a subdirectory
 	subDir := filepath.Join(tmpDir, "subdir.ir")
-	if err := os.Mkdir(subDir, 0755); err != nil {
+	if err := os.Mkdir(subDir, 0o755); err != nil {
 		t.Fatalf("Failed to create subdir: %v", err)
 	}
 

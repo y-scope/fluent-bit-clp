@@ -30,7 +30,7 @@ tasks:
     vars:
       SRC_FILES_:
         sh: |-
-          uv run --project "{{.G_UTILS_YSTDLIB_PY}}" find \
+          uv run --project "{{.G_UTILS_YSTDLIB_PY}}" pyfind \
             "{{.ROOT_DIR}}" \
             --exclude "build/**" \
             --exclude "tools/**" \
