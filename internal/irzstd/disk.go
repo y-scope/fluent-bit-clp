@@ -115,12 +115,12 @@ func RecoverWriter(
 	}
 
 	diskWriter := diskWriter{
-		size:       size,
-		timezone:   timezone,
-		irPath:     irPath,
-		irFile:     irFile,
-		zstdPath:   zstdPath,
-		zstdFile:   zstdFile,
+		size:     size,
+		timezone: timezone,
+		irPath:   irPath,
+		irFile:   irFile,
+		zstdPath: zstdPath,
+		zstdFile: zstdFile,
 		// Recovered streams should already have IR, so irWriter is nil until flushed/reset.
 		irWriter:   nil,
 		zstdWriter: zstdWriter,
@@ -183,13 +183,13 @@ func (w *diskWriter) CloseStreams() error {
 	}
 
 	// irWriter will be nil for recoveredWriter until flushed/reset at least once.
-	if (w.irWriter == nil) {
+	if w.irWriter == nil {
 		err := w.irWriter.Serializer.Close()
 		if err != nil {
 			return fmt.Errorf("error could not close irWriter: %w", err)
 		}
 		w.irWriter = nil
-    }
+	}
 
 	// Add IR postamble byte manually. We cannot use [ir.Writer.Close] since it add
 	// postable to the irFile, which was already flushed, and not the zstdFile.

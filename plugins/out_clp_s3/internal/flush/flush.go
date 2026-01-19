@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"time"
 	"unsafe"
 
 	"github.com/fluent/fluent-bit-go/output"
@@ -90,9 +89,9 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
 	for {
-		// We are discarding fluent bit timestamp since users likely have their own timestamp. It may make sense to
-		// add it as an auto generated field as an optional setting. For most users it will
-		// just decrease compression ratio and not be used.
+		// Discarding Fluent Bit timestamp since log records typically contain their own timestamp.
+		// TODO: Consider adding an option to include the Fluent Bit timestamp as an auto-generated
+		// key. For most users it would hurt compression and go unused.
 		_, jsonRecord, err := decoder.GetRecord(dec)
 		if err != nil {
 			return logEvents, err
@@ -106,32 +105,10 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		}
 		event := ffi.LogEvent{
 			AutoKvPairs: autoKvPairs,
-			UserKvPairs:  userKvPairs,
+			UserKvPairs: userKvPairs,
 		}
 		logEvents = append(logEvents, event)
 	}
-}
-
-// Decodes timestamp provided by Fluent Bit engine into time.Time. If timestamp cannot be
-// decoded, returns system time.
-//
-// Parameters:
-//   - ts: Timestamp provided by Fluent Bit
-//
-// Returns:
-//   - timestamp: time.Time timestamp
-func decodeTs(ts any) time.Time {
-	var timestamp time.Time
-	switch t := ts.(type) {
-	case decoder.FlbTime:
-		timestamp = t.Time
-	case uint64:
-		timestamp = time.Unix(int64(t), 0)
-	default:
-		log.Printf("time provided invalid, defaulting to now. Invalid type is %T", t)
-		timestamp = time.Now()
-	}
-	return timestamp
 }
 
 // Checks if criteria are met to upload to s3. If useDiskBuffer is false, then the chunk is always
