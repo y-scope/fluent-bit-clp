@@ -91,13 +91,12 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, int, error) {
 // Opens a new [ir.Writer] and [zstd.Encoder].
 //
 // Parameters:
-//   - zstdOutput: Output location for Zstd
-//   - timezone: Time zone of the log source
-//   - size: Byte length
+//   - zstdOutput: Output destination for Zstd
+//   - irOutput: Output destination for IR
 //
 // Returns:
 //   - irWriter: Writer for CLP IR
-//   - ZstdWriter: Writer for Zstd
+//   - zstdWriter: Writer for Zstd
 //   - err: Error opening IR/Zstd writer
 func newIrZstdWriters(
 	zstdOutput io.Writer,

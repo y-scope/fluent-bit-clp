@@ -89,21 +89,9 @@ More detailed information for specifying credentials from AWS can be found [here
 | `s3_bucket_prefix`  | Bucket prefix path                                                                                       | `logs/`           |
 | `role_arn`          | ARN of an IAM role to assume                                                                             | `None`            |
 | `id`                | Name of output plugin                                                                                    |  Random UUID      |
-| `use_single_key`    | Output single key from Fluent Bit record. See [Use Single Key](#use-single-key) for more info.           | `TRUE`            |
-| `allow_missing_key` | Fallback to whole record if key is missing from log. If set to false, an error will be recorded instead. | `TRUE`            |
-| `single_key`        | Value for single key                                                                                     | `log`             |
 | `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.         | `TRUE`            |
 | `disk_buffer_path`  | Directory for disk buffer                                                                                | `tmp/out_clp_s3/` |
 | `upload_size_mb`    | Set upload size in MB when disk store is enabled. Size refers to the compressed size.                    | `16`              |
-| `time_zone`         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | `America/Toronto` |
-
-#### Use Single Key
-
-Output the value corresponding to this key, instead of the whole Fluent Bit record. It is
-recommended to set this to true. A Fluent Bit record is a JSON-like object, and while CLP
-can parse JSON into IR it is not recommended. Key is set with `single_key` and will typically be set
-to `log`, the default Fluent Bit key for unparsed logs. If this is set to false, plugin will parse
-the record as JSON.
 
 #### Disk Buffering
 

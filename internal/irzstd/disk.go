@@ -101,8 +101,8 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 		irFile:   irFile,
 		zstdPath: zstdPath,
 		zstdFile: zstdFile,
-		// Recovered streams should already have IR, so irWriter is nil until flushed/reset.
-		irWriter:   nil,
+		// Recovered IR must be flushed before writing new IR. irWriter is initialized in Reset().
+		irWriter: nil,
 		zstdWriter: zstdWriter,
 	}
 
@@ -162,7 +162,7 @@ func (w *diskWriter) CloseStreams() error {
 		return fmt.Errorf("error flushing IR buffer: %w", err)
 	}
 
-	// irWriter will be nil for recoveredWriter until flushed/reset at least once.
+	// [ir.Writer] will be nil for recovered [diskWriter] until reset.
 	if w.irWriter == nil {
 		err := w.irWriter.Serializer.Close()
 		if err != nil {
