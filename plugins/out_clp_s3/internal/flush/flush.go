@@ -4,6 +4,7 @@
 package flush
 
 import (
+	"C"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -90,23 +91,21 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
 	for {
-		// We are discarding fluent bit timestamp since users likely have their own timestamp. It may make sense to
-		// add it as an auto generated field as an optional setting. For most users it will
-		// just decrease compression ratio and not be used.
-		_, jsonRecord, err := decoder.GetRecord(dec)
+		ts, record, err := decoder.GetRecord(dec)
 		if err != nil {
 			return logEvents, err
 		}
 
-		var autoKvPairs map[string]any
-		var userKvPairs map[string]any
-		err = json.Unmarshal(jsonRecord, &userKvPairs)
+		timestamp := decodeTs(ts)
+		msg, err := getMessage(record, config)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
+			err = fmt.Errorf("failed to get message from record: %w", err)
+			return nil, err
 		}
+
 		event := ffi.LogEvent{
-			AutoKvPairs: autoKvPairs,
-			UserKvPairs:  userKvPairs,
+			LogMessage: msg,
+			Timestamp:  ffi.EpochTimeMs(timestamp.UnixMilli()),
 		}
 		logEvents = append(logEvents, event)
 	}
@@ -132,6 +131,48 @@ func decodeTs(ts any) time.Time {
 		timestamp = time.Now()
 	}
 	return timestamp
+}
+
+// Retrieves message from a record object. The message can consist of the entire object or
+// just a single key. For a single key, user should set use_single_key to true in fluent-bit.conf.
+// In addition user, should set single_key to "log" which is default Fluent Bit key for unparsed
+// messages; however, single_key can be set to another value. To prevent failure if the key is
+// missing, user can specify allow_missing_key, and behaviour will fallback to the entire object.
+//
+// Parameters:
+//   - record: JSON record from Fluent Bit with variable amount of keys
+//   - config: Plugin configuration
+//
+// Returns:
+//   - stringMsg: Retrieved message
+//   - err: Key not found, json.Unmarshal error, string type assertion error
+func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
+	if !config.UseSingleKey {
+		return string(jsonRecord), nil
+	}
+
+	var record map[string]any
+	err := json.Unmarshal(jsonRecord, &record)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
+	}
+
+	singleKeyMsg, ok := record[config.SingleKey]
+	if !ok {
+		// If key not found in record, see if allow_missing_key=true. If missing key is
+		// allowed, then return entire record.
+		if config.AllowMissingKey {
+			return string(jsonRecord), nil
+		}
+		return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
+	}
+
+	stringMsg, ok := singleKeyMsg.(string)
+	if !ok {
+		return "", fmt.Errorf("string type assertion for message failed %v", singleKeyMsg)
+	}
+
+	return stringMsg, nil
 }
 
 // Checks if criteria are met to upload to s3. If useDiskBuffer is false, then the chunk is always
