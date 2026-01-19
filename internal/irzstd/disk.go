@@ -102,7 +102,7 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 		zstdPath: zstdPath,
 		zstdFile: zstdFile,
 		// Recovered IR must be flushed before writing new IR. irWriter is initialized in Reset().
-		irWriter: nil,
+		irWriter:   nil,
 		zstdWriter: zstdWriter,
 	}
 
@@ -163,7 +163,7 @@ func (w *diskWriter) CloseStreams() error {
 	}
 
 	// [ir.Writer] will be nil for recovered [diskWriter] until reset.
-	if w.irWriter == nil {
+	if w.irWriter != nil {
 		err := w.irWriter.Serializer.Close()
 		if err != nil {
 			return fmt.Errorf("error could not close irWriter: %w", err)

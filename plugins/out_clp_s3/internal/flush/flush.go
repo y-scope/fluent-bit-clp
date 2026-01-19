@@ -97,7 +97,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 			return logEvents, err
 		}
 
-		var autoKvPairs map[string]any
+		var autoKvPairs map[string]any = make(map[string]any)
 		var userKvPairs map[string]any
 		err = json.Unmarshal(jsonRecord, &userKvPairs)
 		if err != nil {
