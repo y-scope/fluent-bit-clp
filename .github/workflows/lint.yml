@@ -9,7 +9,7 @@ jobs:
   go-lint:
     strategy:
       matrix:
-        go: ["1.22"]
+        go: ["1.25.6"]
         os: ["ubuntu-latest", "macos-latest"]
     runs-on: "${{ matrix.os }}"
     steps:
@@ -21,4 +21,4 @@ jobs:
 
       - uses: "golangci/golangci-lint-action@v6"
         with:
-          version: "v1.59"
+          version: "v9.00"
