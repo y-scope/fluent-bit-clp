@@ -30,6 +30,9 @@ jobs:
           docker run --rm -v "${{ github.workspace }}:/src" -w /src ${{ matrix.manylinux }} bash -c '
             set -e
 
+            # Install git (required for download-libs.sh to detect commit hash)
+            yum install -y git
+
             # Install Go
             curl -fsSL "https://go.dev/dl/go1.24.3.linux-${{ matrix.arch }}.tar.gz" | tar -C /usr/local -xz
             export PATH="/usr/local/go/bin:$PATH"
