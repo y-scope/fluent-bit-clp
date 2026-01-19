@@ -117,5 +117,5 @@ tasks:
       vars: ["VENV_BIN_DIR"]
     cmd: |-
       curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
-        | sh -s -- -b "{{.VENV_BIN_DIR}}" v2.1.5
+        | sh -s -- -b "{{.VENV_BIN_DIR}}" v2.8.0
       go install golang.org/x/tools/gopls@latest
