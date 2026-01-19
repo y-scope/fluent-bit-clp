@@ -42,10 +42,6 @@ linters:
       - linters:
           - revive
         source: '^\s*// (?:\[.+\]: )?https?://.+'
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
@@ -56,9 +52,3 @@ formatters:
     goimports:
       local-prefixes:
         - github.com/y-scope/fluent-bit-clp
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
