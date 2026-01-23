@@ -4,6 +4,7 @@
 package flush
 
 import (
+	"C"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -101,8 +102,10 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		var userKvPairs map[string]any
 		err = json.Unmarshal(jsonRecord, &userKvPairs)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
+			err = fmt.Errorf("failed to get message from record: %w", err)
+			return nil, err
 		}
+
 		event := ffi.LogEvent{
 			AutoKvPairs: autoKvPairs,
 			UserKvPairs: userKvPairs,

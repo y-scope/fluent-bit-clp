@@ -28,15 +28,9 @@ type memoryWriter struct {
 //   - err: Error opening Zstd/IR writers
 func NewMemoryWriter() (*memoryWriter, error) {
 	var zstdBuffer bytes.Buffer
-
-	zstdWriter, err := zstd.NewWriter(&zstdBuffer)
+	irWriter, zstdWriter, err := newIrZstdWriters(&zstdBuffer, timezone, size)
 	if err != nil {
-		return nil, fmt.Errorf("error opening Zstd writer: %w", err)
-	}
-
-	irWriter, err := ir.NewWriter[ir.FourByteEncoding](zstdWriter)
-	if err != nil {
-		return nil, fmt.Errorf("error opening IR writer: %w", err)
+		return nil, err
 	}
 
 	memoryWriter := memoryWriter{
@@ -57,10 +51,12 @@ func NewMemoryWriter() (*memoryWriter, error) {
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd
 func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
-	_, numEvents, err := writeIr(w.irWriter, logEvents)
+	numEvents, err := writeIr(w.irWriter, logEvents)
 	if err != nil {
 		return numEvents, err
 	}
+
+	_, err = w.irWriter.WriteTo(w.zstdWriter)
 	return numEvents, err
 }
 
@@ -70,12 +66,15 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 // Returns:
 //   - err: Error closing buffers
 func (w *memoryWriter) CloseStreams() error {
-	if err := w.irWriter.Close(); err != nil {
+	_, err := w.irWriter.CloseTo(w.zstdWriter)
+	if err != nil {
 		return err
 	}
+
 	w.irWriter = nil
 
-	return w.zstdWriter.Close()
+	err = w.zstdWriter.Close()
+	return err
 }
 
 // Reinitialize [memoryWriter] after calling CloseStreams(). Resets individual IR and Zstd writers
@@ -85,14 +84,13 @@ func (w *memoryWriter) CloseStreams() error {
 //   - err: Error opening IR writer
 func (w *memoryWriter) Reset() error {
 	var err error
-	w.zstdBuffer.Reset()
-	w.zstdWriter.Reset(w.zstdBuffer)
-
-	w.irWriter, err = ir.NewWriter[ir.FourByteEncoding](w.zstdWriter)
+	w.irWriter, err = ir.NewWriterSize[ir.FourByteEncoding](w.size, w.timezone)
 	if err != nil {
 		return err
 	}
 
+	w.zstdBuffer.Reset()
+	w.zstdWriter.Reset(w.zstdBuffer)
 	return nil
 }
 
