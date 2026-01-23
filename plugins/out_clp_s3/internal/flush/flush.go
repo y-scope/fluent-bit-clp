@@ -90,9 +90,7 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
 	for {
-		// Discarding Fluent Bit timestamp since log records typically contain their own timestamp.
-		// TODO: Consider adding an option to include the Fluent Bit timestamp as an auto-generated
-		// key. For most users it would hurt compression and go unused.
+		// TODO: Add an option to include the Fluent Bit timestamp as an auto-generated key.
 		_, jsonRecord, err := decoder.GetRecord(dec)
 		if err != nil {
 			return logEvents, err

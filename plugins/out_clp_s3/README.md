@@ -7,7 +7,7 @@ Fluent Bit output plugin that sends records in CLP's compressed IR format to AWS
 First, confirm your AWS credentials are properly setup, see [AWS credentials](#AWS-credentials) for
 information.
 
-Next, change [fluent-bit.conf](fluent-bit.conf) to suit your needs. Note, if your logs are JSON, you should use a JSON parser on your input.
+Next, change [fluent-bit.conf](fluent-bit.conf) to suit your needs. Note, if your logs are JSON, you should use the [Fluent Bit JSON parser][1] on your input.
 See [Plugin configuration](#plugin-configuration) for description of output options.
 
 See below for input and output examples:
@@ -48,7 +48,7 @@ Dummy logs will be written to your s3 bucket.
 
 #### Using local setup
 
-Install [go][1] and [fluent-bit][2]
+Install [go][2] and [fluent-bit][3]
 
 Download go dependencies
   ```shell
@@ -86,7 +86,7 @@ Moreover, the plugin can assume a role by adding optional `role_arn` to
 role_arn arn:aws:iam::000000000000:role/accessToMyBucket
 ```
 
-More detailed information for specifying credentials from AWS can be found [here][3].
+More detailed information for specifying credentials from AWS can be found [here][4].
 
 ### Plugin configuration
 
@@ -122,6 +122,7 @@ Each upload will have a unique key in the following format:
 The index starts at 0 is incremented after each upload. The Fluent Bit tag is also attached to the
 object using the tag key `fluentBitTag`.
 
-[1]: https://go.dev/doc/install
-[2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
-[3]: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials
+[1]: https://docs.fluentbit.io/manual/data-pipeline/parsers/json
+[2]: https://go.dev/doc/install
+[3]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
+[4]: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials
