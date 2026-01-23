@@ -101,7 +101,7 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 		irFile:   irFile,
 		zstdPath: zstdPath,
 		zstdFile: zstdFile,
-		// Recovered IR must be flushed before writing new IR. irWriter is initialized in Reset().
+		// Recovered IR must be flushed before writing new IR.
 		irWriter:   nil,
 		zstdWriter: zstdWriter,
 	}

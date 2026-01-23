@@ -23,7 +23,7 @@ RUN task build
 
 FROM fluent/fluent-bit:4.2.2
 
-# Copy plugin binary to Fluent Bit image.
+# Copy plugin binary to Fluent Bit image. 
 COPY --from=builder /root/plugins/out_clp_s3/out_clp_s3.so /fluent-bit/bin/
 COPY --from=builder /root/plugins/out_clp_s3/*.conf /fluent-bit/etc/
 

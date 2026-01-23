@@ -7,8 +7,7 @@ Fluent Bit output plugin that sends records in CLP's compressed IR format to AWS
 First, confirm your AWS credentials are properly setup, see [AWS credentials](#AWS-credentials) for
 information.
 
-Next, change the output section [fluent-bit.conf](fluent-bit.conf) to suit your needs.
-If your logs are JSON, you should use a JSON parser on your input.
+Next, change [fluent-bit.conf](fluent-bit.conf) to suit your needs. Note, if your logs are JSON, you should use a JSON parser on your input.
 See [Plugin configuration](#plugin-configuration) for description of output options.
 
 See below for input and output examples:
