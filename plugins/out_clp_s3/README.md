@@ -8,16 +8,25 @@ First, confirm your AWS credentials are properly setup, see [AWS credentials](#A
 information.
 
 Next, change the output section [fluent-bit.conf](fluent-bit.conf) to suit your needs.
-See [Plugin configuration](#plugin-configuration) for description of fields.
+If your logs are JSON, you should use a JSON parser on your input.
+See [Plugin configuration](#plugin-configuration) for description of output options.
 
-See below for an example:
+See below for input and output examples:
 
- ```
+```
+[INPUT]
+    name   tail
+    path   /var/log/app.json
+    tag    app.json
+    parser basic_json
+```
+
+```
 [OUTPUT]
     name  out_clp_s3
     s3_bucket myBucket
     match *
-  ```
+```
 
 Lastly start the plugin:
 

@@ -58,6 +58,7 @@ func New(data unsafe.Pointer, length int) *codec.Decoder {
 	mh.RawToString = true
 	mh.WriteExt = true
 	mh.ErrorIfNoArrayExpand = true
+	mh.MapType = reflect.TypeOf(map[string]interface{}{})
 
 	// Set up custom extension for Fluent Bit timestamp format.
 	mh.SetBytesExt(reflect.TypeOf(FlbTime{}), 0, &FlbTime{})
