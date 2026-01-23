@@ -20,6 +20,7 @@ type memoryWriter struct {
 	size       int
 	timezone   string
 	zstdWriter *zstd.Encoder
+	closed     bool
 }
 
 // Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
@@ -65,6 +66,7 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 	}
 
 	_, err = w.irWriter.WriteTo(w.zstdWriter)
+
 	return numEvents, err
 }
 
@@ -82,6 +84,9 @@ func (w *memoryWriter) CloseStreams() error {
 	w.irWriter = nil
 
 	err = w.zstdWriter.Close()
+
+	w.closed = true
+
 	return err
 }
 
@@ -99,6 +104,8 @@ func (w *memoryWriter) Reset() error {
 
 	w.zstdBuffer.Reset()
 	w.zstdWriter.Reset(w.zstdBuffer)
+
+	w.closed = false
 	return nil
 }
 
@@ -110,6 +117,14 @@ func (w *memoryWriter) GetUseDiskBuffer() bool {
 	return false
 }
 
+// Getter for closed.
+//
+// Returns:
+//   - closed: Boolean that is true if IR and Zstd streams are closed.
+func (w *memoryWriter) GetClosed() bool {
+	return w.closed
+}
+
 // Getter for Zstd Output.
 //
 // Returns:
@@ -119,13 +134,28 @@ func (w *memoryWriter) GetZstdOutput() io.Reader {
 }
 
 // Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
-// Instead, calling Len() on buffer.
+// Instead, calling Len() on buffer. Try to avoid calling this as will flush Zstd Writer
+// potentially creating unnecessary frames.
 //
 // Returns:
 //   - size: Bytes written
 //   - err: nil error to comply with interface
 func (w *memoryWriter) GetZstdOutputSize() (int, error) {
+	w.zstdWriter.Flush()
 	return w.zstdBuffer.Len(), nil
+}
+
+// Checks if writer is empty. True if no events are buffered. Try to avoid calling this as will
+// flush Zstd Writer potentially creating unnecessary frames.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: nil error to comply with interface
+func (w *memoryWriter) CheckEmpty() (bool, error) {
+	w.zstdWriter.Flush()
+
+	empty := w.zstdBuffer.Len() == 0
+	return empty, nil
 }
 
 // Closes [memoryWriter]. Currently used during recovery only, and advise caution using elsewhere.

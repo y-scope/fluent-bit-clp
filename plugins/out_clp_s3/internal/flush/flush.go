@@ -44,32 +44,9 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 		return output.FLB_RETRY, fmt.Errorf("error getting event manager: %w", err)
 	}
 
-	numEvents, err := eventManager.Writer.WriteIrZstd(logEvents)
+	err = write(eventManager, logEvents, ctx.Config)
 	if err != nil {
-		log.Printf(
-			"Wrote %d out of %d total log events for tag %s",
-			numEvents,
-			len(logEvents),
-			eventManager.Tag,
-		)
 		return output.FLB_ERROR, err
-	}
-
-	uploadCriteriaMet, err := checkUploadCriteriaMet(
-		eventManager,
-		ctx.Config.UploadSizeMb,
-	)
-	if err != nil {
-		return output.FLB_ERROR, fmt.Errorf("error checking upload criteria: %w", err)
-	}
-
-	if !uploadCriteriaMet {
-		return output.FLB_OK, nil
-	}
-
-	err = eventManager.ToS3(ctx.Config, ctx.Uploader)
-	if err != nil {
-		return output.FLB_ERROR, fmt.Errorf("error flushing Zstd buffer to s3: %w", err)
 	}
 
 	return output.FLB_OK, nil
@@ -104,7 +81,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		}
 
 		event := ffi.LogEvent{
-			LogMessage: msg,
+			LogMessage: addSpaceAndNewLine(msg),
 			Timestamp:  ffi.EpochTimeMs(timestamp.UnixMilli()),
 		}
 		logEvents = append(logEvents, event)
@@ -175,6 +152,51 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 	return stringMsg, nil
 }
 
+// Writes logEvents to event manager buffer. If upload criteria is met, sends upload signal to
+// upload request channel. Method acquires lock to prevent upload while writing.
+//
+// Parameters:
+//   - eventManager: Manager for Fluent Bit events with the same tag
+//   - logEvents: Slice of log events
+//   - config: Plugin configuration
+//
+// Returns:
+//   - err: Error writing log events, error checking upload criteria
+func write(
+	eventManager *outctx.S3EventManager,
+	logEvents []ffi.LogEvent,
+	config outctx.S3Config,
+) error {
+	eventManager.Mutex.Lock()
+	defer eventManager.Mutex.Unlock()
+
+	numEvents, err := eventManager.Writer.WriteIrZstd(logEvents)
+	if err != nil {
+		log.Printf(
+			"Wrote %d out of %d total log events for tag %s",
+			numEvents,
+			len(logEvents),
+			eventManager.Tag,
+		)
+		return fmt.Errorf("error writing log events: %w", err)
+	}
+
+	uploadCriteriaMet, err := checkUploadCriteriaMet(
+		eventManager,
+		config.UploadSizeMb,
+	)
+	if err != nil {
+		return fmt.Errorf("error checking upload criteria: %w", err)
+	}
+
+	if uploadCriteriaMet {
+		log.Printf("Sending upload request to channel with tag %s", eventManager.Tag)
+		eventManager.UploadRequests <- true
+	}
+
+	return nil
+}
+
 // Checks if criteria are met to upload to s3. If useDiskBuffer is false, then the chunk is always
 // uploaded so always returns true. If useDiskBuffer is true, check if Zstd buffer size is greater
 // than upload size.
@@ -186,7 +208,7 @@ func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
 // Returns:
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
-func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int) (bool, error) {
+func checkUploadCriteriaMet(eventManager *outctx.S3EventManager, uploadSizeMb int) (bool, error) {
 	if !eventManager.Writer.GetUseDiskBuffer() {
 		return true, nil
 	}
@@ -209,4 +231,17 @@ func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int)
 	}
 
 	return false, nil
+}
+
+// Decompressed IR streams appear as one concatenated string. Adding a space separates the log
+// from the timestamp. Adding a new line separates logs from each other.
+//
+// Parameters:
+//   - msg: Log event message
+//
+// Returns:
+//   - modifiedMsg: Message with space at beginning and newline at end
+func addSpaceAndNewLine(msg string) string {
+	modifiedMsg := " " + msg + "\n"
+	return modifiedMsg
 }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"unsafe"
 
@@ -42,7 +43,7 @@ const (
 type S3Context struct {
 	Config        S3Config
 	Uploader      *manager.Uploader
-	EventManagers map[string]*EventManager
+	EventManagers map[string]*S3EventManager
 }
 
 // Creates a new context. Loads configuration from user. Loads and tests aws credentials.
@@ -108,7 +109,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	ctx := S3Context{
 		Config:        *config,
 		Uploader:      uploader,
-		EventManagers: make(map[string]*EventManager),
+		EventManagers: make(map[string]*S3EventManager),
 	}
 
 	return &ctx, nil
@@ -123,7 +124,7 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 //
 // Returns:
 //   - err: Could not create buffers or tag
-func (ctx *S3Context) GetEventManager(tag string, size int) (*EventManager, error) {
+func (ctx *S3Context) GetEventManager(tag string, size int) (*S3EventManager, error) {
 	var err error
 	eventManager, ok := ctx.EventManagers[tag]
 
@@ -137,7 +138,7 @@ func (ctx *S3Context) GetEventManager(tag string, size int) (*EventManager, erro
 	return eventManager, nil
 }
 
-// Recovers [EventManager] from previous execution using existing disk buffers.
+// Recovers [S3EventManager] from previous execution using existing disk buffers.
 //
 // Parameters:
 //   - tag: Fluent Bit tag
@@ -149,7 +150,7 @@ func (ctx *S3Context) GetEventManager(tag string, size int) (*EventManager, erro
 func (ctx *S3Context) RecoverEventManager(
 	tag string,
 	size int,
-) (*EventManager, error) {
+) (*S3EventManager, error) {
 	irPath, zstdPath := ctx.GetBufferFilePaths(tag)
 	writer, err := irzstd.RecoverWriter(
 		ctx.Config.TimeZone,
@@ -161,17 +162,22 @@ func (ctx *S3Context) RecoverEventManager(
 		return nil, err
 	}
 
-	eventManager := EventManager{
-		Tag:    tag,
-		Writer: writer,
+	eventManager := S3EventManager{
+		Tag:            tag,
+		Writer:         writer,
+		UploadRequests: make(chan bool),
 	}
+
+	log.Printf("Starting upload listener for event manager with tag %s", tag)
+	eventManager.WaitGroup.Add(1)
+	go eventManager.listen(ctx.Config, ctx.Uploader)
 
 	ctx.EventManagers[tag] = &eventManager
 
 	return &eventManager, nil
 }
 
-// Creates a new [EventManager] with a new [irzstd.Writer]. If UseDiskBuffer is set, buffers are
+// Creates a new [S3EventManager] with a new [irzstd.Writer]. If UseDiskBuffer is set, buffers are
 // created on disk and are used to buffer Fluent Bit chunks. If UseDiskBuffer is off, buffer is
 // in memory and chunks are not buffered.
 //
@@ -185,7 +191,7 @@ func (ctx *S3Context) RecoverEventManager(
 func (ctx *S3Context) newEventManager(
 	tag string,
 	size int,
-) (*EventManager, error) {
+) (*S3EventManager, error) {
 	var err error
 	var writer irzstd.Writer
 
@@ -197,6 +203,7 @@ func (ctx *S3Context) newEventManager(
 			irPath,
 			zstdPath,
 		)
+
 	} else {
 		writer, err = irzstd.NewMemoryWriter(ctx.Config.TimeZone, size)
 	}
@@ -205,10 +212,15 @@ func (ctx *S3Context) newEventManager(
 		return nil, err
 	}
 
-	eventManager := EventManager{
-		Tag:    tag,
-		Writer: writer,
+	eventManager := S3EventManager{
+		Tag:            tag,
+		Writer:         writer,
+		UploadRequests: make(chan bool),
 	}
+
+	log.Printf("Starting upload listener for event manager with tag %s", tag)
+	eventManager.WaitGroup.Add(1)
+	go eventManager.listen(ctx.Config, ctx.Uploader)
 
 	ctx.EventManagers[tag] = &eventManager
 
