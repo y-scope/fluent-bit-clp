@@ -100,10 +100,10 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 	}
 
 	diskWriter := diskWriter{
-		irPath:   irPath,
-		irFile:   irFile,
-		zstdPath: zstdPath,
-		zstdFile: zstdFile,
+		irPath:     irPath,
+		irFile:     irFile,
+		zstdPath:   zstdPath,
+		zstdFile:   zstdFile,
 		irWriter:   nil,
 		zstdWriter: zstdWriter,
 	}
