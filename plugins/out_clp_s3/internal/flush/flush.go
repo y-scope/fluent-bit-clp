@@ -90,7 +90,6 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
 	for {
-		// TODO: Add an option to include the Fluent Bit timestamp as an auto-generated key.
 		_, jsonRecord, err := decoder.GetRecord(dec)
 		if err != nil {
 			return logEvents, err
@@ -100,7 +99,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		var userKvPairs map[string]any
 		err = json.Unmarshal(jsonRecord, &userKvPairs)
 		if err != nil {
-			err = fmt.Errorf("failed to get message from record: %w", err)
+			err = fmt.Errorf("failed to unmarshal record: %w", err)
 			return nil, err
 		}
 

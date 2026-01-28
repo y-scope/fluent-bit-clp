@@ -16,6 +16,9 @@ import (
 // 2 MB threshold to buffer IR before compressing to Zstd.
 const irSizeThreshold = 2 << 20
 
+// IR end of stream byte used to terminate IR stream.
+const irEndOfStreamByte = 0x0
+
 // Converts log events into Zstd compressed IR using "trash compactor" design. Log events are
 // converted to uncompressed IR and buffered into "bins". Uncompressed IR represents uncompressed
 // trash in "trash compactor". Once the bin is full, the bin is "compacted" into its own separate
@@ -74,9 +77,9 @@ func NewDiskWriter(irPath string, zstdPath string) (*diskWriter, error) {
 }
 
 // Recovers a [diskWriter] by opening buffer files from a previous execution of the output plugin.
-// Requires use_disk_store to be enabled. The recovered writer must be closed with closeStreams()
-// before it can be used for future writes, since it does not initialize with an IR writer. Avoid
-// use with empty disk buffers.
+// Requires use_disk_store to be enabled. The recovered writer must be closed with [CloseStreams]
+// before it can be used for future writes, since it does not initialize with an IR writer. If both
+// disk buffers are empty, the writer will not have any preamble and the IR will be invalid.
 //
 // Parameters:
 //   - irPath: Path to IR disk buffer file
@@ -101,7 +104,6 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 		irFile:   irFile,
 		zstdPath: zstdPath,
 		zstdFile: zstdFile,
-		// Recovered IR must be flushed before writing new IR.
 		irWriter:   nil,
 		zstdWriter: zstdWriter,
 	}
@@ -149,9 +151,10 @@ func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 	return numEvents, nil
 }
 
-// Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding.
-// The IR buffer is also flushed before ending stream. After calling close,
-// [diskWriter] must be reset prior to calling write.
+// Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding. The IR
+// buffer is also flushed before ending stream. After calling close, [diskWriter] must be reset
+// prior to calling write. For recovered [diskWriter], [ir.Writer] will be nil, so the IR postamble
+// byte is written manually to the Zstd buffer.
 //
 // Returns:
 //   - err: Error flushing/closing buffers
@@ -162,7 +165,6 @@ func (w *diskWriter) CloseStreams() error {
 		return fmt.Errorf("error flushing IR buffer: %w", err)
 	}
 
-	// [ir.Writer] will be nil for recovered [diskWriter] until reset.
 	if w.irWriter != nil {
 		err := w.irWriter.Serializer.Close()
 		if err != nil {
@@ -171,9 +173,7 @@ func (w *diskWriter) CloseStreams() error {
 		w.irWriter = nil
 	}
 
-	// Add IR postamble byte manually. We cannot use [ir.Writer.Close] since it add
-	// postable to the irFile, which was already flushed, and not the zstdFile.
-	w.zstdWriter.Write([]byte{0x0})
+	w.zstdWriter.Write([]byte{irEndOfStreamByte})
 	err = w.zstdWriter.Close()
 	if err != nil {
 		return err
