@@ -78,8 +78,8 @@ func NewDiskWriter(irPath string, zstdPath string) (*diskWriter, error) {
 
 // Recovers a [diskWriter] by opening buffer files from a previous execution of the output plugin.
 // Requires use_disk_store to be enabled. The recovered writer must be closed with [CloseStreams]
-// before it can be used for future writes, since it does not initialize with an IR writer. Returns
-// an error if both disk buffers are empty, since the IR would not have a preamble and would be
+// before it can be used for future writes, since it does not initialize an IR writer. Returns an
+// error if both disk buffers are empty, since the IR would not have a preamble and would be
 // invalid.
 //
 // Parameters:
