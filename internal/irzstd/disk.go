@@ -161,8 +161,10 @@ func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 
 // Closes IR stream and Zstd frame. Add trailing byte(s) required for IR/Zstd decoding. The IR
 // buffer is also flushed before ending stream. After calling close, [diskWriter] must be reset
-// prior to calling write. For recovered [diskWriter], [ir.Writer] will be nil, so the IR postamble
-// byte is written manually to the Zstd buffer.
+// prior to calling write. For recovered [diskWriter], [ir.Writer] will be nil so closing the
+// IR writer is skipped. The IR trailing byte is written directly to [zstdWriter] as an
+// optimization to avoid an extra flush when the IR buffer is empty. [flushIrBuffer] exits early
+// if the IR buffer is empty.
 //
 // Returns:
 //   - err: Error flushing/closing buffers
