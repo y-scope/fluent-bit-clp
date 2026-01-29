@@ -260,14 +260,6 @@ func (w *diskWriter) Close() error {
 	return nil
 }
 
-// Getter for useDiskBuffer.
-//
-// Returns:
-//   - useDiskBuffer: On/off for disk buffering
-func (w *diskWriter) GetUseDiskBuffer() bool {
-	return true
-}
-
 // Getter for Zstd Output.
 //
 // Returns:

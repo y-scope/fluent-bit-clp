@@ -11,9 +11,10 @@ import (
 	"github.com/y-scope/clp-ffi-go/ir"
 )
 
-// Converts log events into Zstd compressed IR. Log events provided to writer are immediately
-// converted to Zstd compressed IR and stored in [memoryWriter.ZstdBuffer].  After the Zstd buffer
-// receives logs, they are immediately sent to s3.
+// Converts log events into Zstd compressed IR. Log events are immediately converted to Zstd
+// compressed IR and stored in [memoryWriter.zstdBuffer]. Data is buffered in memory until the
+// upload size threshold is reached, then sent to S3. Unlike [diskWriter], there is no crash
+// recovery since buffers are in memory.
 type memoryWriter struct {
 	zstdBuffer *bytes.Buffer
 	irWriter   *ir.Writer
@@ -94,14 +95,6 @@ func (w *memoryWriter) Reset() error {
 	}
 
 	return nil
-}
-
-// Getter for useDiskBuffer.
-//
-// Returns:
-//   - useDiskBuffer: On/off for disk buffering
-func (w *memoryWriter) GetUseDiskBuffer() bool {
-	return false
 }
 
 // Getter for Zstd Output.

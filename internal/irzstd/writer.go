@@ -43,12 +43,6 @@ type Writer interface {
 	//   - err
 	Reset() error
 
-	// Getter for useDiskBuffer.
-	//
-	// Returns:
-	//   - useDiskBuffer: On/off for disk buffering
-	GetUseDiskBuffer() bool
-
 	// Getter for Zstd Output.
 	//
 	// Returns:

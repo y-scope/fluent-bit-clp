@@ -13,10 +13,8 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// If useDiskBuffer is set, close all files prior to exit. Graceful exit will only be called
-// if Fluent Bit receives a kill signal and not during an abrupt crash. Plugin is only
-// given a limited time to clean up resources, so output is not sent to s3. Instead
-// they are sent during startup.
+// Gracefully exits the plugin. For disk buffering, files are closed and data is recovered on
+// next startup. For memory buffering, any buffered data is lost.
 //
 // Parameters:
 //   - ctx: Plugin context
