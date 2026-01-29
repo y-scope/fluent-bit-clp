@@ -124,7 +124,6 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 		return nil, fmt.Errorf("error both IR and Zstd buffers are empty")
 	}
 
-	// During recovery, IR buffer may not be empty, so the size must be set.
 	diskWriter.irTotalBytes = irFileSize
 
 	return &diskWriter, nil
