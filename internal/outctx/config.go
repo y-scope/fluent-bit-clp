@@ -16,24 +16,20 @@ import (
 
 // Holds settings for S3 CLP plugin from user-defined Fluent Bit configuration file.
 // The "conf" struct tags are the plugin options described to user in README, and allow user to see
-// snake case "use_single_key" vs. camel case "SingleKey" in validation error messages. The
+// snake case "use_disk_buffer" vs. camel case "UseDiskBuffer" in validation error messages. The
 // "validate" struct tags are rules to be consumed by [validator]. The functionality of each rule
 // can be found in docs for [validator].
 //
 //nolint:revive
 type S3Config struct {
-	S3Region        string `conf:"s3_region"         validate:"required"`
-	S3Bucket        string `conf:"s3_bucket"         validate:"required"`
-	S3BucketPrefix  string `conf:"s3_bucket_prefix"  validate:"dirpath"`
-	RoleArn         string `conf:"role_arn"          validate:"omitempty,startswith=arn:aws:iam"`
-	Id              string `conf:"id"                validate:"required"`
-	UseSingleKey    bool   `conf:"use_single_key"    validate:"-"`
-	AllowMissingKey bool   `conf:"allow_missing_key" validate:"-"`
-	SingleKey       string `conf:"single_key"        validate:"required_if=use_single_key true"`
-	UseDiskBuffer   bool   `conf:"use_disk_buffer"   validate:"-"`
-	DiskBufferPath  string `conf:"disk_buffer_path"  validate:"omitempty,dirpath"`
-	UploadSizeMb    int    `conf:"upload_size_mb"    validate:"omitempty,gte=2,lt=1000"`
-	TimeZone        string `conf:"time_zone"         validate:"timezone"`
+	S3Region       string `conf:"s3_region"        validate:"required"`
+	S3Bucket       string `conf:"s3_bucket"        validate:"required"`
+	S3BucketPrefix string `conf:"s3_bucket_prefix" validate:"dirpath"`
+	RoleArn        string `conf:"role_arn"         validate:"omitempty,startswith=arn:aws:iam"`
+	Id             string `conf:"id"               validate:"required"`
+	UseDiskBuffer  bool   `conf:"use_disk_buffer"  validate:"-"`
+	DiskBufferPath string `conf:"disk_buffer_path" validate:"omitempty,dirpath"`
+	UploadSizeMb   int    `conf:"upload_size_mb"   validate:"omitempty,gte=2,lt=1000"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values
@@ -51,33 +47,25 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 	config := S3Config{
 		// Default Id is uuid to safeguard against s3 filename namespace collision. User may use
 		// multiple collectors to send logs to same s3 path. Id is appended to s3 filename.
-		S3Region:        "us-east-1",
-		S3BucketPrefix:  "logs/",
-		Id:              uuid.New().String(),
-		UseSingleKey:    true,
-		AllowMissingKey: true,
-		SingleKey:       "log",
-		UseDiskBuffer:   true,
-		DiskBufferPath:  "tmp/out_clp_s3/",
-		UploadSizeMb:    16,
-		TimeZone:        "America/Toronto",
+		S3Region:       "us-east-1",
+		S3BucketPrefix: "logs/",
+		Id:             uuid.New().String(),
+		UseDiskBuffer:  true,
+		DiskBufferPath: "tmp/out_clp_s3/",
+		UploadSizeMb:   16,
 	}
 
 	// Map used to loop over user inputs saving a [output.FLBPluginConfigKey] call for each key.
 	// Potential to iterate over struct using reflect; however, better to avoid reflect package.
 	pluginSettings := map[string]interface{}{
-		"s3_region":         &config.S3Region,
-		"s3_bucket":         &config.S3Bucket,
-		"s3_bucket_prefix":  &config.S3BucketPrefix,
-		"role_arn":          &config.RoleArn,
-		"id":                &config.Id,
-		"use_single_key":    &config.UseSingleKey,
-		"allow_missing_key": &config.AllowMissingKey,
-		"single_key":        &config.SingleKey,
-		"use_disk_buffer":   &config.UseDiskBuffer,
-		"disk_buffer_path":  &config.DiskBufferPath,
-		"upload_size_mb":    &config.UploadSizeMb,
-		"time_zone":         &config.TimeZone,
+		"s3_region":        &config.S3Region,
+		"s3_bucket":        &config.S3Bucket,
+		"s3_bucket_prefix": &config.S3BucketPrefix,
+		"role_arn":         &config.RoleArn,
+		"id":               &config.Id,
+		"use_disk_buffer":  &config.UseDiskBuffer,
+		"disk_buffer_path": &config.DiskBufferPath,
+		"upload_size_mb":   &config.UploadSizeMb,
 	}
 
 	for settingName, untypedField := range pluginSettings {

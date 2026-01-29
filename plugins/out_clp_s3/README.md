@@ -7,17 +7,25 @@ Fluent Bit output plugin that sends records in CLP's compressed IR format to AWS
 First, confirm your AWS credentials are properly setup, see [AWS credentials](#AWS-credentials) for
 information.
 
-Next, change the output section [fluent-bit.conf](fluent-bit.conf) to suit your needs.
-See [Plugin configuration](#plugin-configuration) for description of fields.
+Next, change [fluent-bit.conf](fluent-bit.conf) to suit your needs. Note, if your logs are JSON, you should use the [Fluent Bit JSON parser][1] on your input.
+See [Plugin configuration](#plugin-configuration) for description of output options.
 
-See below for an example:
+See below for input and output examples:
 
- ```
+```
+[INPUT]
+    name   tail
+    path   /var/log/app.json
+    tag    app.json
+    parser basic_json
+```
+
+```
 [OUTPUT]
     name  out_clp_s3
     s3_bucket myBucket
     match *
-  ```
+```
 
 Lastly start the plugin:
 
@@ -40,7 +48,7 @@ Dummy logs will be written to your s3 bucket.
 
 #### Using local setup
 
-Install [go][1] and [fluent-bit][2]
+Install [go][2] and [fluent-bit][3]
 
 Download go dependencies
   ```shell
@@ -78,7 +86,7 @@ Moreover, the plugin can assume a role by adding optional `role_arn` to
 role_arn arn:aws:iam::000000000000:role/accessToMyBucket
 ```
 
-More detailed information for specifying credentials from AWS can be found [here][3].
+More detailed information for specifying credentials from AWS can be found [here][4].
 
 ### Plugin configuration
 
@@ -89,21 +97,9 @@ More detailed information for specifying credentials from AWS can be found [here
 | `s3_bucket_prefix`  | Bucket prefix path                                                                                       | `logs/`           |
 | `role_arn`          | ARN of an IAM role to assume                                                                             | `None`            |
 | `id`                | Name of output plugin                                                                                    |  Random UUID      |
-| `use_single_key`    | Output single key from Fluent Bit record. See [Use Single Key](#use-single-key) for more info.           | `TRUE`            |
-| `allow_missing_key` | Fallback to whole record if key is missing from log. If set to false, an error will be recorded instead. | `TRUE`            |
-| `single_key`        | Value for single key                                                                                     | `log`             |
 | `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.         | `TRUE`            |
 | `disk_buffer_path`  | Directory for disk buffer                                                                                | `tmp/out_clp_s3/` |
 | `upload_size_mb`    | Set upload size in MB when disk store is enabled. Size refers to the compressed size.                    | `16`              |
-| `time_zone`         | Time zone of the log source, so that local times (non-unix timestamps) are handled correctly.            | `America/Toronto` |
-
-#### Use Single Key
-
-Output the value corresponding to this key, instead of the whole Fluent Bit record. It is
-recommended to set this to true. A Fluent Bit record is a JSON-like object, and while CLP
-can parse JSON into IR it is not recommended. Key is set with `single_key` and will typically be set
-to `log`, the default Fluent Bit key for unparsed logs. If this is set to false, plugin will parse
-the record as JSON.
 
 #### Disk Buffering
 
@@ -126,6 +122,7 @@ Each upload will have a unique key in the following format:
 The index starts at 0 is incremented after each upload. The Fluent Bit tag is also attached to the
 object using the tag key `fluentBitTag`.
 
-[1]: https://go.dev/doc/install
-[2]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
-[3]: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials
+[1]: https://docs.fluentbit.io/manual/data-pipeline/parsers/json
+[2]: https://go.dev/doc/install
+[3]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
+[4]: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials

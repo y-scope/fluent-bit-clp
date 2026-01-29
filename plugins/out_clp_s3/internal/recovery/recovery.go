@@ -203,10 +203,7 @@ func flushExistingBuffer(
 		return err
 	}
 
-	eventManager, err := ctx.RecoverEventManager(
-		tag,
-		int(irFileSize),
-	)
+	eventManager, err := ctx.RecoverEventManager(tag)
 	if err != nil {
 		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
