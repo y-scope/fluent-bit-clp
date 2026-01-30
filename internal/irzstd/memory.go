@@ -12,9 +12,7 @@ import (
 )
 
 // Converts log events into Zstd compressed IR. Log events are immediately converted to Zstd
-// compressed IR and stored in [memoryWriter.zstdBuffer]. Data is buffered in memory until the
-// upload size threshold is reached, then sent to S3. Unlike [diskWriter], there is no crash
-// recovery since buffers are in memory.
+// compressed IR and stored in [memoryWriter.zstdBuffer].
 type memoryWriter struct {
 	zstdBuffer *bytes.Buffer
 	irWriter   *ir.Writer
@@ -106,7 +104,8 @@ func (w *memoryWriter) GetZstdOutput() io.Reader {
 }
 
 // Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
-// Instead, calling Len() on buffer.
+// Instead, calling Len() on buffer. Size may slightly lag the real size since some data in the
+// current block will be in the [zstd] encoder's internal buffer.
 //
 // Returns:
 //   - size: Bytes written

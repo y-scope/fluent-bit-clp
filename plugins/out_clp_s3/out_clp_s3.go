@@ -17,6 +17,7 @@ import (
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/flush"
+	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/exit"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/recovery"
 )
 
@@ -134,9 +135,9 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 
 	var err error
 	if outCtx.Config.UseDiskBuffer {
-		err = recovery.GracefulExitFs(outCtx)
+		err = exit.Fs(outCtx)
 	} else {
-		err = recovery.GracefulExitS3(outCtx)
+		err = exit.S3(outCtx)
 	}
 	if err != nil {
 		log.Printf("Failed to exit gracefully")
