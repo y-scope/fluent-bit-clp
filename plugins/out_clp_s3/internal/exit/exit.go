@@ -28,7 +28,7 @@ func Fs(ctx *outctx.S3Context) error {
 }
 
 // S3 gracefully exits the plugin by flushing buffered data to S3. Makes a best-effort attempt,
-// however Fluent Bit may kill the plugin before the upload completes, resulting in data loss.
+// however Fluent Bit may kill the plugin before the upload completes.
 //
 // Parameters:
 //   - ctx: Plugin context
