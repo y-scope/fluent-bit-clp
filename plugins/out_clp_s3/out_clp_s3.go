@@ -132,7 +132,12 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 
 	log.Printf("[%s] Exit called for id: %s", s3PluginName, outCtx.Config.Id)
 
-	err := recovery.GracefulExit(outCtx)
+	var err error
+	if outCtx.Config.UseDiskBuffer {
+		err = recovery.GracefulExitFs(outCtx)
+	} else {
+		err = recovery.GracefulExitS3(outCtx)
+	}
 	if err != nil {
 		log.Printf("Failed to exit gracefully")
 	}

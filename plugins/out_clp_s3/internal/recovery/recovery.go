@@ -13,17 +13,47 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// Gracefully exits the plugin. For disk buffering, files are closed and data is recovered on
-// next startup. For memory buffering, any buffered data is lost.
+// Gracefully exits the plugin by closing files. Data is recovered on next startup.
 //
 // Parameters:
 //   - ctx: Plugin context
 //
 // Returns:
 //   - err: Error closing file
-func GracefulExit(ctx *outctx.S3Context) error {
+func GracefulExitFs(ctx *outctx.S3Context) error {
 	for _, eventManager := range ctx.EventManagers {
 		err := eventManager.Writer.Close()
+		if err != nil {
+			return err
+		}
+		eventManager.Writer = nil
+	}
+
+	return nil
+}
+
+// Gracefully exits the plugin by flushing buffered data to S3. Makes a best-effort attempt,
+// however Fluent Bit may kill the plugin before the upload completes, resulting in data loss.
+//
+// Parameters:
+//   - ctx: Plugin context
+//
+// Returns:
+//   - err: Error closing file
+func GracefulExitS3(ctx *outctx.S3Context) error {
+	for _, eventManager := range ctx.EventManagers {
+		empty, err := eventManager.Writer.CheckEmpty()
+		if err != nil {
+			return err
+		}
+		if empty {
+			continue
+		}
+		err = eventManager.ToS3(ctx.Config, ctx.Uploader)
+		if err != nil {
+			return err
+		}
+		err = eventManager.Writer.Close()
 		if err != nil {
 			return err
 		}

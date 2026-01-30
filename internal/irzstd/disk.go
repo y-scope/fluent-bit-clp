@@ -441,3 +441,20 @@ func (w *diskWriter) getZstdFileSize() (int, error) {
 	zstdFileSize := int(zstdFileInfo.Size())
 	return zstdFileSize, err
 }
+
+// Checks if writer is empty. True if no events are buffered.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: Error calling stat
+func (w *diskWriter) CheckEmpty() (bool, error) {
+	zstdFileInfo, err := w.zstdFile.Stat()
+	if err != nil {
+		return false, err
+	}
+	// Not checking internal IR buffer since should it since should always be empty from
+	// perspective of interface. The only time not empty is inside WriteIrZstd, however, it will
+	// be empty again when function terminates.
+	empty := (zstdFileInfo.Size() == 0) && (w.irTotalBytes == 0)
+	return empty, nil
+}

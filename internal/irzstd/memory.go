@@ -132,3 +132,16 @@ func (w *memoryWriter) Close() error {
 	}
 	return nil
 }
+
+// Checks if writer is empty. True if no events are buffered. Try to avoid calling this as will
+// flush Zstd Writer potentially creating unnecessary frames.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: nil error to comply with interface
+func (w *memoryWriter) CheckEmpty() (bool, error) {
+	w.zstdWriter.Flush()
+
+	empty := w.zstdBuffer.Len() == 0
+	return empty, nil
+}
