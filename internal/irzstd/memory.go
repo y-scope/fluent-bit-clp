@@ -11,9 +11,8 @@ import (
 	"github.com/y-scope/clp-ffi-go/ir"
 )
 
-// Converts log events into Zstd compressed IR. Log events provided to writer are immediately
-// converted to Zstd compressed IR and stored in [memoryWriter.ZstdBuffer].  After the Zstd buffer
-// receives logs, they are immediately sent to s3.
+// Converts log events into Zstd compressed IR. Log events are immediately converted to Zstd
+// compressed IR and stored in [memoryWriter.zstdBuffer].
 type memoryWriter struct {
 	zstdBuffer *bytes.Buffer
 	irWriter   *ir.Writer
@@ -96,14 +95,6 @@ func (w *memoryWriter) Reset() error {
 	return nil
 }
 
-// Getter for useDiskBuffer.
-//
-// Returns:
-//   - useDiskBuffer: On/off for disk buffering
-func (w *memoryWriter) GetUseDiskBuffer() bool {
-	return false
-}
-
 // Getter for Zstd Output.
 //
 // Returns:
@@ -113,7 +104,8 @@ func (w *memoryWriter) GetZstdOutput() io.Reader {
 }
 
 // Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
-// Instead, calling Len() on buffer.
+// Instead, calling Len() on buffer. Size may slightly lag the real size since some data in the
+// current block will be in the [zstd] encoder's internal buffer.
 //
 // Returns:
 //   - size: Bytes written
@@ -138,4 +130,17 @@ func (w *memoryWriter) Close() error {
 		}
 	}
 	return nil
+}
+
+// Checks if writer is empty. True if no events are buffered. Try to avoid calling this as will
+// flush Zstd Writer potentially creating unnecessary frames.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: nil error to comply with interface
+func (w *memoryWriter) CheckEmpty() (bool, error) {
+	w.zstdWriter.Flush()
+
+	empty := w.zstdBuffer.Len() == 0
+	return empty, nil
 }

@@ -13,28 +13,6 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// If useDiskBuffer is set, close all files prior to exit. Graceful exit will only be called
-// if Fluent Bit receives a kill signal and not during an abrupt crash. Plugin is only
-// given a limited time to clean up resources, so output is not sent to s3. Instead
-// they are sent during startup.
-//
-// Parameters:
-//   - ctx: Plugin context
-//
-// Returns:
-//   - err: Error closing file
-func GracefulExit(ctx *outctx.S3Context) error {
-	for _, eventManager := range ctx.EventManagers {
-		err := eventManager.Writer.Close()
-		if err != nil {
-			return err
-		}
-		eventManager.Writer = nil
-	}
-
-	return nil
-}
-
 // Sends existing disk buffers to S3.
 //
 // Parameters:

@@ -111,9 +111,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 	}
 }
 
-// Checks if criteria are met to upload to s3. If useDiskBuffer is false, then the chunk is always
-// uploaded so always returns true. If useDiskBuffer is true, check if Zstd buffer size is greater
-// than upload size.
+// Checks whether Zstd buffer size is greater than or equal to upload size.
 //
 // Parameters:
 //   - eventManager: Manager for Fluent Bit events with the same tag
@@ -123,10 +121,6 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
 func checkUploadCriteriaMet(eventManager *outctx.EventManager, uploadSizeMb int) (bool, error) {
-	if !eventManager.Writer.GetUseDiskBuffer() {
-		return true, nil
-	}
-
 	bufferSize, err := eventManager.Writer.GetZstdOutputSize()
 	if err != nil {
 		return false, fmt.Errorf("error could not get size of buffer: %w", err)
