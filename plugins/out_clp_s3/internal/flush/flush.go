@@ -111,8 +111,7 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 	}
 }
 
-// Checks if criteria are met to upload to s3. Checks if Zstd buffer size is greater than or equal
-// to upload size.
+// Checks whether Zstd buffer size is greater than or equal to upload size.
 //
 // Parameters:
 //   - eventManager: Manager for Fluent Bit events with the same tag

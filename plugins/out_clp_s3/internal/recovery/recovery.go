@@ -1,4 +1,4 @@
-// Package recovery provides ability to recover disk buffer on startup and send to S3.
+// Package provides ability to recover disk buffer on startup and send to s3.
 
 package recovery
 
@@ -13,7 +13,7 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// RecoverBufferFiles sends existing disk buffers to S3.
+// Sends existing disk buffers to S3.
 //
 // Parameters:
 //   - ctx: Plugin context
