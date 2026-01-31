@@ -207,10 +207,10 @@ func (w *diskWriter) CloseStreams() error {
 }
 
 // Reinitialize [diskWriter] after calling CloseStreams(). Resets Zstd writer and associated
-// writer.
+// buffer.
 //
 // Returns:
-//   - err: Error IR buffer not empty, error truncating/seeking files
+//   - err: Error IR buffer not empty
 func (w *diskWriter) Reset() error {
 	// Flush should be called prior to reset, so buffer should be empty. There may be a future
 	// use case to truncate a non-empty IR buffer; however, there is currently no use case
