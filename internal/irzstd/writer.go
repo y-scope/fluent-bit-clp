@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/klauspost/compress/zstd"
-
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 )
@@ -86,30 +84,4 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, int, error) {
 		numEvents += 1
 	}
 	return numBytes, numEvents, nil
-}
-
-// Opens a new [ir.Writer] and [zstd.Encoder].
-//
-// Parameters:
-//   - zstdOutput: Output destination for Zstd
-//   - irOutput: Output destination for IR
-//
-// Returns:
-//   - irWriter: Writer for CLP IR
-//   - zstdWriter: Writer for Zstd
-//   - err: Error opening IR/Zstd writer
-func newIrZstdWriters(
-	zstdOutput io.Writer,
-	irOutput io.Writer,
-) (*ir.Writer, *zstd.Encoder, error) {
-	zstdWriter, err := zstd.NewWriter(zstdOutput)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening Zstd writer: %w", err)
-	}
-
-	irWriter, err := ir.NewWriter[ir.FourByteEncoding](irOutput)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening IR writer: %w", err)
-	}
-	return irWriter, zstdWriter, err
 }
