@@ -69,7 +69,6 @@ func NewDiskWriter(irPath string, zstdPath string) (*diskWriter, error) {
 		irFile:     irFile,
 		zstdPath:   zstdPath,
 		zstdFile:   zstdFile,
-		irWriter:   nil,
 		zstdWriter: zstdWriter,
 	}
 
@@ -106,7 +105,6 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 		irFile:     irFile,
 		zstdPath:   zstdPath,
 		zstdFile:   zstdFile,
-		irWriter:   nil,
 		zstdWriter: zstdWriter,
 	}
 
