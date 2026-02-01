@@ -61,6 +61,12 @@ type Writer interface {
 	//	 - size: Bytes written
 	//   - err
 	GetZstdOutputSize() (int, error)
+
+	// Get the current state of the Writer.
+	//
+	// Returns:
+	//   - state: Current state (Open, Closed, or Corrupted)
+	GetState() WriterState
 }
 
 // Writes log events to a IR Writer.
