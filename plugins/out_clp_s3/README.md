@@ -40,7 +40,10 @@ First build the image
 
 Start a container
   ```shell
-  docker run -it -v ~/.aws/credentials:/root/.aws/credentials --rm fluent-bit-clp
+  docker run -it \
+    -v ~/.aws/credentials:/root/.aws/credentials \
+    -v ./fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml \
+    --rm fluent-bit-clp
   ```
 
 Dummy logs will be written to your s3 bucket.
