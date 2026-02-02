@@ -285,7 +285,6 @@ func (w *diskWriter) Close() error {
 	return nil
 }
 
-
 // Getter for state.
 //
 // Returns:
