@@ -1,8 +1,6 @@
 # Sample Fluent Bit configuration with output set to CLP s3 plugin.
+# Load plugin via CLI: fluent-bit -e ./out_clp_s3.so -c fluent-bit.yaml
 ---
-
-plugins:
-  - ${PLUGIN_PATH:./out_clp_s3.so}
 
 parsers:
   - name: json

@@ -50,7 +50,7 @@ Dummy logs will be written to your s3 bucket.
 
 #### Using local setup
 
-Install [go][2] and [fluent-bit][3]
+Install [go][2], [fluent-bit][3], and [task][4]
 
 Download go dependencies
   ```shell
@@ -64,7 +64,7 @@ Run task to build a binary in the plugin directory
 
 Run Fluent Bit
   ```shell
-  fluent-bit -c fluent-bit.yaml
+  fluent-bit -e ./out_clp_s3.so -c fluent-bit.yaml
   ```
 ### AWS Credentials
 
@@ -79,7 +79,7 @@ Moreover, the plugin can assume a role by adding optional `role_arn` to your out
 role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
 ```
 
-More detailed information for specifying credentials from AWS can be found [here][4].
+More detailed information for specifying credentials from AWS can be found [here][5].
 
 ### Plugin configuration
 
@@ -118,4 +118,5 @@ object using the tag key `fluentBitTag`.
 [1]: https://docs.fluentbit.io/manual/data-pipeline/parsers/json
 [2]: https://go.dev/doc/install
 [3]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
-[4]: https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-gosdk.html#specifying-credentials
+[4]: https://taskfile.dev/installation
+[5]: https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-gosdk.html#specifying-credentials
