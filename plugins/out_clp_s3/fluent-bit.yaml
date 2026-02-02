@@ -1,0 +1,27 @@
+# Sample Fluent Bit configuration with output set to CLP s3 plugin.
+---
+
+plugins:
+  - ${PLUGIN_PATH:./out_clp_s3.so}
+
+parsers:
+  - name: json
+    format: json
+
+pipeline:
+  inputs:
+    - name: cpu
+      tag: cpu.local
+      interval_sec: 1
+
+    # Example tail input with JSON parser
+    # - name: tail
+    #   path: /var/log/app.json
+    #   tag: app.json
+    #   parser: basic_json
+
+  outputs:
+    - name: out_clp_s3
+      match: "*"
+      s3_bucket: myBucket
+      # role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
