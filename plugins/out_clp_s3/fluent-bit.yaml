@@ -8,6 +8,7 @@ parsers:
 
 pipeline:
   inputs:
+    # CPU outputs structured records, so no parser is needed
     - name: cpu
       tag: cpu.local
       interval_sec: 1
@@ -16,7 +17,7 @@ pipeline:
     # - name: tail
     #   path: /var/log/app.json
     #   tag: app.json
-    #   parser: basic_json
+    #   parser: json
 
   outputs:
     - name: out_clp_s3

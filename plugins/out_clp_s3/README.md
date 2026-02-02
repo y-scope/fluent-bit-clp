@@ -50,7 +50,7 @@ Dummy logs will be written to your s3 bucket.
 
 #### Using local setup
 
-Install [go][2], [fluent-bit][3], and [task][4]
+Install [go][2], [task][3], and [fluent-bit][4]
 
 Download go dependencies
   ```shell
@@ -74,7 +74,7 @@ The plugin will look for credentials using the following hierarchy:
   3. If using ECS task definition or RunTask API, IAM role for tasks.
   4. If running on an Amazon EC2 instance, IAM role for Amazon EC2.
 
-Moreover, the plugin can assume a role by adding optional `role_arn` to your output configuration:
+Moreover, the plugin can assume a role by adding optional `role_arn` to [fluent-bit.yaml](fluent-bit.yaml):
 ```yaml
 role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
 ```
@@ -117,6 +117,6 @@ object using the tag key `fluentBitTag`.
 
 [1]: https://docs.fluentbit.io/manual/data-pipeline/parsers/json
 [2]: https://go.dev/doc/install
-[3]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
-[4]: https://taskfile.dev/installation
+[3]: https://taskfile.dev/installation
+[4]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
 [5]: https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-gosdk.html#specifying-credentials
