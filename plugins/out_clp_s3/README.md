@@ -97,9 +97,9 @@ More detailed information for specifying credentials from AWS can be found [here
 | `s3_bucket_prefix`  | Bucket prefix path                                                                                       | `logs/`           |
 | `role_arn`          | ARN of an IAM role to assume                                                                             | `None`            |
 | `id`                | Name of output plugin                                                                                    |  Random UUID      |
-| `use_disk_buffer`   | Buffer logs on disk. See [Disk Buffering](#disk-buffering) for more info.                                | `TRUE`            |
-| `disk_buffer_path`  | Directory for disk buffer                                                                                | `tmp/out_clp_s3/` |
-| `upload_size_mb`    | Set upload size in MB. Size refers to the compressed size.                                               | `16`              |
+| `use_disk_buffer` | Buffer logs on disk. See [Disk Buffering](#disk-buffering) for more info. | `TRUE` |
+| `disk_buffer_path` | Directory for disk buffer | `tmp/out_clp_s3/` |
+| `upload_size_mb` | Set upload size in MB. Size refers to the compressed size. | `16` |
 
 #### Disk Buffering
 
