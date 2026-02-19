@@ -135,7 +135,7 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 
 	var err error
 	if outCtx.Config.UseDiskBuffer {
-		err = exit.Fs(outCtx)
+		err = exit.NoUpload(outCtx)
 	} else {
 		err = exit.S3(outCtx)
 	}

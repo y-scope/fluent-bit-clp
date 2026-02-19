@@ -8,14 +8,14 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// Fs gracefully exits the plugin by closing files.
+// NoUpload gracefully exits the plugin by closing writers without uploading.
 //
 // Parameters:
 //   - ctx: Plugin context
 //
 // Returns:
 //   - err: Error closing file
-func Fs(ctx *outctx.S3Context) error {
+func NoUpload(ctx *outctx.S3Context) error {
 	for _, eventManager := range ctx.EventManagers {
 		err := eventManager.Writer.Close()
 		if err != nil {
@@ -37,7 +37,7 @@ func Fs(ctx *outctx.S3Context) error {
 //   - err: Error closing file
 func S3(ctx *outctx.S3Context) error {
 	for _, eventManager := range ctx.EventManagers {
-		empty, err := eventManager.Writer.CheckEmpty()
+		empty, err := eventManager.Writer.Empty()
 		if err != nil {
 			return err
 		}

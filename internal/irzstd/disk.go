@@ -281,7 +281,7 @@ func (w *diskWriter) GetZstdOutputSize() (int, error) {
 // Returns:
 //   - empty: Boolean value that is true if buffer is empty
 //   - err: Error calling stat
-func (w *diskWriter) CheckEmpty() (bool, error) {
+func (w *diskWriter) Empty() (bool, error) {
 	zstdFileInfo, err := w.zstdFile.Stat()
 	if err != nil {
 		return false, err

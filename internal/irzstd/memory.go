@@ -14,9 +14,10 @@ import (
 // Converts log events into Zstd compressed IR. Log events are immediately converted to Zstd
 // compressed IR and stored in [memoryWriter.zstdBuffer].
 type memoryWriter struct {
-	zstdBuffer *bytes.Buffer
-	irWriter   *ir.Writer
-	zstdWriter *zstd.Encoder
+	zstdBuffer   *bytes.Buffer
+	irWriter     *ir.Writer
+	zstdWriter   *zstd.Encoder
+	irTotalBytes int
 }
 
 // Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
@@ -56,7 +57,8 @@ func NewMemoryWriter() (*memoryWriter, error) {
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd
 func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
-	_, numEvents, err := writeIr(w.irWriter, logEvents)
+	numBytes, numEvents, err := writeIr(w.irWriter, logEvents)
+	w.irTotalBytes += numBytes
 	if err != nil {
 		return numEvents, err
 	}
@@ -86,6 +88,7 @@ func (w *memoryWriter) Reset() error {
 	var err error
 	w.zstdBuffer.Reset()
 	w.zstdWriter.Reset(w.zstdBuffer)
+	w.irTotalBytes = 0
 
 	w.irWriter, err = ir.NewWriter[ir.FourByteEncoding](w.zstdWriter)
 	if err != nil {
@@ -132,15 +135,11 @@ func (w *memoryWriter) Close() error {
 	return nil
 }
 
-// Checks if writer is empty. True if no events are buffered. Try to avoid calling this as will
-// flush Zstd Writer potentially creating unnecessary frames.
+// Checks if writer is empty. True if no events are buffered.
 //
 // Returns:
 //   - empty: Boolean value that is true if buffer is empty
 //   - err: nil error to comply with interface
-func (w *memoryWriter) CheckEmpty() (bool, error) {
-	w.zstdWriter.Flush()
-
-	empty := w.zstdBuffer.Len() == 0
-	return empty, nil
+func (w *memoryWriter) Empty() (bool, error) {
+	return w.irTotalBytes == 0, nil
 }

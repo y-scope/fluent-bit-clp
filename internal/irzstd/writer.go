@@ -61,7 +61,7 @@ type Writer interface {
 	// Returns:
 	//   - empty: Boolean value that is true if buffer is empty
 	//   - err
-	CheckEmpty() (bool, error)
+	Empty() (bool, error)
 }
 
 // Writes log events to a IR Writer.
