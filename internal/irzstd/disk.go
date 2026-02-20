@@ -260,14 +260,6 @@ func (w *diskWriter) Close() error {
 	return nil
 }
 
-// Getter for useDiskBuffer.
-//
-// Returns:
-//   - useDiskBuffer: On/off for disk buffering
-func (w *diskWriter) GetUseDiskBuffer() bool {
-	return true
-}
-
 // Getter for Zstd Output.
 //
 // Returns:
@@ -282,6 +274,21 @@ func (w *diskWriter) GetZstdOutput() io.Reader {
 //   - err: Error getting size
 func (w *diskWriter) GetZstdOutputSize() (int, error) {
 	return w.getZstdFileSize()
+}
+
+// Checks if writer is empty. True if no events are buffered.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: Error calling stat
+func (w *diskWriter) Empty() (bool, error) {
+	zstdFileInfo, err := w.zstdFile.Stat()
+	if err != nil {
+		return false, err
+	}
+
+	empty := (zstdFileInfo.Size() == 0) && (w.irTotalBytes == 0)
+	return empty, nil
 }
 
 // Compresses contents of the IR file and outputs it to the Zstd file. The IR file is then
