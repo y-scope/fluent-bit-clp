@@ -18,6 +18,7 @@ type memoryWriter struct {
 	irWriter   *ir.Writer
 	zstdWriter *zstd.Encoder
 	state      WriterState
+	irTotalBytes int
 }
 
 // Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
