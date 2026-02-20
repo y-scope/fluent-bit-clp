@@ -43,12 +43,6 @@ type Writer interface {
 	//   - err
 	Reset() error
 
-	// Getter for useDiskBuffer.
-	//
-	// Returns:
-	//   - useDiskBuffer: On/off for disk buffering
-	GetUseDiskBuffer() bool
-
 	// Getter for Zstd Output.
 	//
 	// Returns:
@@ -67,6 +61,13 @@ type Writer interface {
 	// Returns:
 	//   - state: Current state (Open, Closed, or Corrupted)
 	GetState() WriterState
+  
+	// Checks if writer is empty. True if no events are buffered.
+	//
+	// Returns:
+	//   - empty: Boolean value that is true if buffer is empty
+	//   - err
+	Empty() (bool, error)
 }
 
 // Writes log events to a IR Writer.

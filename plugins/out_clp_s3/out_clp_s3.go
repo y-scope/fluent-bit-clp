@@ -16,6 +16,7 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
+	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/exit"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/flush"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/recovery"
 )
@@ -132,7 +133,12 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 
 	log.Printf("[%s] Exit called for id: %s", s3PluginName, outCtx.Config.Id)
 
-	err := recovery.GracefulExit(outCtx)
+	var err error
+	if outCtx.Config.UseDiskBuffer {
+		err = exit.NoUpload(outCtx)
+	} else {
+		err = exit.S3(outCtx)
+	}
 	if err != nil {
 		log.Printf("Failed to exit gracefully")
 	}
