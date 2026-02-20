@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"unsafe"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -26,6 +27,17 @@ import (
 const (
 	IrDir   = "ir"
 	ZstdDir = "zstd"
+)
+
+// Tracks disk buffer paths to prevent multiple outputs using the same path. Fluent Bit's main
+// thread is single-threaded so a race is likely impossible, but the mutex guards against
+// potential multithreaded access. Fluent-bit-go maintainers added similar locking in [concurrency PR] to
+// prevent potential multithreaded access to a map on startup.
+//
+// [concurrency PR]: https://github.com/fluent/fluent-bit-go/pull/46/files
+var (
+	diskBufferPaths   = make(map[string]bool)
+	diskBufferPathsMu sync.Mutex
 )
 
 // AWS error codes.
@@ -57,6 +69,12 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if config.UseDiskBuffer {
+		if err := registerDiskBufferPath(config.DiskBufferPath); err != nil {
+			return nil, err
+		}
 	}
 
 	// Load the aws credentials. [awsConfig.LoadDefaultConfig] will look for credentials in a
@@ -225,4 +243,27 @@ func (ctx *S3Context) GetBufferFilePaths(
 	zstdPath := filepath.Join(ctx.Config.DiskBufferPath, ZstdDir, zstdFileName)
 
 	return irPath, zstdPath
+}
+
+// Registers a disk buffer path to prevent multiple output instances from using the same path.
+//
+// Parameters:
+//   - path: Disk buffer path from [S3Config]
+//
+// Returns:
+//   - err: Error resolving path, path already in use
+func registerDiskBufferPath(path string) error {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("could not resolve disk_buffer_path: %w", err)
+	}
+
+	diskBufferPathsMu.Lock()
+	defer diskBufferPathsMu.Unlock()
+
+	if diskBufferPaths[absPath] {
+		return fmt.Errorf("disk_buffer_path %s is already in use by another output instance", path)
+	}
+	diskBufferPaths[absPath] = true
+	return nil
 }
