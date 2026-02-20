@@ -7,24 +7,23 @@ Fluent Bit output plugin that sends records in CLP's compressed IR format to AWS
 First, confirm your AWS credentials are properly setup, see [AWS credentials](#AWS-credentials) for
 information.
 
-Next, change [fluent-bit.conf](fluent-bit.conf) to suit your needs. Note, if your logs are JSON, you should use the [Fluent Bit JSON parser][1] on your input.
+Next, change [fluent-bit.yaml](fluent-bit.yaml) to suit your needs. Note, if your logs are JSON, you should use the [Fluent Bit JSON parser][1] on your input.
 See [Plugin configuration](#plugin-configuration) for description of output options.
 
 See below for input and output examples:
 
-```
-[INPUT]
-    name   tail
-    path   /var/log/app.json
-    tag    app.json
-    parser basic_json
-```
+```yaml
+pipeline:
+  inputs:
+    - name: tail
+      path: /var/log/app.json
+      tag: app.json
+      parser: json
 
-```
-[OUTPUT]
-    name  out_clp_s3
-    s3_bucket myBucket
-    match *
+  outputs:
+    - name: out_clp_s3
+      match: "*"
+      s3_bucket: myBucket
 ```
 
 Lastly start the plugin:
@@ -41,14 +40,17 @@ First build the image
 
 Start a container
   ```shell
-  docker run -it -v ~/.aws/credentials:/root/.aws/credentials --rm fluent-bit-clp
+  docker run -it \
+    -v ~/.aws/credentials:/root/.aws/credentials \
+    -v ./fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml \
+    --rm fluent-bit-clp
   ```
 
 Dummy logs will be written to your s3 bucket.
 
 #### Using local setup
 
-Install [go][2] and [fluent-bit][3]
+Install [go][2], [task][3], and [fluent-bit][4]
 
 Download go dependencies
   ```shell
@@ -59,18 +61,10 @@ Run task to build a binary in the plugin directory
   ```shell
   task build
   ```
-Change [plugin-config.conf](plugin-config.conf) to reference the plugin binary
-  ```shell
-  [PLUGINS]
-      Path /<LOCAL_PATH>/out_clp_s3.so
-  ```
-Note changing this path may break docker setup. To preserve docker setup, copy
-[plugin-config.conf](plugin-config.conf) and change `plugins_file` in
-[fluent-bit.conf](fluent-bit.conf) to new file name.
 
 Run Fluent Bit
   ```shell
-  fluent-bit -c fluent-bit.conf
+  fluent-bit -e ./out_clp_s3.so -c fluent-bit.yaml
   ```
 ### AWS Credentials
 
@@ -80,13 +74,12 @@ The plugin will look for credentials using the following hierarchy:
   3. If using ECS task definition or RunTask API, IAM role for tasks.
   4. If running on an Amazon EC2 instance, IAM role for Amazon EC2.
 
-Moreover, the plugin can assume a role by adding optional `role_arn` to
-[plugin-config.conf](plugin-config.conf). Example shown below:
-```
-role_arn arn:aws:iam::000000000000:role/accessToMyBucket
+Moreover, the plugin can assume a role by adding optional `role_arn` to [fluent-bit.yaml](fluent-bit.yaml):
+```yaml
+role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
 ```
 
-More detailed information for specifying credentials from AWS can be found [here][4].
+More detailed information for specifying credentials from AWS can be found [here][5].
 
 ### Plugin configuration
 
@@ -126,5 +119,6 @@ object using the tag key `fluentBitTag`.
 
 [1]: https://docs.fluentbit.io/manual/data-pipeline/parsers/json
 [2]: https://go.dev/doc/install
-[3]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
-[4]: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials
+[3]: https://taskfile.dev/installation
+[4]: https://docs.fluentbit.io/manual/installation/getting-started-with-fluent-bit
+[5]: https://docs.aws.amazon.com/sdk-for-go/v2/developer-guide/configure-gosdk.html#specifying-credentials
