@@ -61,7 +61,7 @@ type Writer interface {
 	// Returns:
 	//   - state: Current state (Open, Closed, or Corrupted)
 	GetState() WriterState
-  
+
 	// Checks if writer is empty. True if no events are buffered.
 	//
 	// Returns:

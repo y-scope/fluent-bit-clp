@@ -14,10 +14,10 @@ import (
 // Converts log events into Zstd compressed IR. Log events are immediately converted to Zstd
 // compressed IR and stored in [memoryWriter.zstdBuffer].
 type memoryWriter struct {
-	zstdBuffer *bytes.Buffer
-	irWriter   *ir.Writer
-	zstdWriter *zstd.Encoder
-	state      WriterState
+	zstdBuffer   *bytes.Buffer
+	irWriter     *ir.Writer
+	zstdWriter   *zstd.Encoder
+	state        WriterState
 	irTotalBytes int
 }
 
