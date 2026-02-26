@@ -146,7 +146,7 @@ func RecoverWriter(irPath string, zstdPath string) (*diskWriter, error) {
 func (w *diskWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 	if w.state != Open {
 		return 0, fmt.Errorf("cannot write: writer state is %s, expected %s", w.state, Open)
-  }
+    }
   
 	if w.irWriter == nil {
 		var err error
