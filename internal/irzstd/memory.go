@@ -17,6 +17,7 @@ type memoryWriter struct {
 	zstdBuffer   *bytes.Buffer
 	irWriter     *ir.Writer
 	zstdWriter   *zstd.Encoder
+	state        WriterState
 	irTotalBytes int
 }
 
@@ -43,6 +44,7 @@ func NewMemoryWriter() (*memoryWriter, error) {
 		irWriter:   irWriter,
 		zstdWriter: zstdWriter,
 		zstdBuffer: &zstdBuffer,
+		state:      Open,
 	}
 
 	return &memoryWriter, nil
@@ -57,6 +59,10 @@ func NewMemoryWriter() (*memoryWriter, error) {
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd
 func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
+	if w.state != Open {
+		return 0, fmt.Errorf("cannot write: writer state is %s, expected %s", w.state, Open)
+	}
+
 	numBytes, numEvents, err := writeIr(w.irWriter, logEvents)
 	w.irTotalBytes += numBytes
 	if err != nil {
@@ -71,12 +77,26 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 // Returns:
 //   - err: Error closing buffers
 func (w *memoryWriter) CloseStreams() error {
+	if w.state == StreamsClosed {
+		return nil
+	}
+	if w.state != Open {
+		return fmt.Errorf("cannot close streams: writer state is %s, expected %s", w.state, Open)
+	}
+
 	if err := w.irWriter.Close(); err != nil {
+		w.state = Corrupted
 		return err
 	}
 	w.irWriter = nil
 
-	return w.zstdWriter.Close()
+	if err := w.zstdWriter.Close(); err != nil {
+		w.state = Corrupted
+		return err
+	}
+
+	w.state = StreamsClosed
+	return nil
 }
 
 // Reinitialize [memoryWriter] after calling CloseStreams(). Resets individual IR and Zstd writers
@@ -85,6 +105,10 @@ func (w *memoryWriter) CloseStreams() error {
 // Returns:
 //   - err: Error opening IR writer
 func (w *memoryWriter) Reset() error {
+	if w.state != StreamsClosed {
+		return fmt.Errorf("cannot reset: writer state is %s, expected %s", w.state, StreamsClosed)
+	}
+
 	var err error
 	w.zstdBuffer.Reset()
 	w.zstdWriter.Reset(w.zstdBuffer)
@@ -92,9 +116,11 @@ func (w *memoryWriter) Reset() error {
 
 	w.irWriter, err = ir.NewWriter[ir.FourByteEncoding](w.zstdWriter)
 	if err != nil {
+		w.state = Corrupted
 		return err
 	}
 
+	w.state = Open
 	return nil
 }
 
@@ -115,6 +141,14 @@ func (w *memoryWriter) GetZstdOutput() io.Reader {
 //   - err: nil error to comply with interface
 func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 	return w.zstdBuffer.Len(), nil
+}
+
+// Getter for state.
+//
+// Returns:
+//   - state: Current state
+func (w *memoryWriter) GetState() WriterState {
+	return w.state
 }
 
 // Closes [memoryWriter]. Currently used during recovery only, and advise caution using elsewhere.

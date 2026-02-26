@@ -54,6 +54,12 @@ type Writer interface {
 	//   - err
 	GetZstdOutputSize() (int, error)
 
+	// Get the current state of the Writer.
+	//
+	// Returns:
+	//   - state: Current state (Open, StreamsClosed, or Corrupted)
+	GetState() WriterState
+
 	// Checks if writer is empty. True if no events are buffered.
 	//
 	// Returns:
