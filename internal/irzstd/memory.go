@@ -166,6 +166,7 @@ func (w *memoryWriter) Close() error {
 			return fmt.Errorf("error could not close irWriter: %w", err)
 		}
 	}
+	w.state = Closed
 	return nil
 }
 
