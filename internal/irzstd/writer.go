@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/klauspost/compress/zstd"
-
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 )
@@ -37,23 +35,11 @@ type Writer interface {
 	//   - err
 	Close() error
 
-	// Getter for closed.
-	//
-	// Returns:
-	//   - closed: Boolean that is true if IR and Zstd streams are closed.
-	GetClosed() bool
-
 	// Reinitialize Writer after calling CloseStreams().
 	//
 	// Returns:
 	//   - err
 	Reset() error
-
-	// Getter for useDiskBuffer.
-	//
-	// Returns:
-	//   - useDiskBuffer: On/off for disk buffering
-	GetUseDiskBuffer() bool
 
 	// Getter for Zstd Output.
 	//
@@ -68,12 +54,18 @@ type Writer interface {
 	//   - err
 	GetZstdOutputSize() (int, error)
 
+	// Get the current state of the Writer.
+	//
+	// Returns:
+	//   - state: Current state (Open, StreamsClosed, or Corrupted)
+	GetState() WriterState
+
 	// Checks if writer is empty. True if no events are buffered.
 	//
 	// Returns:
 	//   - empty: Boolean value that is true if buffer is empty
 	//   - err
-	CheckEmpty() (bool, error)
+	Empty() (bool, error)
 }
 
 // Writes log events to a IR Writer.
@@ -83,47 +75,20 @@ type Writer interface {
 //   - logEvents: A slice of log events to be encoded
 //
 // Returns:
+//   - numBytes: Total IR bytes written for the batch
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error if an event could not be written
-func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, error) {
+func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, int, error) {
 	var numEvents int
+	var numBytes int
 	for _, event := range logEvents {
-		_, err := irWriter.Write(event)
+		n, err := irWriter.WriteLogEvent(event)
+		numBytes += n
 		if err != nil {
 			err = fmt.Errorf("failed to encode event %v into ir: %w", event, err)
-			return numEvents, err
+			return numBytes, numEvents, err
 		}
 		numEvents += 1
 	}
-	return numEvents, nil
-}
-
-// Opens a new [ir.Writer] and [zstd.Encoder].
-//
-// Parameters:
-//   - zstdOutput: Output location for Zstd
-//   - timezone: Time zone of the log source
-//   - size: Byte length
-//
-// Returns:
-//   - irWriter: Writer for CLP IR
-//   - ZstdWriter: Writer for Zstd
-//   - err: Error opening IR/Zstd writer
-func newIrZstdWriters(
-	zstdOutput io.Writer,
-	timezone string,
-	size int,
-) (*ir.Writer, *zstd.Encoder, error) {
-	// IR buffer using bytes.Buffer internally, so it will dynamically grow if undersized. Using
-	// FourByteEncoding as default encoding.
-	irWriter, err := ir.NewWriterSize[ir.FourByteEncoding](size, timezone)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening IR writer: %w", err)
-	}
-
-	zstdWriter, err := zstd.NewWriter(zstdOutput)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening Zstd writer: %w", err)
-	}
-	return irWriter, zstdWriter, err
+	return numBytes, numEvents, nil
 }

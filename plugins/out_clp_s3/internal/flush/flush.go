@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"time"
 	"unsafe"
 
 	"github.com/fluent/fluent-bit-go/output"
@@ -39,7 +38,7 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 		return output.FLB_ERROR, err
 	}
 
-	eventManager, err := ctx.GetEventManager(tag, size)
+	eventManager, err := ctx.GetEventManager(tag)
 	if err != nil {
 		return output.FLB_RETRY, fmt.Errorf("error getting event manager: %w", err)
 	}
@@ -68,88 +67,25 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
 	for {
-		ts, record, err := decoder.GetRecord(dec)
+		_, jsonRecord, err := decoder.GetRecord(dec)
 		if err != nil {
 			return logEvents, err
 		}
 
-		timestamp := decodeTs(ts)
-		msg, err := getMessage(record, config)
+		var autoKvPairs map[string]any = make(map[string]any)
+		var userKvPairs map[string]any
+		err = json.Unmarshal(jsonRecord, &userKvPairs)
 		if err != nil {
-			err = fmt.Errorf("failed to get message from record: %w", err)
+			err = fmt.Errorf("failed to unmarshal record: %w", err)
 			return nil, err
 		}
 
 		event := ffi.LogEvent{
-			LogMessage: addSpaceAndNewLine(msg),
-			Timestamp:  ffi.EpochTimeMs(timestamp.UnixMilli()),
+			AutoKvPairs: autoKvPairs,
+			UserKvPairs: userKvPairs,
 		}
 		logEvents = append(logEvents, event)
 	}
-}
-
-// Decodes timestamp provided by Fluent Bit engine into time.Time. If timestamp cannot be
-// decoded, returns system time.
-//
-// Parameters:
-//   - ts: Timestamp provided by Fluent Bit
-//
-// Returns:
-//   - timestamp: time.Time timestamp
-func decodeTs(ts any) time.Time {
-	var timestamp time.Time
-	switch t := ts.(type) {
-	case decoder.FlbTime:
-		timestamp = t.Time
-	case uint64:
-		timestamp = time.Unix(int64(t), 0)
-	default:
-		log.Printf("time provided invalid, defaulting to now. Invalid type is %T", t)
-		timestamp = time.Now()
-	}
-	return timestamp
-}
-
-// Retrieves message from a record object. The message can consist of the entire object or
-// just a single key. For a single key, user should set use_single_key to true in fluent-bit.conf.
-// In addition user, should set single_key to "log" which is default Fluent Bit key for unparsed
-// messages; however, single_key can be set to another value. To prevent failure if the key is
-// missing, user can specify allow_missing_key, and behaviour will fallback to the entire object.
-//
-// Parameters:
-//   - record: JSON record from Fluent Bit with variable amount of keys
-//   - config: Plugin configuration
-//
-// Returns:
-//   - stringMsg: Retrieved message
-//   - err: Key not found, json.Unmarshal error, string type assertion error
-func getMessage(jsonRecord []byte, config outctx.S3Config) (string, error) {
-	if !config.UseSingleKey {
-		return string(jsonRecord), nil
-	}
-
-	var record map[string]any
-	err := json.Unmarshal(jsonRecord, &record)
-	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal json record %v: %w", jsonRecord, err)
-	}
-
-	singleKeyMsg, ok := record[config.SingleKey]
-	if !ok {
-		// If key not found in record, see if allow_missing_key=true. If missing key is
-		// allowed, then return entire record.
-		if config.AllowMissingKey {
-			return string(jsonRecord), nil
-		}
-		return "", fmt.Errorf("key %s not found in record %v", config.SingleKey, record)
-	}
-
-	stringMsg, ok := singleKeyMsg.(string)
-	if !ok {
-		return "", fmt.Errorf("string type assertion for message failed %v", singleKeyMsg)
-	}
-
-	return stringMsg, nil
 }
 
 // Writes logEvents to event manager buffer. If upload criteria is met, sends upload signal to
@@ -197,9 +133,7 @@ func write(
 	return nil
 }
 
-// Checks if criteria are met to upload to s3. If useDiskBuffer is false, then the chunk is always
-// uploaded so always returns true. If useDiskBuffer is true, check if Zstd buffer size is greater
-// than upload size.
+// Checks whether Zstd buffer size is greater than or equal to upload size.
 //
 // Parameters:
 //   - eventManager: Manager for Fluent Bit events with the same tag
@@ -209,10 +143,6 @@ func write(
 //   - readyToUpload: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
 func checkUploadCriteriaMet(eventManager *outctx.S3EventManager, uploadSizeMb int) (bool, error) {
-	if !eventManager.Writer.GetUseDiskBuffer() {
-		return true, nil
-	}
-
 	bufferSize, err := eventManager.Writer.GetZstdOutputSize()
 	if err != nil {
 		return false, fmt.Errorf("error could not get size of buffer: %w", err)
@@ -231,17 +161,4 @@ func checkUploadCriteriaMet(eventManager *outctx.S3EventManager, uploadSizeMb in
 	}
 
 	return false, nil
-}
-
-// Decompressed IR streams appear as one concatenated string. Adding a space separates the log
-// from the timestamp. Adding a new line separates logs from each other.
-//
-// Parameters:
-//   - msg: Log event message
-//
-// Returns:
-//   - modifiedMsg: Message with space at beginning and newline at end
-func addSpaceAndNewLine(msg string) string {
-	modifiedMsg := " " + msg + "\n"
-	return modifiedMsg
 }

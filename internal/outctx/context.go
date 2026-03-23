@@ -120,16 +120,15 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 //
 // Parameters:
 //   - tag: Fluent Bit tag
-//   - size: Byte length
 //
 // Returns:
 //   - err: Could not create buffers or tag
-func (ctx *S3Context) GetEventManager(tag string, size int) (*S3EventManager, error) {
+func (ctx *S3Context) GetEventManager(tag string) (*S3EventManager, error) {
 	var err error
 	eventManager, ok := ctx.EventManagers[tag]
 
 	if !ok {
-		eventManager, err = ctx.newEventManager(tag, size)
+		eventManager, err = ctx.newEventManager(tag)
 		if err != nil {
 			return nil, err
 		}
@@ -142,22 +141,13 @@ func (ctx *S3Context) GetEventManager(tag string, size int) (*S3EventManager, er
 //
 // Parameters:
 //   - tag: Fluent Bit tag
-//   - size: Byte length
 //
 // Returns:
 //   - eventManager: Manager for Fluent Bit events with the same tag
 //   - err: Error creating new writer
-func (ctx *S3Context) RecoverEventManager(
-	tag string,
-	size int,
-) (*S3EventManager, error) {
+func (ctx *S3Context) RecoverEventManager(tag string) (*S3EventManager, error) {
 	irPath, zstdPath := ctx.GetBufferFilePaths(tag)
-	writer, err := irzstd.RecoverWriter(
-		ctx.Config.TimeZone,
-		size,
-		irPath,
-		zstdPath,
-	)
+	writer, err := irzstd.RecoverWriter(irPath, zstdPath)
 	if err != nil {
 		return nil, err
 	}
@@ -183,29 +173,19 @@ func (ctx *S3Context) RecoverEventManager(
 //
 // Parameters:
 //   - tag: Fluent Bit tag
-//   - size: Byte length
 //
 // Returns:
 //   - eventManager: Manager for Fluent Bit events with the same tag
 //   - err: Error creating new writer
-func (ctx *S3Context) newEventManager(
-	tag string,
-	size int,
-) (*S3EventManager, error) {
+func (ctx *S3Context) newEventManager(tag string) (*S3EventManager, error) {
 	var err error
 	var writer irzstd.Writer
 
 	if ctx.Config.UseDiskBuffer {
 		irPath, zstdPath := ctx.GetBufferFilePaths(tag)
-		writer, err = irzstd.NewDiskWriter(
-			ctx.Config.TimeZone,
-			size,
-			irPath,
-			zstdPath,
-		)
-
+		writer, err = irzstd.NewDiskWriter(irPath, zstdPath)
 	} else {
-		writer, err = irzstd.NewMemoryWriter(ctx.Config.TimeZone, size)
+		writer, err = irzstd.NewMemoryWriter()
 	}
 
 	if err != nil {
