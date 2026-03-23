@@ -8,8 +8,7 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// NoUpload gracefully exits the plugin by closing writers without uploading. Disk buffer files
-// persist and are recovered on the next startup.
+// NoUpload gracefully exits the plugin by closing writers without uploading.
 //
 // Parameters:
 //   - ctx: Plugin context

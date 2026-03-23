@@ -88,11 +88,6 @@ func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
-	if m.Writer.GetState() == irzstd.Corrupted {
-		log.Printf("writer is corrupted for tag %s, skipping upload", m.Tag)
-		return
-	}
-
 	empty, err := m.Writer.Empty()
 	if err != nil {
 		log.Printf("failed to check if buffer is empty for tag %s: %v", m.Tag, err)
@@ -152,14 +147,11 @@ func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
 func (m *S3EventManager) toS3(config S3Config, uploader *manager.Uploader) {
-	// CloseStreams is idempotent: returns nil if already StreamsClosed.
-	// This handles the case where a previous s3 upload attempt failed after closing.
-	if m.Writer.GetState() != irzstd.StreamsClosed {
-		err := m.Writer.CloseStreams()
-		if err != nil {
-			log.Printf("error closing irzstd stream for tag %s: %v", m.Tag, err)
-			return
-		}
+	// If streams already closed, does nothing and returns nil.
+	err := m.Writer.CloseStreams()
+	if err != nil {
+		log.Printf("error closing irzstd stream for tag %s: %v", m.Tag, err)
+		return
 	}
 
 	outputLocation, err := s3Request(

@@ -108,17 +108,11 @@ The output plugin receives raw logs from Fluent Bit in small chunks. With `use_d
 output plugin will accumulate logs on disk until the upload size or timeout is reached. Buffering
 logs will reduce the amount of S3 API requests and improve the compression ratio. However, the plugin
 will use disk space and have higher memory requirements. The amount of system resources will be
-proportional to the amount of Fluent Bit tags. With `use_disk_buffer` off, the plugin will immediately
-process each chunk and send it to S3.
+proportional to the amount of Fluent Bit tags. With `use_disk_buffer` off, the plugin will accumulate
+logs in memory until the upload size or timeout is reached.
 
-With `use_disk_buffer` set, logs are stored on disk as IR and Zstd compressed IR. On a graceful shutdown
-or abrupt crash, stored logs will be sent to S3 when Fluent Bit restarts. For an abrupt crash, there is
-a very small chance of data corruption if the plugin crashed mid write. The upload index restarts on
-recovery.
-
-With `use_disk_buffer` off, logs are stored in memory as Zstd compressed IR. On a graceful shutdown, the
-plugin will attempt to upload any buffered data to S3 before Fluent Bit terminates it. On an abrupt
-crash, in-memory data is lost.
+Logs are stored on the disk as IR and Zstd compressed IR. If the plugin were to crash, stored logs
+will be sent to S3 when Fluent Bit restarts. The upload index restarts on recovery.
 
 ### S3 Objects
 
