@@ -100,7 +100,7 @@ More detailed information for specifying credentials from AWS can be found [here
 | `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.             | `TRUE`            |
 | `disk_buffer_path`  | Directory for disk buffer. Path should be unique for each output.                                            | `tmp/out_clp_s3/` |
 | `upload_size_mb`    | Set upload size in MB. Size refers to the compressed size.                                                   | `16`              |
-| `timeout`           | Upload timeout if upload size is not met. For use when disk buffer is enabled. See [time.ParseDuration][5] for valid duration strings. | `15m`             |
+| `timeout`           | Upload timeout if upload size is not met. See [time.ParseDuration][5] for valid duration strings. | `15m`             |
 
 #### Disk Buffering
 

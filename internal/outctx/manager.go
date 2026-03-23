@@ -47,11 +47,11 @@ func (m *S3EventManager) StopListening() {
 }
 
 // Starts upload listener which can receive signals on UploadRequests channel. This function should
-// be called as a goroutine. Timeout is only triggered if use_disk_buffer is on. Function will not
-// exit immediately; it only exits if the uploadRequest channel is closed, which allows the immortal
-// loop to break out. When function does exit, it decrements a WaitGroup letting event manager know
-// it has exited. WaitGroup allows graceful exit of listener when Fluent Bit receives a kill signal.
-// Without WaitGroup, OS may abruptly kill listen goroutine.
+// be called as a goroutine. Function will not exit immediately; it only exits if the uploadRequest
+// channel is closed, which allows the immortal loop to break out. When function does exit, it
+// decrements a WaitGroup letting event manager know it has exited. WaitGroup allows graceful exit
+// of listener when Fluent Bit receives a kill signal. Without WaitGroup, OS may abruptly kill
+// listen goroutine.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -61,25 +61,16 @@ func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
 
 	m.Listening = true
 	for {
-		if config.UseDiskBuffer {
-			select {
-			case _, more := <-m.UploadRequests:
-				// Exit if channel is closed
-				if !more {
-					return
-				}
-				log.Printf("Listener with tag %s received upload request on channel", m.Tag)
-			// Timeout will reset if signal sent on UploadRequest channel
-			case <-time.After(config.Timeout):
-				log.Printf("Timeout surpassed for listener with tag %s", m.Tag)
-			}
-		} else {
-			_, more := <-m.UploadRequests
+		select {
+		case _, more := <-m.UploadRequests:
 			// Exit if channel is closed
 			if !more {
 				return
 			}
 			log.Printf("Listener with tag %s received upload request on channel", m.Tag)
+		// Timeout will reset if signal sent on UploadRequest channel
+		case <-time.After(config.Timeout):
+			log.Printf("Timeout surpassed for listener with tag %s", m.Tag)
 		}
 
 		m.upload(config, uploader)
