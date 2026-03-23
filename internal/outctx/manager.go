@@ -117,8 +117,8 @@ func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 }
 
 // ToS3 sends Zstd buffer to s3 and resets writer and buffers for future uploads. Prior to upload,
-// IR buffer is flushed and IR/Zstd streams are terminated. The [S3EventManager.Index] is incremented
-// on successful upload. Logs errors with s3 request.
+// IR buffer is flushed and IR/Zstd streams are terminated. The [S3EventManager.Index] is
+// incremented on successful upload. Logs errors with s3 request.
 //
 // Parameters:
 //   - config: Plugin configuration
