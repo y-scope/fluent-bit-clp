@@ -44,8 +44,6 @@ type S3Config struct {
 //   - S3Config: Configuration based on fluent-bit.conf
 //   - err: All validation errors in config wrapped, parse bool error
 func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
-	defaultTimeout, _ := time.ParseDuration("15m")
-
 	// Define default values for settings. Setting defaults before validation simplifies validation
 	// configuration, and ensures that default settings are also validated.
 	config := S3Config{
@@ -56,7 +54,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		Id:             uuid.New().String(),
 		UseDiskBuffer:  true,
 		DiskBufferPath: "tmp/out_clp_s3/",
-		Timeout:        defaultTimeout,
+		Timeout:        15 * time.Minute,
 		UploadSizeMb:   16,
 	}
 

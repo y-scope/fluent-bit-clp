@@ -181,13 +181,11 @@ func flushExistingBuffer(
 		return err
 	}
 
-	eventManager, err := ctx.RecoverEventManager(tag)
+	err := ctx.RecoverEventManager(tag)
 	if err != nil {
 		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
 	log.Printf("Recovered disk buffers with tag %s", tag)
-	log.Printf("Sending upload request to channel with tag %s", eventManager.Tag)
-	eventManager.UploadRequests <- true
 	return nil
 }
 

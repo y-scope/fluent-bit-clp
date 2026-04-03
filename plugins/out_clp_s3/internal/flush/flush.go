@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"unsafe"
 
 	"github.com/fluent/fluent-bit-go/output"
@@ -33,7 +32,7 @@ import (
 //   - err: Error if flush fails
 func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (int, error) {
 	dec := decoder.New(data, size)
-	logEvents, err := decodeMsgpack(dec, ctx.Config)
+	logEvents, err := decodeMsgpack(dec)
 	if err != io.EOF {
 		return output.FLB_ERROR, err
 	}
@@ -43,10 +42,7 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 		return output.FLB_RETRY, fmt.Errorf("error getting event manager: %w", err)
 	}
 
-	err = write(eventManager, logEvents, ctx.Config)
-	if err != nil {
-		return output.FLB_ERROR, err
-	}
+	eventManager.LogEvents <- logEvents
 
 	return output.FLB_OK, nil
 }
@@ -56,7 +52,6 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 //
 // Parameters:
 //   - decoder: Msgpack decoder
-//   - config: Plugin configuration
 //
 // Returns:
 //   - logEvents: Slice of log events
@@ -64,7 +59,7 @@ func Ingest(data unsafe.Pointer, size int, tag string, ctx *outctx.S3Context) (i
 //
 // [Fluent Bit reference]:
 // https://github.com/fluent/fluent-bit-go/blob/a7a013e2473cdf62d7320822658d5816b3063758/examples/out_multiinstance/out.go#L41
-func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, error) {
+func decodeMsgpack(dec *codec.Decoder) ([]ffi.LogEvent, error) {
 	var logEvents []ffi.LogEvent
 	for {
 		_, jsonRecord, err := decoder.GetRecord(dec)
@@ -86,79 +81,4 @@ func decodeMsgpack(dec *codec.Decoder, config outctx.S3Config) ([]ffi.LogEvent, 
 		}
 		logEvents = append(logEvents, event)
 	}
-}
-
-// Writes logEvents to event manager buffer. If upload criteria is met, sends upload signal to
-// upload request channel. Method acquires lock to prevent upload while writing.
-//
-// Parameters:
-//   - eventManager: Manager for Fluent Bit events with the same tag
-//   - logEvents: Slice of log events
-//   - config: Plugin configuration
-//
-// Returns:
-//   - err: Error writing log events, error checking upload criteria
-func write(
-	eventManager *outctx.S3EventManager,
-	logEvents []ffi.LogEvent,
-	config outctx.S3Config,
-) error {
-	eventManager.Mutex.Lock()
-	defer eventManager.Mutex.Unlock()
-
-	numEvents, err := eventManager.Writer.WriteIrZstd(logEvents)
-	if err != nil {
-		log.Printf(
-			"Wrote %d out of %d total log events for tag %s",
-			numEvents,
-			len(logEvents),
-			eventManager.Tag,
-		)
-		return fmt.Errorf("error writing log events: %w", err)
-	}
-
-	uploadCriteriaMet, err := checkUploadCriteriaMet(
-		eventManager,
-		config.UploadSizeMb,
-	)
-	if err != nil {
-		return fmt.Errorf("error checking upload criteria: %w", err)
-	}
-
-	if uploadCriteriaMet {
-		log.Printf("Sending upload request to channel with tag %s", eventManager.Tag)
-		eventManager.UploadRequests <- true
-	}
-
-	return nil
-}
-
-// Checks whether Zstd buffer size is greater than or equal to upload size.
-//
-// Parameters:
-//   - eventManager: Manager for Fluent Bit events with the same tag
-//   - uploadSizeMb: S3 upload size in MB
-//
-// Returns:
-//   - readyToUpload: Boolean if upload criteria met or not
-//   - err: Error getting Zstd buffer size
-func checkUploadCriteriaMet(eventManager *outctx.S3EventManager, uploadSizeMb int) (bool, error) {
-	bufferSize, err := eventManager.Writer.GetZstdOutputSize()
-	if err != nil {
-		return false, fmt.Errorf("error could not get size of buffer: %w", err)
-	}
-
-	uploadSize := uploadSizeMb << 20
-
-	if bufferSize >= uploadSize {
-		log.Printf(
-			"Zstd buffer size of %d for tag %s exceeded upload size %d",
-			bufferSize,
-			eventManager.Tag,
-			uploadSize,
-		)
-		return true, nil
-	}
-
-	return false, nil
 }

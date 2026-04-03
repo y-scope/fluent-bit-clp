@@ -104,7 +104,7 @@ More detailed information for specifying credentials from AWS can be found [here
 
 #### Disk Buffering
 
-The output plugin recieves raw logs from Fluent Bit in small chunks and accumulates them in a compressed
+The output plugin receives raw logs from Fluent Bit in small chunks and accumulates them in a compressed
 buffer until the upload size or timeout is reached before sending to S3.
 
 With `use_disk_buffer` set, logs are stored on disk as IR and Zstd compressed IR. On a graceful shutdown

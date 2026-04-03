@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/y-scope/clp-ffi-go/ffi"
 
 	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
 )
@@ -21,18 +22,28 @@ const s3TagKey = "fluentBitTag"
 
 // Resources and metadata to process Fluent Bit events with the same tag.
 type S3EventManager struct {
-	Tag            string
-	Index          int
-	Writer         irzstd.Writer
-	Mutex          sync.Mutex
-	WaitGroup      sync.WaitGroup
-	UploadRequests chan bool
-	Listening      bool
+	Tag       string
+	Index     int
+	Writer    irzstd.Writer
+	WaitGroup sync.WaitGroup
+	LogEvents chan []ffi.LogEvent
+	Listening bool
+}
+
+// Starts the upload listener goroutine.
+//
+// Parameters:
+//   - config: Plugin configuration
+//   - uploader: S3 uploader manager
+func (m *S3EventManager) StartListening(config S3Config, uploader *manager.Uploader) {
+	log.Printf("Starting upload listener for event manager with tag %s", m.Tag)
+	m.Listening = true
+	m.WaitGroup.Add(1)
+	go m.listen(config, uploader)
 }
 
 // Ends listener goroutine.
 func (m *S3EventManager) StopListening() {
-
 	if !m.Listening {
 		return
 	}
@@ -41,17 +52,17 @@ func (m *S3EventManager) StopListening() {
 
 	// Closing the channel sends terminate signal to goroutine. The WaitGroup
 	// will block until it actually terminates.
-	close(m.UploadRequests)
+	close(m.LogEvents)
 	m.WaitGroup.Wait()
 	m.Listening = false
 }
 
-// Starts upload listener which can receive signals on UploadRequests channel. This function should
-// be called as a goroutine. Function will not exit immediately; it only exits if the uploadRequest
-// channel is closed, which allows the immortal loop to break out. When function does exit, it
-// decrements a WaitGroup letting event manager know it has exited. WaitGroup allows graceful exit
-// of listener when Fluent Bit receives a kill signal. Without WaitGroup, OS may abruptly kill
-// listen goroutine.
+// Starts upload listener which receives log events on LogEvents channel, writes them to the
+// IR buffer, and triggers uploads when criteria are met or on timeout. This function should
+// be called as a goroutine. Function runs an immortal loop which only exits if the LogEvents
+// channel is closed. When function does exit, it decrements a WaitGroup letting the event
+// manager know it has exited. WaitGroup allows graceful exit of listener when Fluent Bit
+// receives a kill signal. Without WaitGroup, OS may abruptly kill listen goroutine.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -59,35 +70,62 @@ func (m *S3EventManager) StopListening() {
 func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
 	defer m.WaitGroup.Done()
 
-	m.Listening = true
 	for {
 		select {
-		case _, more := <-m.UploadRequests:
-			// Exit if channel is closed
+		case logEvents, more := <-m.LogEvents:
 			if !more {
 				return
 			}
-			log.Printf("Listener with tag %s received upload request on channel", m.Tag)
-		// Timeout will reset if signal sent on UploadRequest channel
+			uploadCriteriaMet := m.write(logEvents, config)
+			if uploadCriteriaMet {
+				m.upload(config, uploader)
+			}
+		// Timeout will reset if signal sent on LogEvents channel.
 		case <-time.After(config.Timeout):
 			log.Printf("Timeout surpassed for listener with tag %s", m.Tag)
+			m.upload(config, uploader)
 		}
-
-		m.upload(config, uploader)
 	}
 }
 
-// Uploads to s3 after acquiring lock and validating that buffer is not empty. Mutex prevents
-// write while uploading. Must check that buffer is not empty as timeout can trigger on empty
-// buffer and send empty file to s3. Logs instead of returning error.
+// Writes log events to the IR buffer and checks if upload criteria is met.
+//
+// Parameters:
+//   - logEvents: Slice of log events
+//   - config: Plugin configuration
+//
+// Returns:
+//   - uploadCriteriaMet: True if buffer size exceeds upload threshold
+func (m *S3EventManager) write(logEvents []ffi.LogEvent, config S3Config) bool {
+	log.Printf("Listener with tag %s received log events", m.Tag)
+	numEvents, err := m.Writer.WriteIrZstd(logEvents)
+	if err != nil {
+		log.Printf(
+			"Wrote %d out of %d total log events for tag %s: %v",
+			numEvents,
+			len(logEvents),
+			m.Tag,
+			err,
+		)
+		return false
+	}
+
+	uploadCriteriaMet, err := m.checkUploadCriteriaMet(config.UploadSizeMb)
+	if err != nil {
+		log.Printf("error checking upload criteria for tag %s: %v", m.Tag, err)
+		return false
+	}
+
+	return uploadCriteriaMet
+}
+
+// Uploads to s3 if the buffer is non-empty. Must check that buffer is not empty as timeout can
+// trigger on empty buffer. Logs instead of returning error.
 //
 // Parameters:
 //   - config: Plugin configuration
 //   - uploader: S3 uploader manager
 func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
-	m.Mutex.Lock()
-	defer m.Mutex.Unlock()
-
 	empty, err := m.Writer.Empty()
 	if err != nil {
 		log.Printf("failed to check if buffer is empty for tag %s: %v", m.Tag, err)
@@ -100,6 +138,35 @@ func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 	}
 
 	m.toS3(config, uploader)
+}
+
+// Checks whether Zstd buffer size is greater than or equal to upload size.
+//
+// Parameters:
+//   - uploadSizeMb: S3 upload size in MB
+//
+// Returns:
+//   - readyToUpload: Boolean if upload criteria met or not
+//   - err: Error getting Zstd buffer size
+func (m *S3EventManager) checkUploadCriteriaMet(uploadSizeMb int) (bool, error) {
+	bufferSize, err := m.Writer.GetZstdOutputSize()
+	if err != nil {
+		return false, fmt.Errorf("error could not get size of buffer: %w", err)
+	}
+
+	uploadSize := uploadSizeMb << 20
+
+	if bufferSize >= uploadSize {
+		log.Printf(
+			"Zstd buffer size of %d for tag %s exceeded upload size %d",
+			bufferSize,
+			m.Tag,
+			uploadSize,
+		)
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // ToS3 sends Zstd buffer to s3 and resets writer and buffers for future uploads. Prior to upload,
