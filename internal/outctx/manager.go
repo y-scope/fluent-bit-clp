@@ -146,7 +146,7 @@ func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 //   - uploadSizeMb: S3 upload size in MB
 //
 // Returns:
-//   - readyToUpload: Boolean if upload criteria met or not
+//   - uploadCriteriaMet: Boolean if upload criteria met or not
 //   - err: Error getting Zstd buffer size
 func (m *S3EventManager) checkUploadCriteriaMet(uploadSizeMb int) (bool, error) {
 	bufferSize, err := m.Writer.GetZstdOutputSize()
