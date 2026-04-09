@@ -57,6 +57,18 @@ func (m *S3EventManager) StopListening() {
 	m.Listening = false
 }
 
+// ToS3 uploads events in the buffer to s3.
+//
+// Parameters:
+//   - config: Plugin configuration
+//   - uploader: S3 uploader manager
+//
+// Returns:
+//   - err: Error closing streams, error uploading, error resetting writer
+func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error {
+	return m.toS3(config, uploader)
+}
+
 // Starts upload listener which receives log events on LogEvents channel, writes them to the
 // IR buffer, and triggers uploads when criteria are met or on timeout. This function should
 // be called as a goroutine. Function runs an immortal loop which only exits if the LogEvents
@@ -70,53 +82,41 @@ func (m *S3EventManager) StopListening() {
 func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
 	defer m.WaitGroup.Done()
 
+	timer := time.NewTimer(config.Timeout)
+	defer timer.Stop()
+
 	for {
+		timer.Reset(config.Timeout)
 		select {
 		case logEvents, more := <-m.LogEvents:
 			if !more {
 				return
 			}
-			uploadCriteriaMet := m.write(logEvents, config)
+			log.Printf("Listener with tag %s received log events", m.Tag)
+			numEvents, err := m.Writer.WriteIrZstd(logEvents)
+			if err != nil {
+				log.Printf(
+					"Wrote %d out of %d total log events for tag %s: %v",
+					numEvents,
+					len(logEvents),
+					m.Tag,
+					err,
+				)
+				continue
+			}
+			uploadCriteriaMet, err := m.checkUploadCriteriaMet(config.UploadSizeMb)
+			if err != nil {
+				log.Printf("error checking upload criteria for tag %s: %v", m.Tag, err)
+				continue
+			}
 			if uploadCriteriaMet {
 				m.upload(config, uploader)
 			}
-		// Timeout will reset if signal sent on LogEvents channel.
-		case <-time.After(config.Timeout):
+		case <-timer.C:
 			log.Printf("Timeout surpassed for listener with tag %s", m.Tag)
 			m.upload(config, uploader)
 		}
 	}
-}
-
-// Writes log events to the IR buffer and checks if upload criteria is met.
-//
-// Parameters:
-//   - logEvents: Slice of log events
-//   - config: Plugin configuration
-//
-// Returns:
-//   - uploadCriteriaMet: True if buffer size exceeds upload threshold
-func (m *S3EventManager) write(logEvents []ffi.LogEvent, config S3Config) bool {
-	log.Printf("Listener with tag %s received log events", m.Tag)
-	numEvents, err := m.Writer.WriteIrZstd(logEvents)
-	if err != nil {
-		log.Printf(
-			"Wrote %d out of %d total log events for tag %s: %v",
-			numEvents,
-			len(logEvents),
-			m.Tag,
-			err,
-		)
-		return false
-	}
-
-	uploadCriteriaMet, err := m.checkUploadCriteriaMet(config.UploadSizeMb)
-	if err != nil {
-		log.Printf("error checking upload criteria for tag %s: %v", m.Tag, err)
-		return false
-	}
-
-	return uploadCriteriaMet
 }
 
 // Uploads to s3 if the buffer is non-empty. Must check that buffer is not empty as timeout can
@@ -137,7 +137,9 @@ func (m *S3EventManager) upload(config S3Config, uploader *manager.Uploader) {
 		return
 	}
 
-	m.toS3(config, uploader)
+	if err := m.toS3(config, uploader); err != nil {
+		log.Printf("listener upload failed: %v", err)
+	}
 }
 
 // Checks whether Zstd buffer size is greater than or equal to upload size.
@@ -169,9 +171,9 @@ func (m *S3EventManager) checkUploadCriteriaMet(uploadSizeMb int) (bool, error) 
 	return false, nil
 }
 
-// ToS3 sends Zstd buffer to s3 and resets writer and buffers for future uploads. Prior to upload,
+// toS3 sends Zstd buffer to s3 and resets writer and buffers for future uploads. Prior to upload,
 // IR buffer is flushed and IR/Zstd streams are terminated. The [S3EventManager.Index] is
-// incremented on successful upload. Logs errors with s3 request.
+// incremented on successful upload.
 //
 // Parameters:
 //   - config: Plugin configuration
@@ -179,10 +181,10 @@ func (m *S3EventManager) checkUploadCriteriaMet(uploadSizeMb int) (bool, error) 
 //
 // Returns:
 //   - err: Error closing streams, error uploading, error resetting writer
-func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error {
+func (m *S3EventManager) toS3(config S3Config, uploader *manager.Uploader) error {
 	err := m.Writer.CloseStreams()
 	if err != nil {
-		return fmt.Errorf("error closing irzstd stream: %w", err)
+		return fmt.Errorf("error closing irzstd stream for tag %s: %w", m.Tag, err)
 	}
 
 	outputLocation, err := s3Request(
@@ -202,45 +204,10 @@ func (m *S3EventManager) ToS3(config S3Config, uploader *manager.Uploader) error
 
 	err = m.Writer.Reset()
 	if err != nil {
-		return fmt.Errorf("error resetting irzstd stream: %w", err)
+		return fmt.Errorf("error resetting irzstd stream for tag %s: %w", m.Tag, err)
 	}
 
 	return nil
-}
-
-// toS3 is the goroutine-internal upload helper. Logs errors instead of returning them.
-//
-// Parameters:
-//   - config: Plugin configuration
-//   - uploader: S3 uploader manager
-func (m *S3EventManager) toS3(config S3Config, uploader *manager.Uploader) {
-	// If streams already closed, does nothing and returns nil.
-	err := m.Writer.CloseStreams()
-	if err != nil {
-		log.Printf("error closing irzstd stream for tag %s: %v", m.Tag, err)
-		return
-	}
-
-	outputLocation, err := s3Request(
-		config.S3Bucket,
-		config.S3BucketPrefix,
-		m,
-		config.Id,
-		uploader,
-	)
-	if err != nil {
-		log.Printf("S3 request failed for event manager with tag %s: %v", m.Tag, err)
-		return
-	}
-
-	m.Index += 1
-
-	log.Printf("chunk uploaded to %s", outputLocation)
-
-	err = m.Writer.Reset()
-	if err != nil {
-		log.Printf("error resetting irzstd stream for tag %s: %v", m.Tag, err)
-	}
 }
 
 // Uploads log events to s3.
