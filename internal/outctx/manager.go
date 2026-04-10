@@ -86,7 +86,6 @@ func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
 	defer timer.Stop()
 
 	for {
-		timer.Reset(config.Timeout)
 		select {
 		case logEvents, more := <-m.LogEvents:
 			if !more {
@@ -111,10 +110,12 @@ func (m *S3EventManager) listen(config S3Config, uploader *manager.Uploader) {
 			}
 			if uploadCriteriaMet {
 				m.upload(config, uploader)
+				timer.Reset(config.Timeout)
 			}
 		case <-timer.C:
 			log.Printf("Timeout surpassed for listener with tag %s", m.Tag)
 			m.upload(config, uploader)
+			timer.Reset(config.Timeout)
 		}
 	}
 }

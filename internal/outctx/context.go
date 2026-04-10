@@ -60,6 +60,10 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
+	if config.Timeout <= 0 {
+		return nil, fmt.Errorf("error timeout must be positive, got %v", config.Timeout)
+	}
+
 	// Load the aws credentials. [awsConfig.LoadDefaultConfig] will look for credentials in a
 	// specific hierarchy.
 	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/
