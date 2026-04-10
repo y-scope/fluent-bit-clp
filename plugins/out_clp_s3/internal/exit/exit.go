@@ -17,6 +17,7 @@ import (
 //   - err: Error closing file
 func NoUpload(ctx *outctx.S3Context) error {
 	for _, eventManager := range ctx.EventManagers {
+		eventManager.StopListening()
 		err := eventManager.Writer.Close()
 		if err != nil {
 			return err
@@ -37,6 +38,7 @@ func NoUpload(ctx *outctx.S3Context) error {
 //   - err: Error closing file
 func S3(ctx *outctx.S3Context) error {
 	for _, eventManager := range ctx.EventManagers {
+		eventManager.StopListening()
 		empty, err := eventManager.Writer.Empty()
 		if err != nil {
 			return err

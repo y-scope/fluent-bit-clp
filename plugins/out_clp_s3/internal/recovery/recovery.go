@@ -152,7 +152,7 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 }
 
 // Flushes existing disk buffer to s3 on startup. Prior to sending, opens disk buffer files and
-// creates new [outctx.EventManager] using existing buffer files.
+// creates new [outctx.S3EventManager] using existing buffer files.
 //
 // Parameters:
 //   - tag: Fluent Bit tag
@@ -181,18 +181,11 @@ func flushExistingBuffer(
 		return err
 	}
 
-	eventManager, err := ctx.RecoverEventManager(tag)
+	err := ctx.RecoverEventManager(tag)
 	if err != nil {
 		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
-
 	log.Printf("Recovered disk buffers with tag %s", tag)
-
-	err = eventManager.ToS3(ctx.Config, ctx.Uploader)
-	if err != nil {
-		return fmt.Errorf("error flushing Zstd to s3: %w", err)
-	}
-
 	return nil
 }
 
