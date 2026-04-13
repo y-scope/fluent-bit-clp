@@ -11,13 +11,14 @@ import (
 	"github.com/y-scope/clp-ffi-go/ir"
 )
 
-// Converts log events into Zstd compressed IR. Log events provided to writer are immediately
-// converted to Zstd compressed IR and stored in [memoryWriter.ZstdBuffer].  After the Zstd buffer
-// receives logs, they are immediately sent to s3.
+// Converts log events into Zstd compressed IR. Log events are immediately converted to Zstd
+// compressed IR and stored in [memoryWriter.zstdBuffer].
 type memoryWriter struct {
-	zstdBuffer *bytes.Buffer
-	irWriter   *ir.Writer
-	zstdWriter *zstd.Encoder
+	zstdBuffer   *bytes.Buffer
+	irWriter     *ir.Writer
+	zstdWriter   *zstd.Encoder
+	state        WriterState
+	irTotalBytes int
 }
 
 // Opens a new [memoryWriter] with a memory buffer for Zstd output. For use when use_disk_store is
@@ -43,6 +44,7 @@ func NewMemoryWriter() (*memoryWriter, error) {
 		irWriter:   irWriter,
 		zstdWriter: zstdWriter,
 		zstdBuffer: &zstdBuffer,
+		state:      Open,
 	}
 
 	return &memoryWriter, nil
@@ -57,7 +59,12 @@ func NewMemoryWriter() (*memoryWriter, error) {
 //   - numEvents: Number of log events successfully written to IR writer buffer
 //   - err: Error writing IR/Zstd
 func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
-	_, numEvents, err := writeIr(w.irWriter, logEvents)
+	if w.state != Open {
+		return 0, fmt.Errorf("cannot write: writer state is %s, expected %s", w.state, Open)
+	}
+
+	numBytes, numEvents, err := writeIr(w.irWriter, logEvents)
+	w.irTotalBytes += numBytes
 	if err != nil {
 		return numEvents, err
 	}
@@ -70,12 +77,26 @@ func (w *memoryWriter) WriteIrZstd(logEvents []ffi.LogEvent) (int, error) {
 // Returns:
 //   - err: Error closing buffers
 func (w *memoryWriter) CloseStreams() error {
+	if w.state == StreamsClosed {
+		return nil
+	}
+	if w.state != Open {
+		return fmt.Errorf("cannot close streams: writer state is %s, expected %s", w.state, Open)
+	}
+
 	if err := w.irWriter.Close(); err != nil {
+		w.state = Corrupted
 		return err
 	}
 	w.irWriter = nil
 
-	return w.zstdWriter.Close()
+	if err := w.zstdWriter.Close(); err != nil {
+		w.state = Corrupted
+		return err
+	}
+
+	w.state = StreamsClosed
+	return nil
 }
 
 // Reinitialize [memoryWriter] after calling CloseStreams(). Resets individual IR and Zstd writers
@@ -84,24 +105,23 @@ func (w *memoryWriter) CloseStreams() error {
 // Returns:
 //   - err: Error opening IR writer
 func (w *memoryWriter) Reset() error {
+	if w.state != StreamsClosed {
+		return fmt.Errorf("cannot reset: writer state is %s, expected %s", w.state, StreamsClosed)
+	}
+
 	var err error
 	w.zstdBuffer.Reset()
 	w.zstdWriter.Reset(w.zstdBuffer)
+	w.irTotalBytes = 0
 
 	w.irWriter, err = ir.NewWriter[ir.FourByteEncoding](w.zstdWriter)
 	if err != nil {
+		w.state = Corrupted
 		return err
 	}
 
+	w.state = Open
 	return nil
-}
-
-// Getter for useDiskBuffer.
-//
-// Returns:
-//   - useDiskBuffer: On/off for disk buffering
-func (w *memoryWriter) GetUseDiskBuffer() bool {
-	return false
 }
 
 // Getter for Zstd Output.
@@ -113,13 +133,22 @@ func (w *memoryWriter) GetZstdOutput() io.Reader {
 }
 
 // Get size of Zstd output. [zstd] does not provide the amount of bytes written with each write.
-// Instead, calling Len() on buffer.
+// Instead, calling Len() on buffer. Size may slightly lag the real size since some data in the
+// current block will be in the [zstd] encoder's internal buffer.
 //
 // Returns:
 //   - size: Bytes written
 //   - err: nil error to comply with interface
 func (w *memoryWriter) GetZstdOutputSize() (int, error) {
 	return w.zstdBuffer.Len(), nil
+}
+
+// Getter for state.
+//
+// Returns:
+//   - state: Current state
+func (w *memoryWriter) GetState() WriterState {
+	return w.state
 }
 
 // Closes [memoryWriter]. Currently used during recovery only, and advise caution using elsewhere.
@@ -137,5 +166,15 @@ func (w *memoryWriter) Close() error {
 			return fmt.Errorf("error could not close irWriter: %w", err)
 		}
 	}
+	w.state = Closed
 	return nil
+}
+
+// Checks if writer is empty. True if no events are buffered.
+//
+// Returns:
+//   - empty: Boolean value that is true if buffer is empty
+//   - err: nil error to comply with interface
+func (w *memoryWriter) Empty() (bool, error) {
+	return w.irTotalBytes == 0, nil
 }

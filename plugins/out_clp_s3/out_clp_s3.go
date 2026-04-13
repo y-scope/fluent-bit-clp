@@ -10,12 +10,14 @@ package main
 
 import (
 	"C"
+	"fmt"
 	"log"
 	"unsafe"
 
 	"github.com/fluent/fluent-bit-go/output"
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
+	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/exit"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/flush"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/recovery"
 )
@@ -32,7 +34,10 @@ const s3PluginName = "out_clp_s3"
 //
 //export FLBPluginRegister
 func FLBPluginRegister(def unsafe.Pointer) int {
-	log.Printf("[%s] Register called", s3PluginName)
+	logPrefix := fmt.Sprintf("[%s] ", s3PluginName)
+	log.SetPrefix(logPrefix)
+	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
+	log.Printf("Register called")
 	return output.FLBPluginRegister(def, s3PluginName, "CLP s3 plugin")
 }
 
@@ -51,7 +56,7 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 		log.Fatalf("Failed to initialize plugin: %s", err)
 	}
 
-	log.Printf("[%s] Init called for id: %s", s3PluginName, outCtx.Config.Id)
+	log.Printf("Init called for id: %s", outCtx.Config.Id)
 
 	if outCtx.Config.UseDiskBuffer {
 		err = recovery.RecoverBufferFiles(outCtx)
@@ -89,8 +94,7 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 	stringTag := C.GoString(tag)
 
 	log.Printf(
-		"[%s] Flush called for id %s with tag %s and size %d",
-		s3PluginName,
+		"Flush called for id %s with tag %s and size %d",
 		outCtx.Config.Id,
 		stringTag,
 		size,
@@ -108,7 +112,7 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 
 //export FLBPluginExit
 func FLBPluginExit() int {
-	log.Printf("[%s] Exit called for unknown instance", s3PluginName)
+	log.Printf("Exit called for unknown instance")
 	return output.FLB_OK
 }
 
@@ -130,9 +134,14 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 		log.Fatal("Could not read context during flush")
 	}
 
-	log.Printf("[%s] Exit called for id: %s", s3PluginName, outCtx.Config.Id)
+	log.Printf("Exit called for id: %s", outCtx.Config.Id)
 
-	err := recovery.GracefulExit(outCtx)
+	var err error
+	if outCtx.Config.UseDiskBuffer {
+		err = exit.NoUpload(outCtx)
+	} else {
+		err = exit.S3(outCtx)
+	}
 	if err != nil {
 		log.Printf("Failed to exit gracefully")
 	}
@@ -142,7 +151,7 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 
 //export FLBPluginUnregister
 func FLBPluginUnregister(def unsafe.Pointer) {
-	log.Printf("[%s] Unregister called", s3PluginName)
+	log.Printf("Unregister called")
 	output.FLBPluginUnregister(def)
 }
 

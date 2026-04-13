@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/go-playground/validator/v10"
@@ -22,14 +23,15 @@ import (
 //
 //nolint:revive
 type S3Config struct {
-	S3Region       string `conf:"s3_region"        validate:"required"`
-	S3Bucket       string `conf:"s3_bucket"        validate:"required"`
-	S3BucketPrefix string `conf:"s3_bucket_prefix" validate:"dirpath"`
-	RoleArn        string `conf:"role_arn"         validate:"omitempty,startswith=arn:aws:iam"`
-	Id             string `conf:"id"               validate:"required"`
-	UseDiskBuffer  bool   `conf:"use_disk_buffer"  validate:"-"`
-	DiskBufferPath string `conf:"disk_buffer_path" validate:"omitempty,dirpath"`
-	UploadSizeMb   int    `conf:"upload_size_mb"   validate:"omitempty,gte=2,lt=1000"`
+	S3Region       string        `conf:"s3_region"        validate:"required"`
+	S3Bucket       string        `conf:"s3_bucket"        validate:"required"`
+	S3BucketPrefix string        `conf:"s3_bucket_prefix" validate:"dirpath"`
+	RoleArn        string        `conf:"role_arn"         validate:"omitempty,startswith=arn:aws:iam"`
+	Id             string        `conf:"id"               validate:"required"`
+	UseDiskBuffer  bool          `conf:"use_disk_buffer"  validate:"-"`
+	DiskBufferPath string        `conf:"disk_buffer_path" validate:"omitempty,dirpath"`
+	Timeout        time.Duration `conf:"timeout"          validate:"-"`
+	UploadSizeMb   int           `conf:"upload_size_mb"   validate:"omitempty,gte=2,lt=1000"`
 }
 
 // Generates configuration struct containing user-defined settings. In addition, sets default values
@@ -52,6 +54,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		Id:             uuid.New().String(),
 		UseDiskBuffer:  true,
 		DiskBufferPath: "tmp/out_clp_s3/",
+		Timeout:        15 * time.Minute,
 		UploadSizeMb:   16,
 	}
 
@@ -65,6 +68,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		"id":               &config.Id,
 		"use_disk_buffer":  &config.UseDiskBuffer,
 		"disk_buffer_path": &config.DiskBufferPath,
+		"timeout":          &config.Timeout,
 		"upload_size_mb":   &config.UploadSizeMb,
 	}
 
@@ -78,7 +82,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 			continue
 		}
 
-		// Type switch to type parse boolean strings into boolean type. This is necessary since
+		// Type switch to type parse interface into field type. This is necessary since
 		// all values are provided as strings.
 		switch configField := untypedField.(type) {
 		case *string:
@@ -90,6 +94,12 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 				return nil, fmt.Errorf("error could not parse input %v into bool", userInput)
 			}
 			*configField = boolInput
+		case *time.Duration:
+			durationInput, err := time.ParseDuration(userInput)
+			if err != nil {
+				return nil, fmt.Errorf("error could not parse input %v into duration", userInput)
+			}
+			*configField = durationInput
 		case *int:
 			intInput, err := strconv.Atoi(userInput)
 			if err != nil {

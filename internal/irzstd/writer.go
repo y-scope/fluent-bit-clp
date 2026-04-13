@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/klauspost/compress/zstd"
-
 	"github.com/y-scope/clp-ffi-go/ffi"
 	"github.com/y-scope/clp-ffi-go/ir"
 )
@@ -43,12 +41,6 @@ type Writer interface {
 	//   - err
 	Reset() error
 
-	// Getter for useDiskBuffer.
-	//
-	// Returns:
-	//   - useDiskBuffer: On/off for disk buffering
-	GetUseDiskBuffer() bool
-
 	// Getter for Zstd Output.
 	//
 	// Returns:
@@ -61,6 +53,19 @@ type Writer interface {
 	//	 - size: Bytes written
 	//   - err
 	GetZstdOutputSize() (int, error)
+
+	// Get the current state of the Writer.
+	//
+	// Returns:
+	//   - state: Current state (Open, StreamsClosed, or Corrupted)
+	GetState() WriterState
+
+	// Checks if writer is empty. True if no events are buffered.
+	//
+	// Returns:
+	//   - empty: Boolean value that is true if buffer is empty
+	//   - err
+	Empty() (bool, error)
 }
 
 // Writes log events to a IR Writer.
@@ -86,30 +91,4 @@ func writeIr(irWriter *ir.Writer, logEvents []ffi.LogEvent) (int, int, error) {
 		numEvents += 1
 	}
 	return numBytes, numEvents, nil
-}
-
-// Opens a new [ir.Writer] and [zstd.Encoder].
-//
-// Parameters:
-//   - zstdOutput: Output destination for Zstd
-//   - irOutput: Output destination for IR
-//
-// Returns:
-//   - irWriter: Writer for CLP IR
-//   - zstdWriter: Writer for Zstd
-//   - err: Error opening IR/Zstd writer
-func newIrZstdWriters(
-	zstdOutput io.Writer,
-	irOutput io.Writer,
-) (*ir.Writer, *zstd.Encoder, error) {
-	zstdWriter, err := zstd.NewWriter(zstdOutput)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening Zstd writer: %w", err)
-	}
-
-	irWriter, err := ir.NewWriter[ir.FourByteEncoding](irOutput)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening IR writer: %w", err)
-	}
-	return irWriter, zstdWriter, err
 }
