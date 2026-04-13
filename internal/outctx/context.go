@@ -72,12 +72,12 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-  if config.UseDiskBuffer {
+	if config.UseDiskBuffer {
 		if err := registerDiskBufferPath(config.DiskBufferPath); err != nil {
 			return nil, err
 		}
-  }
-  
+	}
+
 	if config.Timeout <= 0 {
 		return nil, fmt.Errorf("error timeout must be positive, got %v", config.Timeout)
 	}
