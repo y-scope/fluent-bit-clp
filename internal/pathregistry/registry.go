@@ -1,5 +1,5 @@
 // Package pathregistry tracks disk buffer paths to prevent multiple output
-// instances from writting to the same path.
+// instances from using the same path.
 package pathregistry
 
 import (
@@ -8,6 +8,12 @@ import (
 	"sync"
 )
 
+// Fluent Bit's main thread is single-threaded so a race is likely impossible,
+// but the mutex guards against potential multithreaded access. Fluent-bit-go
+// maintainers added similar locking in [concurrency PR] to prevent potential
+// multithreaded access to a map on startup.
+//
+// [concurrency PR]: https://github.com/fluent/fluent-bit-go/pull/46/files
 var (
 	paths   = make(map[string]bool)
 	pathsMu sync.Mutex
