@@ -1,5 +1,5 @@
 // Package pathregistry tracks disk buffer paths to prevent multiple output
-// instances from using the same path.
+// instances from writting to the same path.
 package pathregistry
 
 import (
@@ -13,7 +13,7 @@ var (
 	pathsMu sync.Mutex
 )
 
-// Registers a disk buffer path to prevent multiple output instances from using the same path.
+// Registers a disk buffer path to registry.
 //
 // Parameters:
 //   - path: Disk buffer path
