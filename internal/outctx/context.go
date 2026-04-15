@@ -242,4 +242,3 @@ func (ctx *S3Context) GetBufferFilePaths(
 
 	return irPath, zstdPath
 }
-
