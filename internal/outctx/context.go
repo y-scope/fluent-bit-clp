@@ -277,3 +277,19 @@ func registerDiskBufferPath(path string) error {
 	diskBufferPaths[absPath] = true
 	return nil
 }
+
+// Unregisters a disk buffer path to allow reuse after output instance exit.
+//
+// Parameters:
+//   - path: Disk buffer path from [S3Config]
+func UnregisterDiskBufferPath(path string) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return
+	}
+
+	diskBufferPathsMu.Lock()
+	defer diskBufferPathsMu.Unlock()
+
+	delete(diskBufferPaths, absPath)
+}
