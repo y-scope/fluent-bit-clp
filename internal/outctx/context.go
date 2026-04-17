@@ -21,6 +21,7 @@ import (
 	"github.com/y-scope/clp-ffi-go/ffi"
 
 	"github.com/y-scope/fluent-bit-clp/internal/irzstd"
+	"github.com/y-scope/fluent-bit-clp/internal/pathregistry"
 )
 
 // Names of disk buffering directories.
@@ -58,6 +59,12 @@ func NewS3Context(plugin unsafe.Pointer) (*S3Context, error) {
 	config, err := NewS3Config(plugin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if config.UseDiskBuffer {
+		if err := pathregistry.Register(config.DiskBufferPath); err != nil {
+			return nil, err
+		}
 	}
 
 	if config.Timeout <= 0 {

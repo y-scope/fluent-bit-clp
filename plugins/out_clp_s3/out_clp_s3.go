@@ -17,6 +17,7 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
+	"github.com/y-scope/fluent-bit-clp/internal/pathregistry"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/exit"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/flush"
 	"github.com/y-scope/fluent-bit-clp/plugins/out_clp_s3/internal/recovery"
@@ -139,6 +140,7 @@ func FLBPluginExitCtx(ctx unsafe.Pointer) int {
 	var err error
 	if outCtx.Config.UseDiskBuffer {
 		err = exit.NoUpload(outCtx)
+		pathregistry.Unregister(outCtx.Config.DiskBufferPath)
 	} else {
 		err = exit.S3(outCtx)
 	}
