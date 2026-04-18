@@ -13,28 +13,6 @@ import (
 	"github.com/y-scope/fluent-bit-clp/internal/outctx"
 )
 
-// If useDiskBuffer is set, close all files prior to exit. Graceful exit will only be called
-// if Fluent Bit receives a kill signal and not during an abrupt crash. Plugin is only
-// given a limited time to clean up resources, so output is not sent to s3. Instead
-// they are sent during startup.
-//
-// Parameters:
-//   - ctx: Plugin context
-//
-// Returns:
-//   - err: Error closing file
-func GracefulExit(ctx *outctx.S3Context) error {
-	for _, eventManager := range ctx.EventManagers {
-		err := eventManager.Writer.Close()
-		if err != nil {
-			return err
-		}
-		eventManager.Writer = nil
-	}
-
-	return nil
-}
-
 // Sends existing disk buffers to S3.
 //
 // Parameters:
@@ -174,7 +152,7 @@ func checkFilesValid(irFiles map[string]fs.FileInfo, zstdFiles map[string]fs.Fil
 }
 
 // Flushes existing disk buffer to s3 on startup. Prior to sending, opens disk buffer files and
-// creates new [outctx.EventManager] using existing buffer files.
+// creates new [outctx.S3EventManager] using existing buffer files.
 //
 // Parameters:
 //   - tag: Fluent Bit tag
@@ -203,18 +181,11 @@ func flushExistingBuffer(
 		return err
 	}
 
-	eventManager, err := ctx.RecoverEventManager(tag)
+	err := ctx.RecoverEventManager(tag)
 	if err != nil {
 		return fmt.Errorf("error recovering event manager with tag: %w", err)
 	}
-
 	log.Printf("Recovered disk buffers with tag %s", tag)
-
-	err = eventManager.ToS3(ctx.Config, ctx.Uploader)
-	if err != nil {
-		return fmt.Errorf("error flushing Zstd to s3: %w", err)
-	}
-
 	return nil
 }
 
