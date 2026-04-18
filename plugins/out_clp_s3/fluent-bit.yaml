@@ -23,4 +23,10 @@ pipeline:
     - name: out_clp_s3
       match: "*"
       s3_bucket: myBucket
+      # s3_region: us-east-1
+      # s3_bucket_prefix: logs/
       # role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
+      # use_disk_buffer: true
+      # disk_buffer_path: /var/out_clp_s3/
+      # upload_size_mb: 16
+      # timeout: 15m

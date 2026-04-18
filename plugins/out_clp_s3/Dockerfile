@@ -26,6 +26,7 @@ FROM fluent/fluent-bit:4.2.2
 COPY --from=builder /root/plugins/out_clp_s3/out_clp_s3.so /fluent-bit/bin/
 COPY --from=builder /root/plugins/out_clp_s3/fluent-bit.yaml /fluent-bit/etc/
 
+
 # Port for listening interface for HTTP Server.
 EXPOSE 2020
 

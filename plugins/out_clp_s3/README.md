@@ -1,6 +1,6 @@
 # Fluent Bit S3 output plugin for CLP
 
-Fluent Bit output plugin that sends records in CLP's compressed IR format to AWS S3.
+Fluent Bit output plugin that sends records in CLP's compressed KV-IR format to AWS S3.
 
 ### Getting Started
 
@@ -33,20 +33,9 @@ Lastly start the plugin:
 
 #### Using Docker
 
-First build the image
   ```shell
-  docker build ../../ -t fluent-bit-clp -f Dockerfile
+  docker compose up
   ```
-
-Start a container
-  ```shell
-  docker run -it \
-    -v ~/.aws/credentials:/root/.aws/credentials \
-    -v ./fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml \
-    --rm fluent-bit-clp
-  ```
-
-Dummy logs will be written to your s3 bucket.
 
 #### Using local setup
 
@@ -68,18 +57,10 @@ Run Fluent Bit
   ```
 ### AWS Credentials
 
-The plugin will look for credentials using the following hierarchy:
-  1. Environment variables
-  2. Shared configuration files
-  3. If using ECS task definition or RunTask API, IAM role for tasks.
-  4. If running on an Amazon EC2 instance, IAM role for Amazon EC2.
-
-Moreover, the plugin can assume a role by adding optional `role_arn` to [fluent-bit.yaml](fluent-bit.yaml):
+Credentials are resolved using the [default AWS SDK credential chain][5]. To assume a role, add `role_arn` to [fluent-bit.yaml](fluent-bit.yaml):
 ```yaml
 role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
 ```
-
-More detailed information for specifying credentials from AWS can be found [here][5].
 
 ### Plugin configuration
 
@@ -91,7 +72,7 @@ More detailed information for specifying credentials from AWS can be found [here
 | `role_arn`          | ARN of an IAM role to assume                                                                                 | `None`            |
 | `id`                | Name of output plugin                                                                                        | Random UUID       |
 | `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.             | `TRUE`            |
-| `disk_buffer_path`  | Directory for disk buffer. Path should be unique for each output.                                            | `tmp/out_clp_s3/` |
+| `disk_buffer_path`  | Directory for disk buffer. Path should be unique for each output.                                            | `/var/out_clp_s3/` |
 | `upload_size_mb`    | Set upload size in MB. Size refers to the compressed size.                                                   | `16`              |
 | `timeout`           | Upload timeout if upload size is not met. See [time.ParseDuration][6] for valid duration strings (e.g. s, m, h). | `15m`             |
 
@@ -100,12 +81,12 @@ More detailed information for specifying credentials from AWS can be found [here
 The output plugin receives raw logs from Fluent Bit in small chunks and accumulates them in a compressed
 buffer until the upload size or timeout is reached before sending to S3.
 
-With `use_disk_buffer` set, logs are stored on disk as IR and Zstd compressed IR. On a graceful shutdown
+With `use_disk_buffer` set, logs are stored on disk as KV-IR and Zstd compressed KV-IR. On a graceful shutdown
 or abrupt crash, stored logs will be sent to S3 when Fluent Bit restarts. For an abrupt crash, there is
 a very small chance of data corruption if the plugin crashed mid write. The upload index restarts on
 recovery.
 
-With `use_disk_buffer` off, logs are stored in memory as Zstd compressed IR. On a graceful shutdown, the
+With `use_disk_buffer` off, logs are stored in memory as Zstd compressed KV-IR. On a graceful shutdown, the
 plugin will attempt to upload any buffered data to S3 before Fluent Bit terminates it. On an abrupt
 crash, in-memory data is lost.
 

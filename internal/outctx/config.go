@@ -53,7 +53,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		S3BucketPrefix: "logs/",
 		Id:             uuid.New().String(),
 		UseDiskBuffer:  true,
-		DiskBufferPath: "tmp/out_clp_s3/",
+		DiskBufferPath: "/var/out_clp_s3/",
 		Timeout:        15 * time.Minute,
 		UploadSizeMb:   16,
 	}
