@@ -6,4 +6,3 @@ services:
     volumes:
       - ~/.aws/credentials:/root/.aws/credentials
       - ./fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml
-      - ./var/out_clp_s3:/var/out_clp_s3
