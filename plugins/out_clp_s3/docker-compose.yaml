@@ -6,3 +6,7 @@ services:
     volumes:
       - ~/.aws/credentials:/root/.aws/credentials
       - ./fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml
+      - disk_buffer:/disk_buffer/
+
+volumes:
+  disk_buffer:

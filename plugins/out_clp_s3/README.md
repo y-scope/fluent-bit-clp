@@ -72,7 +72,7 @@ role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
 | `role_arn`          | ARN of an IAM role to assume                                                                                 | `None`            |
 | `id`                | Name of output plugin                                                                                        | Random UUID       |
 | `use_disk_buffer`   | Buffer logs on disk prior to sending to S3. See [Disk Buffering](#disk-buffering) for more info.             | `TRUE`            |
-| `disk_buffer_path`  | Directory for disk buffer. Path should be unique for each output.                                            | `/var/out_clp_s3/` |
+| `disk_buffer_path`  | Directory for disk buffer. Path should be unique for each output.                                            | `./disk_buffer/`  |
 | `upload_size_mb`    | Set upload size in MB. Size refers to the compressed size.                                                   | `16`              |
 | `timeout`           | Upload timeout if upload size is not met. See [time.ParseDuration][6] for valid duration strings (e.g. s, m, h). | `15m`             |
 

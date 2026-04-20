@@ -27,6 +27,6 @@ pipeline:
       # s3_bucket_prefix: logs/
       # role_arn: arn:aws:iam::000000000000:role/accessToMyBucket
       # use_disk_buffer: true
-      # disk_buffer_path: /var/out_clp_s3/
+      # disk_buffer_path: ./disk_buffer/
       # upload_size_mb: 16
       # timeout: 15m
