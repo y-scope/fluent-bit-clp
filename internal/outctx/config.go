@@ -30,7 +30,7 @@ type S3Config struct {
 	Id             string        `conf:"id"               validate:"required"`
 	UseDiskBuffer  bool          `conf:"use_disk_buffer"  validate:"-"`
 	DiskBufferPath string        `conf:"disk_buffer_path" validate:"omitempty,dirpath"`
-	Timeout        time.Duration `conf:"timeout"          validate:"-"`
+	Timeout        time.Duration `conf:"timeout"          validate:"gt=0"`
 	UploadSizeMb   int           `conf:"upload_size_mb"   validate:"omitempty,gte=2,lt=1000"`
 }
 
