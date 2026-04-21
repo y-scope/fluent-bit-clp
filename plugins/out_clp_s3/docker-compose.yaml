@@ -1,0 +1,12 @@
+services:
+  fluent-bit-clp:
+    build:
+      context: ../../
+      dockerfile: plugins/out_clp_s3/Dockerfile
+    volumes:
+      - ~/.aws/credentials:/root/.aws/credentials
+      - ./fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml
+      - disk_buffer:/disk_buffer/
+
+volumes:
+  disk_buffer:

@@ -30,7 +30,7 @@ type S3Config struct {
 	Id             string        `conf:"id"               validate:"required"`
 	UseDiskBuffer  bool          `conf:"use_disk_buffer"  validate:"-"`
 	DiskBufferPath string        `conf:"disk_buffer_path" validate:"omitempty,dirpath"`
-	Timeout        time.Duration `conf:"timeout"          validate:"-"`
+	Timeout        time.Duration `conf:"timeout"          validate:"gt=0"`
 	UploadSizeMb   int           `conf:"upload_size_mb"   validate:"omitempty,gte=2,lt=1000"`
 }
 
@@ -53,7 +53,7 @@ func NewS3Config(plugin unsafe.Pointer) (*S3Config, error) {
 		S3BucketPrefix: "logs/",
 		Id:             uuid.New().String(),
 		UseDiskBuffer:  true,
-		DiskBufferPath: "tmp/out_clp_s3/",
+		DiskBufferPath: "./disk_buffer/",
 		Timeout:        15 * time.Minute,
 		UploadSizeMb:   16,
 	}

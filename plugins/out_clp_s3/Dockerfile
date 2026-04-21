@@ -10,8 +10,9 @@ RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /bin
 
 WORKDIR /root
 
-ENV GOOS=linux\
-    GOARCH=amd64
+ARG TARGETARCH
+ENV GOOS=linux
+ENV GOARCH=${TARGETARCH}
 
 COPY / /root/
 
@@ -23,11 +24,12 @@ RUN task build
 
 FROM fluent/fluent-bit:4.2.2
 
-# Copy plugin binary to Fluent Bit image. 
+# Copy plugin binary to Fluent Bit image.
 COPY --from=builder /root/plugins/out_clp_s3/out_clp_s3.so /fluent-bit/bin/
-COPY --from=builder /root/plugins/out_clp_s3/*.conf /fluent-bit/etc/
+COPY --from=builder /root/plugins/out_clp_s3/fluent-bit.yaml /fluent-bit/etc/
+
 
 # Port for listening interface for HTTP Server.
 EXPOSE 2020
 
-CMD ["/fluent-bit/bin/fluent-bit", "--config", "/fluent-bit/etc/fluent-bit.conf"]
+CMD ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit.yaml", "-e", "/fluent-bit/bin/out_clp_s3.so"]
